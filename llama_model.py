@@ -1,19 +1,12 @@
-import torch
-from langchain.llms.base import LLM
-from llama_index import SimpleDirectoryReader, LangchainEmbedding, GPTListIndex, PromptHelper
-from llama_index import LLMPredictor, ServiceContext
-from transformers import pipeline
-from typing import Optional, List, Mapping, Any
-import os
 import sys
 
 import torch
-from peft import PeftModel
-from transformers import GenerationConfig, LlamaForCausalLM, LlamaTokenizer
-
-sys.path.append('./alpaca-lora')
+from llama_index import PromptHelper
+from peft.peft_model import PeftModel
+from transformers import GenerationConfig, LlamaForCausalLM, LlamaTokenizer, BatchEncoding
 from utils.prompter import Prompter
 
+sys.path.append('./alpaca-lora')
 
 # define prompt helper
 # set maximum input size
@@ -27,7 +20,6 @@ prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
 
 class AlpacaLora:
     def __init__(self):
-        # super().__init__()
         self.lora_weights = 'chansung/gpt4-alpaca-lora-13b'
         # self.lora_weights = 'tloen/alpaca-lora-7b'
         # self.lora_weights = '../alpaca-lora/lora-alpaca-yan'
@@ -35,19 +27,13 @@ class AlpacaLora:
         self.base_model = 'decapoda-research/llama-13b-hf'
         self.model_name = f'{self.base_model} + {self.lora_weights}'
         print(f'Loading model {self.model_name}...')
+
         self.prompter = Prompter('alpaca')
         self.tokenizer = LlamaTokenizer.from_pretrained(self.base_model)
-        self.model = LlamaForCausalLM.from_pretrained(
-            self.base_model,
-            load_in_8bit=True,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-        )
-        self.model = PeftModel.from_pretrained(
-            self.model,
-            self.lora_weights,
-            torch_dtype=torch.bfloat16,
-        )
+        self.model = LlamaForCausalLM.from_pretrained(self.base_model, load_in_8bit=True,
+            torch_dtype=torch.bfloat16, device_map="auto", )
+        self.model = PeftModel.from_pretrained(self.model, self.lora_weights, torch_dtype=torch.bfloat16)
+
         # unwind broken decapoda-research config
         self.model.config.pad_token_id = self.tokenizer.pad_token_id = 0  # unk
         self.model.config.bos_token_id = 1
@@ -63,21 +49,17 @@ class AlpacaLora:
         self.top_k = 40
         self.num_beams = 1
         self.max_new_tokens = 512
-        self.generation_config = GenerationConfig(
-            temperature=self.temperature,
-            top_p=self.top_p,
-            top_k=self.top_k,
-            num_beams=self.num_beams,
-        )
+        self.generation_config = GenerationConfig(temperature=self.temperature, top_p=self.top_p,
+            top_k=self.top_k, num_beams=self.num_beams, )
 
         self.device = 'cuda'
 
     def generate(self, system_prompt: str, input_prompt: str = '') -> str:
-        # TODO: change this to use prompt helper.
-        inputs = self.tokenizer(input_prompt, return_tensors="pt")
+        inputs: BatchEncoding = self.tokenizer(input_prompt, return_tensors="pt")
         input_ids = inputs["input_ids"]
         if input_ids.shape[1] > 1800:
             input_prompt = self.tokenizer.decode(input_ids[0, :1800])
+
         prompt = self.prompter.generate_prompt(system_prompt, input_prompt)
         inputs = self.tokenizer(prompt, return_tensors="pt")
         input_ids = inputs["input_ids"].to(self.device)
@@ -85,19 +67,10 @@ class AlpacaLora:
             input_ids = input_ids[:, :2000]
         print(input_ids.shape)
         with torch.no_grad():
-            generation_output = self.model.generate(
-                input_ids=input_ids,
-                generation_config=self.generation_config,
-                return_dict_in_generate=True,
-                output_scores=True,
-                max_new_tokens=self.max_new_tokens,
-            )
+            generation_output = self.model.generate(input_ids=input_ids,
+                generation_config=self.generation_config, return_dict_in_generate=True, output_scores=True,
+                max_new_tokens=self.max_new_tokens, )
         s = generation_output.sequences[0]
         print(s.shape)
         output = self.tokenizer.decode(s)
         return self.prompter.get_response(output)
-
-if __name__ == '__main__':
-    llm = AlpacaLora()
-    llm.max_new_tokens = 128
-    print(llm.generate('Tell me about alpaca.'))
