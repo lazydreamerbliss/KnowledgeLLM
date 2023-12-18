@@ -164,3 +164,7 @@ cython_debug/
 
 # DB file
 *.db
+
+# Pickle file
+*.pkl
+*.pickle

@@ -76,6 +76,7 @@ class WechatHistoryTable(SqliteConnection):
 
         cur: Cursor = self.db.cursor()
         cur.execute(empty_table_sql(self.table_name))
+        self.db.commit()
         # Also vacuum the table to reduce file size, as SQLite just mark the rows as deleted
         cur.execute('VACUUM')
         self.db.commit()

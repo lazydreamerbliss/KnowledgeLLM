@@ -19,7 +19,7 @@ class WechatHistoryProvider:
         self.table: WechatHistoryTable = WechatHistoryTable(chat_name)
         # If doc is provided, force the table to be re-initialized
         if doc_name:
-            tqdm.write(f'Initializing table: {chat_name}...')
+            tqdm.write(f'Initializing table: {chat_name}')
             self.table.empty_table()
             self.__dump_chat_history_to_db(doc_name)
 
@@ -45,7 +45,7 @@ class WechatHistoryProvider:
         skip_first_line: bool = True
         with open(doc_name, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-            for msg in tqdm(lines, desc=f'Loading chat history to database', unit='line', ascii=' #'):
+            for msg in tqdm(lines, desc=f'Loading chat to DB', unit='line', ascii='#'):
                 msg = msg.strip()
                 if not msg:
                     continue
@@ -88,6 +88,12 @@ class WechatHistoryProvider:
                 # - Sender is missed in reply message, use empty string instead
                 self.table.insert_row((reply_time, "", message, reply_to, replied_message))
 
-    def get_record_by_id(self, message_id: int) -> Record | None:
-        row: tuple | None = self.table.select_row(message_id)
+    def get_record_by_id(self, id: int) -> Record | None:
+        row: tuple | None = self.table.select_row(id)
         return Record(row) if row else None
+
+    def get_all_records(self) -> list[Record]:
+        rows: list[tuple] | None = self.table.select_all()
+        if not rows:
+            return []
+        return [Record(row) for row in rows]
