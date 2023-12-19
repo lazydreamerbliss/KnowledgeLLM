@@ -62,6 +62,14 @@ class WechatHistoryTable(SqliteConnection):
         cur.execute(select_by_ids_sql(self.table_name), row_ids)
         return cur.fetchall()
 
+    def select_rows_by_sender(self, sender: str) -> list[tuple] | None:
+        if self.db is None:
+            raise ValueError('db is None')
+
+        cur: Cursor = self.db.cursor()
+        cur.execute(select_by_sender_sql(self.table_name), (sender,))
+        return cur.fetchall()
+
     def select_all(self) -> list[tuple] | None:
         if self.db is None:
             raise ValueError('db is None')

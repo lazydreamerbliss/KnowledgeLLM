@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from numpy import ndarray
 from sentence_transformers import CrossEncoder, SentenceTransformer
-from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
+from faiss import IndexFlatL2, IndexIVFFlat   # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
 from tqdm import tqdm
 
 from doc_provider import WechatHistoryProvider
@@ -21,7 +21,7 @@ class DocEmbedder:
         # - "shibing624/text2vec-base-chinese" 预训练模型，用于将文本转换成向量 (https://huggingface.co/shibing624/text2vec-base-chinese)
         # - "cross-encoder/ms-marco-MiniLM-L-12-v2" 预训练模型，用于比对检索到的文档，并对其按相似度重新排列，提高准确度
         self.transformer: SentenceTransformer = SentenceTransformer('shibing624/text2vec-base-chinese')
-        self.ranker: CrossEncoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2')
+        self.ranker: CrossEncoder = CrossEncoder('hfl/chinese-roberta-wwm-ext')
         self.index: IndexIVFFlat | None = None
         self.embeddings: ndarray | None = None
         self.doc_provider: WechatHistoryProvider | None = None
@@ -66,7 +66,7 @@ class DocEmbedder:
         # - 将该列表转化为 ndarray 二维矩阵，self.embeddings 的每一行表示一个文档的向量表示
         # -（tqdm 只是一个进度条库，用于显示特征提取的进度）
         tmp: list[ndarray] = [self.transformer.encode(f"{r.message}-{r.replied_message}") for r in
-                              tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii='#')]  # type: ignore
+                              tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' #')]  # type: ignore
         self.embeddings = np.asarray(tmp)
 
         # ndarray.shape 用于获取矩阵的维度，类型为元组。该元组的长度为数组的维度，每个元素表示数组在该维度上的长度
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     test_doc_embedder = DocEmbedder('test_index.pickle')
     test_doc_embedder.initialize('test_index.pickle', 'test_chat',
                                  '/Users/chengjia/Documents/WechatDatabase/Seventh_Seal/群聊.txt')
-    res = test_doc_embedder.query('个人隐私设置', 10)
+    res = test_doc_embedder.query('固态硬盘推荐 ssd推荐', 10, False)
     for i in res:
         print(i)
 
