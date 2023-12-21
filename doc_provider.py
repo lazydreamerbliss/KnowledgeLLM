@@ -13,9 +13,9 @@ class WechatHistoryProvider:
     reply_pattern: re.Pattern = re.compile(
         "「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>.+?)」[\n\r]*(?P<spliter>[ -]+)[\n\r]*(?P<message>.+)")
     test_reply: re.Pattern = re.compile(
-        "「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>.*?)」")
+        "「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>(.|\n|\r)*?)」")
     ignore_pattern: re.Pattern = re.compile(
-        "\[(Emoji|Photo)\]")
+        "^\[.+\]$")
 
     def __init__(self, chat_name: str, doc_name: str | None = None):
         self.table: WechatHistoryTable = WechatHistoryTable(chat_name)
@@ -41,7 +41,9 @@ class WechatHistoryProvider:
             return ("", "", "")
 
         message = match.group('message')
-        message = WechatHistoryProvider.ignore_pattern.sub("", message)
+        # If message is very short, try to remove ignored patterns as it could be [photo], [破涕为笑], etc.
+        if len(message) < 8:
+            message = WechatHistoryProvider.ignore_pattern.sub("", message)
         if not message:
             return "", "", ""
 
@@ -62,7 +64,9 @@ class WechatHistoryProvider:
             return None, "", ""
 
         message: str = match.group('message')
-        message = WechatHistoryProvider.ignore_pattern.sub("", message)
+        # If message is very short, try to remove ignored patterns as it could be [photo], [破涕为笑], etc.
+        if len(message) < 8:
+            message = WechatHistoryProvider.ignore_pattern.sub("", message)
         if not message:
             return None, "", ""
 
@@ -76,57 +80,66 @@ class WechatHistoryProvider:
 
         cached_reply: str = ""
         reply_time: datetime | None = None  # Reply message has no timestamp, use previous message's timestamp instead
-        skip_first_line: bool = True
         with open(doc_name, 'r', encoding='utf-8') as f:
             # 'ascii' param needs an extra space, try to remove it to see what happens
             all_lines: list[str] = f.readlines()
-            for i, msg in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' #'):
-                msg = msg.strip()
-                if not msg:
+
+        for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' #'):
+            line = line.strip()
+            if not line:
+                continue
+            if i == 0:
+                continue
+
+            message_match: re.Match | None = WechatHistoryProvider.msg_pattern.match(line)
+
+            # Normal message case
+            if message_match:
+                if cached_reply:
+                    reply_to, replied_message, r_message = self.__process_reply(cached_reply)
+                    cached_reply = ""
+                    if r_message:
+                        # (timestamp, sender, message, reply_to, replied_message)
+                        # - Sender is missed in reply message, use empty string instead
+                        self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
+
+                time, username, message = self.__process_message(message_match)
+                if not time:
                     continue
-                if skip_first_line:
-                    skip_first_line = False
-                    continue
 
-                message_match: re.Match | None = WechatHistoryProvider.msg_pattern.match(msg)
+                reply_time = time + timedelta(seconds=1)
+                # (timestamp, sender, message, reply_to, replied_message)
+                self.table.insert_row((time, username, message, "", ""))
+                continue
 
-                if  message_match:
-                    # If current line is a normal message but a previous reply exists, parse the reply
-                    if cached_reply:
-                        reply_to, replied_message, r_message = self.__process_reply(cached_reply)
-                        cached_reply = ""
-                        if r_message:
-                            # (timestamp, sender, message, reply_to, replied_message)
-                            # - Sender is missed in reply message, use empty string instead
-                            self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
+            # Reply message case
+            # - Need to determine if current line is a start of a reply message, or in the middle of a reply message
+            bracket_open: bool = line.startswith('「')
+            is_new_reply: bool = bracket_open and WechatHistoryProvider.test_reply.match(line) is not None
+            if bracket_open and not is_new_reply:
+                # If match failed, peek next line and try again until reach `」`, since a reply message's start can be split into multiple lines, e.g.:
+                # 「张三： AAAAA
+                #
+                # BBBBB」
+                tmp: str = line
+                bracket_close: bool = False
+                j: int = i
+                while not bracket_close and j+1 < len(all_lines):
+                    j += 1
+                    tmp += all_lines[j]
+                    bracket_close = tmp.endswith('」')
+                    if bracket_close:
+                        break
+                is_new_reply = WechatHistoryProvider.test_reply.match(tmp) is not None
 
-                    # Then process the current message
-                    time, username, message = self.__process_message(message_match)
-                    if not time:
-                        continue
+            if is_new_reply and cached_reply:
+                reply_to, replied_message, r_message = self.__process_reply(cached_reply)
+                cached_reply = ""
+                if r_message:
+                    self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
 
-                    reply_time = time + timedelta(seconds=1)
-                    # (timestamp, sender, message, reply_to, replied_message)
-                    self.table.insert_row((time, username, message, "", ""))
-                else:
-                    is_new_reply: bool = WechatHistoryProvider.test_reply.match(msg) is not None
-                    if not is_new_reply and i + 1 < len(all_lines):
-                        # If match failed, peek next line and try again, since a reply message's heading can be split into two lines, e.g.:
-                        # 「张三：
-                        # 你好」
-                        # - - - - - - - - - - - - - - -
-                        # blah blah blah
-                        is_new_reply = WechatHistoryProvider.test_reply.match(msg + all_lines[i + 1]) is not None
-
-                    if is_new_reply and cached_reply:
-                        # If current line is not a normal message and it is a start of a reply message
-                        # - Process cached reply message first
-                        reply_to, replied_message, r_message = self.__process_reply(cached_reply)
-                        cached_reply = ""
-                        if r_message:
-                            self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
-
-                    cached_reply += msg
+            cached_reply += line
+            continue
 
         # Process the last message if exists
         if cached_reply:
@@ -152,3 +165,12 @@ class WechatHistoryProvider:
         if not rows:
             return []
         return [Record(row) for row in rows]
+
+
+if __name__ == '__main__':
+    test_wechat = WechatHistoryProvider('test_chat', '/Users/chengjia/Documents/WechatDatabase/Seventh_Seal/群聊.txt')
+    print(test_wechat.get_record_by_id(8869))
+    print(test_wechat.get_record_by_id(8870))
+    print(test_wechat.get_record_by_id(8871))
+    print(test_wechat.get_record_by_id(8872))
+    print(test_wechat.get_record_by_id(8873))

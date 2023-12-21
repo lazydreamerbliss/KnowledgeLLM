@@ -113,7 +113,7 @@ class DocEmbedder:
             return []
 
         # 调用 self.model.encode(x) 对查询文本进行特征提取，将其转换成向量
-        tqdm.write(f'Querying top {top_k} candidates for rerank...')
+        tqdm.write(f'Querying top {top_k} candidates...')
         query_embedding: npt.ArrayLike = self.transformer.encode(text)
 
         # self.index.search() 进行精确内积搜索，获取 top_k 个相似向量，它返回两个矩阵作为结果：
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     test_doc_embedder = DocEmbedder('test_index.pickle')
     test_doc_embedder.initialize('test_index.pickle', 'test_chat',
                                  '/Users/chengjia/Documents/WechatDatabase/Seventh_Seal/群聊.txt')
-    res = test_doc_embedder.query('固态硬盘推荐 ssd推荐', 10, False)
+    res = test_doc_embedder.query('联通光纤开通公网ip', 20, False)
     for i in res:
         print(i)
 
