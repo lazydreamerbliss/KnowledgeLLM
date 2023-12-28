@@ -1,0 +1,41 @@
+version: '3.1'
+services:
+  api: # API Service
+    build: # Provide dockerfile info for image build
+      context: ./  # Dockerfile's relative path to current YAML
+      dockerfile: Dockerfile.dev.cpu
+    command: python ./main.py --host 0.0.0.0 --port 5000 --debug
+    volumes:
+      - apiStorage:/usr/image_search/storage  # `STORAGE_ROOT` in .env.dev
+      - apiLogs:/usr/image_search/logs  # `LOGGING_ROOT` in .env.dev
+    ports:
+      - 5000:5000
+    env_file:
+      - ./.env.dev
+    depends_on:
+      - redis-stack
+
+  redis-stack:
+    image: redis/redis-stack-server:7.2.0-v6
+    volumes:
+      - redisData:/data  # `REDIS_DATA_DIR` in .env.dev
+
+volumes:
+  redisData:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/chengjia/Dev/volumes/redisData
+  apiStorage:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/chengjia/Dev/volumes/apiStorage
+  apiLogs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/chengjia/Dev/volumes/apiLogs
