@@ -15,7 +15,7 @@ class WechatHistoryTable(SqliteConnection):
             raise ValueError('db is None')
 
         cursor = self.db.cursor()
-        cursor.execute(initialize_chat_table_sql(self.table_name))
+        cursor.execute(initialize_table_sql(self.table_name))
         cursor.execute(create_index_sql(self.table_name, 'timestamp'))
         cursor.execute(create_index_sql(self.table_name, 'sender'))
         cursor.execute(create_index_sql(self.table_name, 'reply_to'))
@@ -29,7 +29,7 @@ class WechatHistoryTable(SqliteConnection):
             raise ValueError('row size is not correct')
 
         cur: Cursor = self.db.cursor()
-        cur.execute(insert_chat_message_sql(self.table_name), row)
+        cur.execute(insert_row_sql(self.table_name), row)
         self.db.commit()
         return cur.lastrowid
 
@@ -42,7 +42,7 @@ class WechatHistoryTable(SqliteConnection):
                 raise ValueError('row size is not correct')
 
         cur: Cursor = self.db.cursor()
-        cur.executemany(insert_chat_message_sql(self.table_name), rows)
+        cur.executemany(insert_row_sql(self.table_name), rows)
         self.db.commit()
         return cur.lastrowid
 

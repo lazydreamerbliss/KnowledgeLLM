@@ -19,6 +19,8 @@ class WechatHistoryProvider:
 
     def __init__(self, chat_name: str, doc_name: str | None = None):
         self.table: WechatHistoryTable = WechatHistoryTable(chat_name)
+
+        # If doc name is provided, re-initialize the table
         if doc_name:
             tqdm.write(f'Initializing table: {chat_name}')
             self.table.empty_table()
@@ -84,7 +86,7 @@ class WechatHistoryProvider:
             # 'ascii' param needs an extra space, try to remove it to see what happens
             all_lines: list[str] = f.readlines()
 
-        for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' #'):
+        for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
             line = line.strip()
             if not line:
                 continue
@@ -113,7 +115,7 @@ class WechatHistoryProvider:
                 continue
 
             # Reply message case
-            # - Need to determine if current line is a start of a reply message, or in the middle of a reply message
+            # - Need to determine if current line is a start of a new reply message, or in the middle of a reply message
             bracket_open: bool = line.startswith('「')
             is_new_reply: bool = bracket_open and WechatHistoryProvider.test_reply.match(line) is not None
             if bracket_open and not is_new_reply:
@@ -141,7 +143,7 @@ class WechatHistoryProvider:
             cached_reply += line
             continue
 
-        # Process the last message if exists
+        # Process the last reply message if exists
         if cached_reply:
             reply_to, replied_message, message = self.__process_reply(cached_reply)
             message = WechatHistoryProvider.ignore_pattern.sub("", message)
@@ -165,12 +167,3 @@ class WechatHistoryProvider:
         if not rows:
             return []
         return [Record(row) for row in rows]
-
-
-if __name__ == '__main__':
-    test_wechat = WechatHistoryProvider('test_chat', '/Users/chengjia/Documents/WechatDatabase/Seventh_Seal/群聊.txt')
-    print(test_wechat.get_record_by_id(8869))
-    print(test_wechat.get_record_by_id(8870))
-    print(test_wechat.get_record_by_id(8871))
-    print(test_wechat.get_record_by_id(8872))
-    print(test_wechat.get_record_by_id(8873))

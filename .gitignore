@@ -121,7 +121,9 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
 .venv
+.venv.*
 env/
 venv/
 ENV/
@@ -162,6 +164,7 @@ cython_debug/
 
 # OSX junk files
 .DS_Store
+._.DS_Store
 
 # DB file
 *.db

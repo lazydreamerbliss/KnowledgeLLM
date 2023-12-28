@@ -8,27 +8,30 @@ import numpy as np
 import numpy.typing as npt
 from numpy import ndarray
 from sentence_transformers import CrossEncoder, SentenceTransformer
-from faiss import IndexFlatL2, IndexIVFFlat   # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
+from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
 from tqdm import tqdm
 
-from doc_provider import WechatHistoryProvider
+from doc_functions.doc_provider import WechatHistoryProvider
 from sqlite.wechat_history_table_sql import Record
 
 
 class DocEmbedder:
+    # "shibing624/text2vec-base-chinese" 预训练模型，用于将文本转换成向量 (https://huggingface.co/shibing624/text2vec-base-chinese)
+    transformer_path: str = 'shibing624/text2vec-base-chinese'
+    # "cross-encoder/ms-marco-MiniLM-L-12-v2" 预训练模型，用于比对检索到的文档，并对其按相似度重新排列，提高准确度
+    cross_encoder_path: str = 'hfl/chinese-roberta-wwm-ext'
+
     def __init__(self, index_filename: str | None = None):
-        # 初始化 SentenceTransformer 和 CrossEncoder 两个模型s
-        # - "shibing624/text2vec-base-chinese" 预训练模型，用于将文本转换成向量 (https://huggingface.co/shibing624/text2vec-base-chinese)
-        # - "cross-encoder/ms-marco-MiniLM-L-12-v2" 预训练模型，用于比对检索到的文档，并对其按相似度重新排列，提高准确度
-        self.transformer: SentenceTransformer = SentenceTransformer('shibing624/text2vec-base-chinese')
-        self.ranker: CrossEncoder = CrossEncoder('hfl/chinese-roberta-wwm-ext')
+        # 初始化 SentenceTransformer 和 CrossEncoder 两个模型
+        self.transformer: SentenceTransformer = SentenceTransformer(DocEmbedder.transformer_path)
+        self.ranker: CrossEncoder = CrossEncoder(DocEmbedder.cross_encoder_path, max_length=512)
         self.index: IndexIVFFlat | None = None
         self.embeddings: ndarray | None = None
         self.doc_provider: WechatHistoryProvider | None = None
+
         if index_filename:
             if not os.path.exists(index_filename):
                 return
-
             try:
                 tqdm.write(f'Loading index from {index_filename}...')
                 obj = pickle.load(open(index_filename, 'rb'))
@@ -66,7 +69,7 @@ class DocEmbedder:
         # - 将该列表转化为 ndarray 二维矩阵，self.embeddings 的每一行表示一个文档的向量表示
         # -（tqdm 只是一个进度条库，用于显示特征提取的进度）
         tmp: list[ndarray] = [self.transformer.encode(f"{r.message}-{r.replied_message}") for r in
-                              tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' #')]  # type: ignore
+                              tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]  # type: ignore
         self.embeddings = np.asarray(tmp)
 
         # ndarray.shape 用于获取矩阵的维度，类型为元组。该元组的长度为数组的维度，每个元素表示数组在该维度上的长度
@@ -169,36 +172,3 @@ class DocEmbedder:
             return reranked[:top_k]
 
         return self.__retrieve(query_text, top_k)
-
-
-if __name__ == '__main__':
-    test_doc_embedder = DocEmbedder('test_index.pickle')
-    test_doc_embedder.initialize('test_index.pickle', 'test_chat',
-                                 '/Users/chengjia/Documents/WechatDatabase/Seventh_Seal/群聊.txt')
-    res = test_doc_embedder.query('联通光纤开通公网ip', 20, False)
-    for i in res:
-        print(i)
-
-    # # Prepare raw documents
-    # post_filenames: list[str] = glob('. /blog/*.md')
-    # documents: list[str] = [x for filename in post_filenames for x in open(filename)]
-    #
-    # # Initialize retriever
-    # retriever = EmbeddingRetriever('index.pickle')
-    # retriever.extract_features_and_build_index(documents, 'index.pickle')
-    #
-    # # Query
-    # question: str = '如何选购天文相机？'
-    # candidates: list[str] = retriever.query(question, 8)
-    #
-    # # Generate answer using with LLM
-    # llm = AlpacaLora()
-    # llm.max_new_tokens = 256
-    # result = llm.generate(
-    #     system_prompt=f'Read the following text and answer this question: "{question}".'
-    #                   f'Only answer the question strictly using the information from the input.'
-    #                   f'The input is not from the user, but from a database.'
-    #                   f'Just say I do not know if the input does not contain the answer.'
-    #                   f'Please use Chinese to answer everything.',
-    #     input_prompt='\n'.join(candidates)
-    # )
