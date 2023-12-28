@@ -28,17 +28,21 @@ class ImageLib:
             raise ValueError(f'Invalid lib path: {lib_path}')
 
         self.lib_path: str = lib_path
-        self.table: ImageLibTable = ImageLibTable(lib_name, lib_path)
         self.redis: RedisClient = RedisClient(host="redis-server", port=6379, decode_responses=True)
-
         self.model: CLIPModel = CLIPModel.from_pretrained(ImageLib.model_name)  # type: ignore
         self.processor: CLIPProcessor = CLIPProcessor.from_pretrained(ImageLib.model_name)
 
-        # Check if DB exists in the lib path, initialize the lib if not exists
-        if force_init or not os.path.exists(os.path.join(lib_path, DB_NAME)):
-            tqdm.write(f'Initializing table: {lib_name}')
-            self.table.empty_table()
+        # Check if DB exists under the given lib
+        # - Check must be done before initializing the table, since table initialization will create a DB file and lead to a false positive
+        if force_init or not os.path.isfile(os.path.join(lib_path, DB_NAME)):
+            tqdm.write(f'Initializing library DB: {lib_path}')
+            self.table: ImageLibTable = ImageLibTable(lib_name, lib_path)
+            if force_init:
+                self.table.empty_table()
             self.__initialize_image_lib()
+        else:
+            tqdm.write(f'Loading library DB: {lib_path}')
+            self.table: ImageLibTable = ImageLibTable(lib_name, lib_path)
 
     def __initialize_image_lib(self):
         """Get all files and relative path info under lib_path, including files in all sub folders under lib_path
@@ -57,33 +61,38 @@ class ImageLib:
         if not redis_pipeline:
             tqdm.write('Redis server not connected, skip embedding')
 
-        for file in tqdm(files):
-            
-            tqdm.write(f'Processing image: {file}')
-            
+        for relative_path in tqdm(files, desc=f'Processing images', unit='item', ascii=' |'):
             try:
                 # Validate if the file is an image and insert it into the table
-                img: Image.Image = Image.open(os.path.join(self.lib_path, file))
+                img: Image.Image = Image.open(os.path.join(self.lib_path, relative_path))
                 img.verify()
             except:
-                tqdm.write(f'Invalid image: {file}, skip')
+                tqdm.write(f'Invalid image: {relative_path}, skip')
                 continue
 
             uuid: str = str(uuid4())
             if redis_pipeline:
-                embeddings: list[float] = self.img_embedder(img, file)
+                embeddings: list[float] = self.embed_image(img, relative_path)
                 redis_pipeline.json().set(uuid, '$', embeddings)
                 if len(redis_pipeline) >= pipeline_batch_size:
                     redis_pipeline.execute()
-                    redis_pipeline = self.redis.pipeline()
 
-            self.table.insert_row((uuid, file))
+            self.table.insert_row((uuid, relative_path))
 
         if redis_pipeline:
             redis_pipeline.execute()
-        tqdm.write(f'Image library initialized: {self.lib_path}')
+        tqdm.write(f'Image library DB initialized')
 
-    def img_embedder(self, img: Image.Image, file_path: str | None = None) -> list[float]:
+    def embed_image(self, img: Image.Image, relative_path: str | None = None) -> list[float]:
+        """Embed an image
+
+        Args:
+            img (Image.Image): _description_
+            relative_path (str | None, optional): Logging only. Defaults to None.
+
+        Returns:
+            list[float]: _description_
+        """
         # The batch size is set to 1, so the first element of the output is the embedding of the image
         # - https://huggingface.co/transformers/model_doc/clip.html#clipmodel
         batch_size: int = 1
@@ -94,8 +103,8 @@ class ImageLib:
         embeddings: list[float] = image_features.numpy().astype(np.float32).tolist()
 
         time_taken: float = time.time() - start
-        if file_path:
-            tqdm.write(f'Image embedded: {file_path}, dimension: {len(embeddings)}, cost: {time_taken:.1f}s')
+        if relative_path:
+            tqdm.write(f'Image embedded: {relative_path}, dimension: {len(embeddings)}, cost: {time_taken:.1f}s')
         else:
             tqdm.write(f'Image embedded, dimension: {len(embeddings)}, cost: {time_taken:.1f}s')
         return embeddings

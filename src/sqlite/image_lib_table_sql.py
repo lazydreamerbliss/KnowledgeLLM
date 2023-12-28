@@ -4,6 +4,9 @@ record_structure: list[list[str]] = [
     ['path', 'TEXT'],
 ]
 
+# Note: an image library DB sits under a library folder, and the DB name is fixed
+# - The record's `path` is image's relative path to the root of library folder
+# - To retrieve the actual image, library folder + `path` is needed
 DB_NAME: str = 'image_lib.db'
 RECORD_LENGTH: int = len(record_structure)
 
