@@ -2,12 +2,14 @@ record_structure: list[list[str]] = [
     ['id', 'INTEGER PRIMARY KEY'],
     ['uuid', 'TEXT'],
     ['path', 'TEXT'],
+    ['filename', 'TEXT'],
 ]
 
 # Note: an image library DB sits under a library folder, and the DB name is fixed
 # - The record's `path` is image's relative path to the root of library folder
 # - To retrieve the actual image, library folder + `path` is needed
 DB_NAME: str = 'image_lib.db'
+TABLE_NAME: str = 'image_lib'
 RECORD_LENGTH: int = len(record_structure)
 
 
@@ -19,6 +21,7 @@ class Record:
         self.id: int = row[0]
         self.uuid: int = row[1]
         self.path: str = row[2]
+        self.filename: str = row[3]
 
     def __str__(self) -> str:
         return f'[{self.id}|{self.uuid}][{self.path}]'
@@ -110,6 +113,24 @@ def select_by_path_sql(table_name: str) -> str:
 
     return f"""
     SELECT * FROM {table_name} WHERE path = ?;
+    """
+
+
+def select_by_filename_sql(table_name: str) -> str:
+    if not table_name:
+        raise ValueError('table_name is None')
+
+    return f"""
+    SELECT * FROM {table_name} WHERE filename = ?;
+    """
+
+
+def select_by_path_and_filename_sql(table_name: str) -> str:
+    if not table_name:
+        raise ValueError('table_name is None')
+
+    return f"""
+    SELECT * FROM {table_name} WHERE path = ? AND filename = ?;
     """
 
 

@@ -11,14 +11,19 @@ services:
     ports:
       - 5000:5000
     env_file:
-      - ./.env.dev
+      - .env.dev
     depends_on:
       - redis-stack
 
   redis-stack:
     image: redis/redis-stack-server:7.2.0-v6
+    command: /bin/sh -c "redis-server --requirepass $$REDIS_PWD --loadmodule /opt/redis-stack/lib/redisearch.so --loadmodule /opt/redis-stack/lib/rejson.so"
+    ports:
+      - 6379:6379
     volumes:
       - redisData:/data  # `REDIS_DATA_DIR` in .env.dev
+    env_file:
+      - .env.dev
 
 volumes:
   redisData:

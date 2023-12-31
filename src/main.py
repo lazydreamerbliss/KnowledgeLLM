@@ -19,7 +19,7 @@ if __name__ == '__main__':
     
 
     # # Prepare raw documents
-    # post_filenames: list[str] = glob('. /blog/*.md')
+    # post_filenames: list[str] = glokeys *b('. /blog/*.md')
     # documents: list[str] = [x for filename in post_filenames for x in open(filename)]
     #
     # # Initialize retriever

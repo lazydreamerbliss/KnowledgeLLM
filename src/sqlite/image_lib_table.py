@@ -6,8 +6,8 @@ from sqlite.image_lib_table_sql import *
 
 
 class ImageLibTable(SqliteConnection):
-    def __init__(self, table_name: str, db_path: str):
-        self.table_name: str = table_name
+    def __init__(self, db_path: str):
+        self.table_name: str = TABLE_NAME
         super().__init__(os.path.join(db_path, DB_NAME))
         self.__initialize_table()
 
@@ -19,6 +19,7 @@ class ImageLibTable(SqliteConnection):
         cursor.execute(initialize_table_sql(self.table_name))
         cursor.execute(create_index_sql(self.table_name, 'uuid'))
         cursor.execute(create_index_sql(self.table_name, 'path'))
+        cursor.execute(create_index_sql(self.table_name, 'filename'))
         self.db.commit()
 
     def insert_row(self, row: tuple) -> int | None:
@@ -54,15 +55,7 @@ class ImageLibTable(SqliteConnection):
         cur.execute(select_by_id_sql(self.table_name), (row_id,))
         return cur.fetchone()
 
-    def select_rows(self, row_ids: list[int]) -> list[tuple] | None:
-        if self.db is None:
-            raise ValueError('db is None')
-
-        cur: Cursor = self.db.cursor()
-        cur.execute(select_by_ids_sql(self.table_name), row_ids)
-        return cur.fetchall()
-
-    def select_row_by_uuid(self, uuid: str) -> list[tuple] | None:
+    def select_row_by_uuid(self, uuid: str) -> tuple | None:
         if self.db is None:
             raise ValueError('db is None')
 
@@ -70,21 +63,37 @@ class ImageLibTable(SqliteConnection):
         cur.execute(select_by_uuid_sql(self.table_name), (uuid,))
         return cur.fetchone()
 
-    def select_row_by_path(self, path: str) -> list[tuple] | None:
+    def select_row_by_path_and_filename(self, path: str, filename: str) -> tuple | None:
+        if self.db is None:
+            raise ValueError('db is None')
+
+        cur: Cursor = self.db.cursor()
+        cur.execute(select_by_path_and_filename_sql(self.table_name), (path, filename))
+        return cur.fetchone()
+
+    def select_rows_by_path(self, path: str) -> Cursor:
         if self.db is None:
             raise ValueError('db is None')
 
         cur: Cursor = self.db.cursor()
         cur.execute(select_by_path_sql(self.table_name), (path,))
-        return cur.fetchone()
+        return cur
 
-    def select_all(self) -> list[tuple] | None:
+    def select_rows_by_filename(self, filename: str) -> Cursor:
+        if self.db is None:
+            raise ValueError('db is None')
+
+        cur: Cursor = self.db.cursor()
+        cur.execute(select_by_filename_sql(self.table_name), (filename,))
+        return cur
+
+    def select_all(self) -> Cursor:
         if self.db is None:
             raise ValueError('db is None')
 
         cur: Cursor = self.db.cursor()
         cur.execute(select_all_sql(self.table_name))
-        return cur.fetchall()
+        return cur
 
     def empty_table(self) -> None:
         if self.db is None:

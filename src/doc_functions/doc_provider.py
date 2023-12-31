@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timedelta
+from sqlite3 import Cursor
 
 from tqdm import tqdm
 
@@ -157,13 +158,15 @@ class WechatHistoryProvider:
         return Record(row) if row else None
 
     def get_records_by_sender(self, sender: str) -> list[Record]:
-        rows: list[tuple] | None = self.table.select_rows_by_sender(sender)
+        cursor: Cursor = self.table.select_rows_by_sender(sender)
+        rows: list[tuple] | None = cursor.fetchmany()
         if not rows:
             return []
         return [Record(row) for row in rows]
 
     def get_all_records(self) -> list[Record]:
-        rows: list[tuple] | None = self.table.select_all()
+        cursor: Cursor = self.table.select_all()
+        rows: list[tuple] | None = cursor.fetchall()
         if not rows:
             return []
         return [Record(row) for row in rows]
