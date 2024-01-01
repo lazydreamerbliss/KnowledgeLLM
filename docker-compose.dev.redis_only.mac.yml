@@ -3,11 +3,6 @@ services:
   redis-stack:
     image: redis/redis-stack-server:7.2.0-v6
     restart: always
-    # - Double dollars, so that the variable is not expanded by Docker Compose
-    # - Surround by quotes, so that the shell does not split the password
-    # - The ${variable:?message} syntax causes shell to exit with a non-zero
-    #   code and print a message, when the variable is not set or empty
-    # - Also enable redis JSON and redis search
     command: /bin/sh -c "redis-server --requirepass ${REDIS_PWD} --dir ${REDIS_DATA_DIR} --loadmodule /opt/redis-stack/lib/redisearch.so --loadmodule /opt/redis-stack/lib/rejson.so"
     environment:
       # Persist after 1hr if 1 write, after 5min if 100 writes, after 60 sec if 10000 writes
