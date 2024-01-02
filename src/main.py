@@ -14,7 +14,7 @@ if __name__ == '__main__':
     
     
     # image test
-    sample_lib = ImageLib('~/Pictures/Collection', force_init=True)
+    sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True)
     
     
 

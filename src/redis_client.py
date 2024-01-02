@@ -74,8 +74,12 @@ class RedisClient:
     def get(self, key: str) -> Any:
         return self.client.get(key)
 
-    def delete(self, key: str) -> Any:
+    def delete(self, key: str):
         self.client.delete(key)
+
+    def delete_by_prefix(self, prefix: str):
+        for key in self.client.scan_iter(f'{prefix}*'):
+            self.client.delete(key)
 
     def exists(self, key: str) -> bool:
         return bool(self.client.exists(key))
