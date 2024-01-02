@@ -1,3 +1,5 @@
+from PIL import Image
+
 from doc_functions.doc_embedder import DocEmbedder
 from image_functions.image_lib import ImageLib
 
@@ -9,14 +11,12 @@ if __name__ == '__main__':
     # res = test_doc_embedder.query('哪家运营商可以开通公网ip？', 20, True)
     # for i in res:
     #     print(i)
-    
-    
-    
-    
+
     # image test
-    sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True)
-    
-    
+    # sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True)
+    sample_lib = ImageLib('~/Pictures/Collection')
+    image = Image.open("/Users/chengjia/Desktop/sample.jpg")
+    sample_lib.similarity_search(image)
 
     # # Prepare raw documents
     # post_filenames: list[str] = glokeys *b('. /blog/*.md')

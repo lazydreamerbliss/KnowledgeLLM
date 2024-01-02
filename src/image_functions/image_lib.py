@@ -4,10 +4,14 @@ import time
 from uuid import uuid4
 
 import numpy as np
+import torch
 from PIL import Image
 from redis import ResponseError
+from redis.commands.search.document import Document
 from redis.commands.search.field import VectorField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
+from redis.commands.search.query import Query
+from redis.commands.search.result import Result
 from torch import Tensor
 from tqdm import tqdm
 from transformers import BatchEncoding, CLIPModel, CLIPProcessor
@@ -165,7 +169,7 @@ class ImageLib:
             self.table.insert_row((uuid, relative_path, filename))
 
             if redis_pipeline:
-                embeddings: list[float] = self.embed_image(img, file)
+                embeddings: list[float] = self.embed_image_as_list(img, file)
                 dimension = len(embeddings)
                 # IMPORTANT: key is lib_name + uuid, which means all keys in redis are grouped by lib_name
                 redis_pipeline.json_set(f'{self.namespace}:{uuid}', embeddings)
@@ -221,7 +225,7 @@ class ImageLib:
                 return True
             raise e
 
-    def embed_image(self, img: Image.Image, relative_path: str | None = None) -> list[float]:
+    def __embed_image(self, img: Image.Image, relative_path: str | None = None) -> np.ndarray:
         """Embed an image
 
         Args:
@@ -229,7 +233,7 @@ class ImageLib:
             relative_path (str | None, optional): Logging only. Defaults to None.
 
         Returns:
-            list[float]: _description_
+            np.ndarray: _description_
         """
         # The batch size is set to 1, so the first element of the output is the embedding of the image
         # - https://huggingface.co/transformers/model_doc/clip.html#clipmodel
@@ -239,7 +243,7 @@ class ImageLib:
         inputs: BatchEncoding = self.processor(images=img, return_tensors="pt", padding=True)
         image_features: Tensor = self.model.get_image_features(inputs.pixel_values)[batch_size-1]
         # https://bobbyhadz.com/blog/cant-call-numpy-on-tensor-that-requires-grad
-        embeddings: list[float] = image_features.detach().numpy().astype(np.float32).tolist()
+        embeddings: np.ndarray = image_features.detach().numpy().astype(np.float32)
 
         time_taken: float = time.time() - start
         if relative_path:
@@ -247,6 +251,16 @@ class ImageLib:
         else:
             tqdm.write(f'Image embedded, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
         return embeddings
+
+    def embed_image_as_list(self, img: Image.Image, relative_path: str | None = None) -> list[float]:
+        """Embed an image and return vector as list
+        """
+        return self.__embed_image(img, relative_path).tolist()
+
+    def embed_image_as_bytes(self, img: Image.Image, relative_path: str | None = None) -> bytes:
+        """Embed an image and return vector as bytes
+        """
+        return self.__embed_image(img, relative_path).tobytes()
 
     def delete_lib(self):
         """Delete the image library, it purges all library data
@@ -289,3 +303,32 @@ class ImageLib:
 
         self.redis.delete(f'{self.namespace}:{uuid}')
         self.table.delete_row_by_uuid(uuid)
+
+    def similarity_search(self, image: Image.Image, extra_params: dict = {}) -> list[tuple]:
+        if not image:
+            return []
+
+        if not self.redis.connected:
+            raise ValueError('Redis not connected')
+        start: float = time.time()
+
+        # Query for top 30 results against given vector
+        query: Query = Query("(*)=>[KNN 30 @vector $query_vector AS vector_score]")\
+            .sort_by("vector_score").return_fields("$").dialect(2)
+        param: dict = {"query_vector": self.embed_image_as_bytes(image)} | extra_params
+        search_result: Result = self.redis.client.ft(self.index_name).search(query, param)  # type: ignore
+        docs: list[Document] = search_result.docs
+
+        time_taken: float = time.time() - start
+        tqdm.write(f'Image similarity search completed, cost: {time_taken:.2f}s')
+
+        # Parse the result, get file data from DB
+        # - The redis key of an image is `lib_name`:`uuid`
+        res: list[tuple] = []
+        for doc in docs:
+            uuid: str = doc.id.split(':')[1]
+            row: tuple | None = self.table.select_row_by_uuid(uuid)
+            if row:
+                res.append(row)
+
+        return res
