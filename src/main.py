@@ -16,7 +16,10 @@ if __name__ == '__main__':
     # sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True)
     sample_lib = ImageLib('~/Pictures/Collection')
     image = Image.open("/Users/chengjia/Desktop/sample.jpg")
-    sample_lib.similarity_search(image)
+    a = sample_lib.image_for_image_search(image, 2)
+    print(a)
+    b = sample_lib.text_for_image_search('astronaut', 2)
+    print(b)
 
     # # Prepare raw documents
     # post_filenames: list[str] = glokeys *b('. /blog/*.md')

@@ -161,12 +161,12 @@ class WechatHistoryProvider:
         cursor: Cursor = self.table.select_rows_by_sender(sender)
         rows: list[tuple] | None = cursor.fetchmany()
         if not rows:
-            return []
+            return list()
         return [Record(row) for row in rows]
 
     def get_all_records(self) -> list[Record]:
         cursor: Cursor = self.table.select_all()
         rows: list[tuple] | None = cursor.fetchall()
         if not rows:
-            return []
+            return list()
         return [Record(row) for row in rows]

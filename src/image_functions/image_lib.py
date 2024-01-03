@@ -12,9 +12,11 @@ from redis.commands.search.field import VectorField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from redis.commands.search.query import Query
 from redis.commands.search.result import Result
-from torch import Tensor
+from torch import FloatTensor, Tensor
 from tqdm import tqdm
-from transformers import BatchEncoding, CLIPModel, CLIPProcessor
+from transformers import CLIPModel, CLIPProcessor, CLIPTokenizer
+from transformers.models.clip.modeling_clip import CLIPOutput
+from transformers.tokenization_utils_base import BatchEncoding
 
 from redis_client import RedisClient
 from sqlite.image_lib_table import ImageLibTable
@@ -48,11 +50,14 @@ class ImageLib:
         self.redis: RedisClient = RedisClient(host="localhost", port=6379, password="test123")
         if not self.redis.connected:
             raise ValueError('Redis not connected')
-
         self.namespace = self.lib_manifest["lib_name"]
         self.index_name = f'v_idx:{self.lib_manifest["uuid"]}'
-        self.model: CLIPModel = CLIPModel.from_pretrained(ImageLib.model_name)  # type: ignore
+
+        # Use CLIP to embed images
+        # - https://huggingface.co/docs/transformers/model_doc/clip
         self.processor: CLIPProcessor = CLIPProcessor.from_pretrained(ImageLib.model_name)
+        self.model: CLIPModel = CLIPModel.from_pretrained(ImageLib.model_name)  # type: ignore
+        self.tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(ImageLib.model_name)
 
         # Initialize the library when it is a new lib or force_init is True
         if force_init or new_lib:
@@ -143,7 +148,7 @@ class ImageLib:
         Args:
             lib_name (str): _description_
         """
-        files: list[str] = []
+        files: list[str] = list()
         for root, _, filenames in os.walk(self.lib_path):
             for filename in filenames:
                 files.append(os.path.relpath(os.path.join(root, filename), self.lib_path))
@@ -225,7 +230,7 @@ class ImageLib:
                 return True
             raise e
 
-    def __embed_image(self, img: Image.Image, relative_path: str | None = None) -> np.ndarray:
+    def __embed_image(self, img: Image.Image, use_grad: bool) -> np.ndarray:
         """Embed an image
 
         Args:
@@ -238,13 +243,25 @@ class ImageLib:
         # The batch size is set to 1, so the first element of the output is the embedding of the image
         # - https://huggingface.co/transformers/model_doc/clip.html#clipmodel
         batch_size: int = 1
+
+        # Use processor to build input data for CLIP model, and use model to get image features
+        clip_input: BatchEncoding = self.processor(images=img, return_tensors="pt", padding=True)
+        image_features: Tensor = self.model.get_image_features(clip_input.get('pixel_values'))[batch_size-1]
+        if not use_grad:
+            return image_features.numpy().astype(np.float32)
+        else:
+            # https://bobbyhadz.com/blog/cant-call-numpy-on-tensor-that-requires-grad
+            return image_features.detach().numpy().astype(np.float32)
+
+    def __embed_image_wrapper(self, img: Image.Image, relative_path: str | None = None, use_grad: bool = False) -> np.ndarray:
+        """About use_grad(): https://datascience.stackexchange.com/questions/32651/what-is-the-use-of-torch-no-grad-in-pytorch
+        """
         start: float = time.time()
-
-        inputs: BatchEncoding = self.processor(images=img, return_tensors="pt", padding=True)
-        image_features: Tensor = self.model.get_image_features(inputs.pixel_values)[batch_size-1]
-        # https://bobbyhadz.com/blog/cant-call-numpy-on-tensor-that-requires-grad
-        embeddings: np.ndarray = image_features.detach().numpy().astype(np.float32)
-
+        if not use_grad:
+            with torch.no_grad():
+                embeddings: np.ndarray = self.__embed_image(img, use_grad=False)
+        else:
+            embeddings: np.ndarray = self.__embed_image(img, use_grad=True)
         time_taken: float = time.time() - start
         if relative_path:
             tqdm.write(f'Image embedded: {relative_path}, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
@@ -252,15 +269,26 @@ class ImageLib:
             tqdm.write(f'Image embedded, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
         return embeddings
 
-    def embed_image_as_list(self, img: Image.Image, relative_path: str | None = None) -> list[float]:
+    def __embed_text(self, text: str, use_grad: bool = False) -> bytes:
+        inputs: BatchEncoding = self.tokenizer(text, return_tensors="pt")
+        text_features: FloatTensor = self.model.get_text_features(**inputs)  # type: ignore
+        if not use_grad:
+            with torch.no_grad():
+                return text_features.numpy().astype(np.float32).tobytes()
+        else:
+            return text_features.detach().numpy().astype(np.float32).tobytes()
+
+    def embed_image_as_list(self, img: Image.Image, relative_path: str | None = None, use_grad: bool = False) -> list[float]:
         """Embed an image and return vector as list
         """
-        return self.__embed_image(img, relative_path).tolist()
+        embeddings: np.ndarray = self.__embed_image_wrapper(img, relative_path, use_grad)
+        return embeddings.tolist()
 
-    def embed_image_as_bytes(self, img: Image.Image, relative_path: str | None = None) -> bytes:
+    def embed_image_as_bytes(self, img: Image.Image, relative_path: str | None = None, use_grad: bool = False) -> bytes:
         """Embed an image and return vector as bytes
         """
-        return self.__embed_image(img, relative_path).tobytes()
+        embeddings: np.ndarray = self.__embed_image_wrapper(img, relative_path, use_grad)
+        return embeddings.tobytes()
 
     def delete_lib(self):
         """Delete the image library, it purges all library data
@@ -304,31 +332,83 @@ class ImageLib:
         self.redis.delete(f'{self.namespace}:{uuid}')
         self.table.delete_row_by_uuid(uuid)
 
-    def similarity_search(self, image: Image.Image, extra_params: dict = {}) -> list[tuple]:
-        if not image:
-            return []
+    def image_for_image_search(self, img: Image.Image, top_k: int = 10, extra_params: dict | None = None) -> list[tuple]:
+        if not img or not top_k or top_k <= 0:
+            return list()
 
         if not self.redis.connected:
             raise ValueError('Redis not connected')
         start: float = time.time()
 
-        # Query for top 30 results against given vector
-        query: Query = Query("(*)=>[KNN 30 @vector $query_vector AS vector_score]")\
+        image_embedding: bytes = self.embed_image_as_bytes(img)
+        param: dict = {"query_vector": image_embedding} if not extra_params else \
+                      {"query_vector": image_embedding} | extra_params
+
+        # Query for top K results against given vector
+        query: Query = Query(f'(*)=>[KNN {top_k} @vector $query_vector AS vector_score]')\
             .sort_by("vector_score").return_fields("$").dialect(2)
-        param: dict = {"query_vector": self.embed_image_as_bytes(image)} | extra_params
         search_result: Result = self.redis.client.ft(self.index_name).search(query, param)  # type: ignore
         docs: list[Document] = search_result.docs
 
         time_taken: float = time.time() - start
-        tqdm.write(f'Image similarity search completed, cost: {time_taken:.2f}s')
+        tqdm.write(f'Image search with image similarity completed, cost: {time_taken:.2f}s')
 
         # Parse the result, get file data from DB
         # - The redis key of an image is `lib_name`:`uuid`
-        res: list[tuple] = []
+        res: list[tuple] = list()
         for doc in docs:
             uuid: str = doc.id.split(':')[1]
             row: tuple | None = self.table.select_row_by_uuid(uuid)
             if row:
                 res.append(row)
+
+        return res
+
+    def text_for_image_search(self, text: str, top_k: int = 10, extra_params: dict | None = None) -> list[tuple]:
+        if not text or not top_k or top_k <= 0:
+            return list()
+
+        if not self.redis.connected:
+            raise ValueError('Redis not connected')
+        start: float = time.time()
+
+        text_embedding: bytes = self.__embed_text(text)
+        param: dict = {"query_vector": text_embedding} if not extra_params else \
+                      {"query_vector": text_embedding} | extra_params
+
+        # Query for top K results against given vector
+        query: Query = Query(f'(*)=>[KNN {top_k} @vector $query_vector AS vector_score]')\
+            .sort_by("vector_score").return_fields("$").dialect(2)
+        search_result: Result = self.redis.client.ft(self.index_name).search(query, param)  # type: ignore
+        docs: list[Document] = search_result.docs
+
+        time_taken: float = time.time() - start
+        tqdm.write(f'Image search with text similarity completed, cost: {time_taken:.2f}s')
+
+        # Parse the result, get file data from DB
+        # - The redis key of an image is `lib_name`:`uuid`
+        res: list[tuple] = list()
+        for doc in docs:
+            uuid: str = doc.id.split(':')[1]
+            row: tuple | None = self.table.select_row_by_uuid(uuid)
+            if row:
+                res.append(row)
+
+        return res
+
+    def text_similarity_with_image(self, tokens: list[str], img: Image.Image) -> dict[str, float]:
+        if not tokens or not img:
+            return dict()
+
+        # Use processor to build input data for CLIP model, with both text and image functionalities
+        clip_input: BatchEncoding = self.processor(text=tokens, images=img, return_tensors="pt", padding=True)
+        # Unpack the batched encoding and feed it to the CLIP model directly to process both text and image
+        image_features: CLIPOutput = self.model(**clip_input)
+        # Get the logits from the CLIP model
+        probs: Tensor = image_features.logits_per_image.softmax(dim=1)
+
+        res: dict[str, float] = dict()
+        for i in range(len(tokens)):
+            res[tokens[i]] = probs[0][i].item()
 
         return res

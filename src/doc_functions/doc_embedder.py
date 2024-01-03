@@ -113,7 +113,7 @@ class DocEmbedder:
             raise ValueError('Not initialized')
 
         if not text or top_k <= 0:
-            return []
+            return list()
 
         # 调用 self.model.encode(x) 对查询文本进行特征提取，将其转换成向量
         tqdm.write(f'Querying top {top_k} candidates...')
