@@ -1,5 +1,6 @@
 record_structure: list[list[str]] = [
     ['id', 'INTEGER PRIMARY KEY'],
+    ['timestamp', 'INTEGER NOT NULL'],
     ['uuid', 'TEXT'],
     ['path', 'TEXT'],
     ['filename', 'TEXT'],
@@ -19,9 +20,10 @@ class Record:
             raise ValueError('row size is not correct')
 
         self.id: int = row[0]
-        self.uuid: int = row[1]
-        self.path: str = row[2]
-        self.filename: str = row[3]
+        self.timestamp: int = row[1]
+        self.uuid: int = row[2]
+        self.path: str = row[3]
+        self.filename: str = row[4]
 
     def __str__(self) -> str:
         return f'[{self.id}|{self.uuid}][{self.path}]'
@@ -34,20 +36,11 @@ def initialize_table_sql(table_name: str) -> str:
     if not table_name:
         raise ValueError('table_name is None')
 
-    # id INTEGER PRIMARY KEY, uuid TEXT, path TEXT
+    # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, uuid TEXT, path TEXT
     return f"""
     CREATE TABLE IF NOT EXISTS {table_name} (
         {', '.join([f'{col[0]} {col[1]}' for col in record_structure])}
     );
-    """
-
-
-def create_index_sql(table_name: str, column_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    CREATE INDEX IF NOT EXISTS {table_name}_{column_name}_idx ON {table_name} ({column_name});
     """
 
 
@@ -59,42 +52,6 @@ def insert_row_sql(table_name: str) -> str:
     return f"""
     INSERT INTO {table_name} ({', '.join([col[0] for col in record_structure[1:]])})
     VALUES ({', '.join(['?' for _ in range(RECORD_LENGTH-1)])});
-    """
-
-
-def select_by_id_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    SELECT * FROM {table_name} WHERE id = ?;
-    """
-
-
-def select_by_ids_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    SELECT * FROM {table_name} WHERE id IN (?);
-    """
-
-
-def select_all_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    SELECT * FROM {table_name};
-    """
-
-
-def empty_table_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    DELETE FROM {table_name};
     """
 
 

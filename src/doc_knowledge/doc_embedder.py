@@ -6,13 +6,12 @@ import pickle
 
 import numpy as np
 import numpy.typing as npt
-from numpy import ndarray
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
 from tqdm import tqdm
 
-from doc_functions.doc_provider import WechatHistoryProvider
-from sqlite.wechat_history_table_sql import Record
+from doc_knowledge.doc_provider import WechatHistoryProvider
+from sqlite.sql_wechat_history import Record
 
 
 class DocEmbedder:
@@ -22,11 +21,12 @@ class DocEmbedder:
     cross_encoder_path: str = 'hfl/chinese-roberta-wwm-ext'
 
     def __init__(self, index_filename: str | None = None):
+        self.mem_index: IndexIVFFlat | None = None
+        self.mem_embeddings: np.ndarray | None = None
+
         # 初始化 SentenceTransformer 和 CrossEncoder 两个模型
         self.transformer: SentenceTransformer = SentenceTransformer(DocEmbedder.transformer_path)
         self.ranker: CrossEncoder = CrossEncoder(DocEmbedder.cross_encoder_path, max_length=512)
-        self.index: IndexIVFFlat | None = None
-        self.embeddings: ndarray | None = None
         self.doc_provider: WechatHistoryProvider | None = None
 
         if index_filename:
@@ -35,8 +35,8 @@ class DocEmbedder:
             try:
                 tqdm.write(f'Loading index from {index_filename}...')
                 obj = pickle.load(open(index_filename, 'rb'))
-                self.index = obj['index']
-                self.embeddings = obj['embeddings']
+                self.mem_index = obj['index']
+                self.mem_embeddings = obj['embeddings']
                 self.doc_provider = WechatHistoryProvider(obj['chat_name'])
             except:
                 raise ValueError('Corrupted index file')
@@ -53,7 +53,7 @@ class DocEmbedder:
           - 由于存储的向量是经过 PQ 压缩的，所以在计算相似度时需要先解码，再计算相似度
         - https://zhuanlan.zhihu.com/p/90768014
         """
-        if self.index and not force_initialize:
+        if self.mem_index and not force_initialize:
             return
 
         if not index_filename or not chat_name or not raw_doc_path:
@@ -67,30 +67,29 @@ class DocEmbedder:
         #
         # 调用模型 self.model.encode() 对每一个 doc 进行特征提取将其转换成向量，获得一个存储每个文档向量信息的列表
         # - 将该列表转化为 ndarray 二维矩阵，self.embeddings 的每一行表示一个文档的向量表示
-        # -（tqdm 只是一个进度条库，用于显示特征提取的进度）
-        tmp: list[ndarray] = [self.transformer.encode(f"{r.message}-{r.replied_message}") for r in
+        tmp: list[np.ndarray] = [self.transformer.encode(f"{r.message}-{r.replied_message}") for r in
                               tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]  # type: ignore
-        self.embeddings = np.asarray(tmp)
+        self.mem_embeddings = np.asarray(tmp)
 
         # ndarray.shape 用于获取矩阵的维度，类型为元组。该元组的长度为数组的维度，每个元素表示数组在该维度上的长度
         # - 因为当前为二维矩阵，故 self.embeddings.shape 为一个长度为 2 的元组：shape[0] 表示文本数量，shape[1] 表示当前向量维度
         # - 例如：self.embeddings.shape 为 (1232, 76)，表示共有 1232 条文本，它们被转换成了 76 维的向量
-        dimension: int = self.embeddings.shape[1]
+        dimension: int = self.mem_embeddings.shape[1]
         # 创建向量索引
         # - 这里获取第二纬度长度，并用其创建一个 IndexFlatIP 类型索引：self.index = IndexFlatIP(dimension)
         tqdm.write(f'Building index with dimension {dimension}...')
         quantizer: IndexFlatL2 = IndexFlatL2(dimension)
-        self.index = IndexIVFFlat(quantizer, dimension, 50)
+        self.mem_index = IndexIVFFlat(quantizer, dimension, 50)
 
         # 将向量添加到索引
-        # - 首先调用 self.index.train() 对索引进行聚类（即分区）训练
+        # - 首先调用 self.index.train() 对索引进行聚类（即分区）训练 K-means，而对于 IndexFlatIP 来说则不需要训练
         # - 然后调用 self.index.add() 将向量添加到索引中
         #
         # 这里的类型报错是因为 faiss 库的类型定义和 numpy 库的类型定义不一致，但是不影响程序的运行
         # - faiss 的 add() 调用的是 IndexFlatCodes.add(n, x)，其两个参数 n 表示向量的数量，x 表示一个 n*d 的二维矩阵，d 为每一个向量的维度。而这里的 self.embeddings 是 numpy 的 ndarray 类型，其本身就是一个 n*d 的二维矩阵
         # - 可以将 add() 方法理解为接受一个矩阵作为参数，矩阵的每一行都是一个要添加的向量
-        self.index.train(self.embeddings)  # type: ignore
-        self.index.add(self.embeddings)  # type: ignore
+        self.mem_index.train(self.mem_embeddings)  # type: ignore
+        self.mem_index.add(self.mem_embeddings)  # type: ignore
 
         # 保存索引以便复用
         tqdm.write(f'Saving index to {index_filename}...')
@@ -98,8 +97,8 @@ class DocEmbedder:
             os.remove(index_filename)
         except:
             pass
-        pickle.dump({'chat_name': chat_name, 'embeddings': self.embeddings,
-                    'index': self.index}, open(index_filename, 'wb'))
+        pickle.dump({'chat_name': chat_name, 'embeddings': self.mem_embeddings,
+                    'index': self.mem_index}, open(index_filename, 'wb'))
 
         tqdm.write(f'Initialization completed')
 
@@ -109,7 +108,7 @@ class DocEmbedder:
         :param text: 被查询的文本
         :param top_k: 检索到的最相似文档的最大数量
         """
-        if not self.doc_provider or not self.index:
+        if not self.doc_provider or not self.mem_index:
             raise ValueError('Not initialized')
 
         if not text or top_k <= 0:
@@ -124,7 +123,7 @@ class DocEmbedder:
         # - I：维度为 [查询向量样本数，top_k 相似向量数]，列表示第 n 个样本在索引中 top_k 个相似向量的 id，相似度从高到低排序
         # - 例如：获取第 n 个样本的 top_k 个相似向量搜索结果，可以通过 D[n-1] 和 I[n-1] 获取
         # - https://www.cnblogs.com/luohenyueji/p/16990840.html
-        D, I = self.index.search(np.asarray([query_embedding]), top_k)  # type: ignore
+        D, I = self.mem_index.search(np.asarray([query_embedding]), top_k)  # type: ignore
 
         # 通过检索到的文档矩阵，获取对应的原始文档
         # - 由于查询向量样本数为 1（只有一个 text），故 D 和 I 的都只有一行，所以这里只需要 I[0] 即可获得 top_k 个检索到的文档 id
@@ -144,7 +143,7 @@ class DocEmbedder:
         :param text: 被查询的文本
         :param candidates: top_k 个检索到的，与被查询文本最相似的文档
         """
-        if not self.doc_provider or not self.index:
+        if not self.doc_provider or not self.mem_index:
             raise ValueError('Not initialized')
 
         # CrossEncoder.predict() 接受一个二维矩阵作为参数进行相似度分析
@@ -159,7 +158,7 @@ class DocEmbedder:
         # 对分数进行排序，返回排序后的索引
         # - np.argsort() 返回的是给定数组值从小到大的索引值，故这里使用 [::-1] 将其反转，变成从大到小排序后的索引
         # - https://blog.csdn.net/maoersong/article/details/21875705
-        sorted_ids: ndarray = np.argsort(scores)[::-1]
+        sorted_ids: np.ndarray = np.argsort(scores)[::-1]
 
         # 最后根据排序后的索引，按新的顺序返回检索到的文档
         return [candidates[i] for i in sorted_ids]

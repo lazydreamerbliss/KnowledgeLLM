@@ -44,15 +44,6 @@ def initialize_table_sql(table_name: str) -> str:
     """
 
 
-def create_index_sql(table_name: str, column_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    CREATE INDEX IF NOT EXISTS {table_name}_{column_name}_idx ON {table_name} ({column_name});
-    """
-
-
 def insert_row_sql(table_name: str) -> str:
     if not table_name:
         raise ValueError('table_name is None')
@@ -61,42 +52,6 @@ def insert_row_sql(table_name: str) -> str:
     return f"""
     INSERT INTO {table_name} ({', '.join([col[0] for col in record_structure[1:]])})
     VALUES ({', '.join(['?' for _ in range(RECORD_LENGTH-1)])});
-    """
-
-
-def select_by_id_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    SELECT * FROM {table_name} WHERE id = ?;
-    """
-
-
-def select_by_ids_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    SELECT * FROM {table_name} WHERE id IN (?);
-    """
-
-
-def select_all_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    SELECT * FROM {table_name};
-    """
-
-
-def empty_table_sql(table_name: str) -> str:
-    if not table_name:
-        raise ValueError('table_name is None')
-
-    return f"""
-    DELETE FROM {table_name};
     """
 
 

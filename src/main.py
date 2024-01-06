@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from PIL import Image
 
-from doc_functions.doc_embedder import DocEmbedder
-from image_functions.image_lib import ImageLib
+from doc_knowledge.doc_embedder import DocEmbedder
+from image_knowledge.image_lib import ImageLib
+from image_knowledge.image_tagger import ImageTagger
 
 if __name__ == '__main__':
     # doc test
@@ -13,13 +16,20 @@ if __name__ == '__main__':
     #     print(i)
 
     # image test
-    # sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True)
-    sample_lib = ImageLib('~/Pictures/Collection')
+    sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True)
+    #sample_lib = ImageLib('~/Pictures/Collection')
+    sample_tagger = ImageTagger()
+
+
     image = Image.open("/Users/chengjia/Desktop/sample.jpg")
     a = sample_lib.image_for_image_search(image, 2)
     print(a)
     b = sample_lib.text_for_image_search('astronaut', 2)
     print(b)
+    
+    
+    c = sample_tagger.get_tags(image, 10)
+    print(c)
 
     # # Prepare raw documents
     # post_filenames: list[str] = glokeys *b('. /blog/*.md')

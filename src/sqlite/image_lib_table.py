@@ -1,8 +1,9 @@
 import os
 from sqlite3 import Cursor
 
+from sqlite.sql_basic import *
 from sqlite.db import SqliteConnection
-from sqlite.image_lib_table_sql import *
+from sqlite.sql_image_lib import *
 
 
 class ImageLibTable(SqliteConnection):
@@ -55,6 +56,26 @@ class ImageLibTable(SqliteConnection):
         cur.execute(select_by_id_sql(self.table_name), (row_id,))
         return cur.fetchone()
 
+    def select_many(self, k: int = -1) -> Cursor:
+        if self.db is None:
+            raise ValueError('db is None')
+
+        cur: Cursor = self.db.cursor()
+        cmd: str = select_all_sql(self.table_name) if k == -1 else select_many_sql(self.table_name, k)
+        cur.execute(cmd)
+        return cur
+
+    def empty_table(self) -> None:
+        if self.db is None:
+            raise ValueError('db is None')
+
+        cur: Cursor = self.db.cursor()
+        cur.execute(empty_table_sql(self.table_name))
+        self.db.commit()
+        # Also vacuum the table to reduce file size, as SQLite just mark the rows as deleted
+        cur.execute('VACUUM')
+        self.db.commit()
+
     def select_row_by_uuid(self, uuid: str) -> tuple | None:
         if self.db is None:
             raise ValueError('db is None')
@@ -86,25 +107,6 @@ class ImageLibTable(SqliteConnection):
         cur: Cursor = self.db.cursor()
         cur.execute(select_by_filename_sql(self.table_name), (filename,))
         return cur
-
-    def select_all(self) -> Cursor:
-        if self.db is None:
-            raise ValueError('db is None')
-
-        cur: Cursor = self.db.cursor()
-        cur.execute(select_all_sql(self.table_name))
-        return cur
-
-    def empty_table(self) -> None:
-        if self.db is None:
-            raise ValueError('db is None')
-
-        cur: Cursor = self.db.cursor()
-        cur.execute(empty_table_sql(self.table_name))
-        self.db.commit()
-        # Also vacuum the table to reduce file size, as SQLite just mark the rows as deleted
-        cur.execute('VACUUM')
-        self.db.commit()
 
     def delete_row_by_uuid(self, uuid: str) -> None:
         if self.db is None:

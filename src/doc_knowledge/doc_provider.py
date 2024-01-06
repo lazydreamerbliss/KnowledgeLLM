@@ -5,7 +5,7 @@ from sqlite3 import Cursor
 from tqdm import tqdm
 
 from sqlite.wechat_history_table import WechatHistoryTable
-from sqlite.wechat_history_table_sql import Record
+from sqlite.sql_wechat_history import Record
 
 
 class WechatHistoryProvider:
@@ -165,7 +165,7 @@ class WechatHistoryProvider:
         return [Record(row) for row in rows]
 
     def get_all_records(self) -> list[Record]:
-        cursor: Cursor = self.table.select_all()
+        cursor: Cursor = self.table.select_many()
         rows: list[tuple] | None = cursor.fetchall()
         if not rows:
             return list()

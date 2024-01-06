@@ -1,7 +1,8 @@
 from sqlite3 import Cursor
 
+from sqlite.sql_basic import *
 from sqlite.db import SqliteConnection
-from sqlite.wechat_history_table_sql import *
+from sqlite.sql_wechat_history import *
 
 
 class WechatHistoryTable(SqliteConnection):
@@ -54,20 +55,13 @@ class WechatHistoryTable(SqliteConnection):
         cur.execute(select_by_id_sql(self.table_name), (row_id,))
         return cur.fetchone()
 
-    def select_rows_by_sender(self, sender: str) -> Cursor:
+    def select_many(self, k: int = -1, order_by: str | None = None) -> Cursor:
         if self.db is None:
             raise ValueError('db is None')
 
         cur: Cursor = self.db.cursor()
-        cur.execute(select_by_sender_sql(self.table_name), (sender,))
-        return cur
-
-    def select_all(self) -> Cursor:
-        if self.db is None:
-            raise ValueError('db is None')
-
-        cur: Cursor = self.db.cursor()
-        cur.execute(select_all_sql(self.table_name))
+        cmd: str = select_all_sql(self.table_name) if k == -1 else select_many_sql(self.table_name, k)
+        cur.execute(cmd)
         return cur
 
     def empty_table(self) -> None:
@@ -80,3 +74,11 @@ class WechatHistoryTable(SqliteConnection):
         # Also vacuum the table to reduce file size, as SQLite just mark the rows as deleted
         cur.execute('VACUUM')
         self.db.commit()
+
+    def select_rows_by_sender(self, sender: str) -> Cursor:
+        if self.db is None:
+            raise ValueError('db is None')
+
+        cur: Cursor = self.db.cursor()
+        cur.execute(select_by_sender_sql(self.table_name), (sender,))
+        return cur

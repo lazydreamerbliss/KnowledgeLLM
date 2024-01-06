@@ -1,7 +1,7 @@
 import sqlite3
-from sqlite3 import Connection
+from sqlite3 import Connection, Cursor
 
-from sqlite.wechat_history_table_sql import *
+from sqlite.sql_wechat_history import *
 
 
 class SqliteConnection:
@@ -38,11 +38,8 @@ class SqliteConnection:
     def select_row(self, row_id: int) -> tuple | None:
         raise NotImplementedError('select_row is not implemented')
 
-    def select_rows(self, row_ids: list[int]) -> list[tuple] | None:
-        raise NotImplementedError('select_rows is not implemented')
-
-    def select_all(self) -> list[tuple] | None:
-        raise NotImplementedError('select_all is not implemented')
+    def select_many(self, k: int = -1, order_by: str | None = None) -> Cursor:
+        raise NotImplementedError('select_many is not implemented')
 
     def empty_table(self) -> None:
         raise NotImplementedError('empty_table is not implemented')
