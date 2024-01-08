@@ -1,17 +1,13 @@
 import numpy as np
-from faiss import IndexFlatL2, IndexIVFFlat
-from redis import ResponseError
 from redis.commands.search.document import Document
-from redis.commands.search.field import VectorField
-from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from redis.commands.search.query import Query
 from redis.commands.search.result import Result
 from tqdm import tqdm
 
-from image_knowledge.mem_vector_db import InMemoryVectorDbFlat
-from image_knowledge.redis_client import BatchedPipeline, RedisClient
-from image_knowledge.redis_vector_db import RedisVectorDb
 from sqlite.sql_image_lib import DB_NAME
+from vector_db.mem_vector_db import InMemoryVectorDb
+from vector_db.redis_client import BatchedPipeline
+from vector_db.redis_vector_db import RedisVectorDb
 
 
 class ImageLibVectorDb:
@@ -28,7 +24,7 @@ class ImageLibVectorDb:
             raise ValueError('Namespace and library UUID are mandatory for using redis as vector DB')
 
         self.redis_vector_db: RedisVectorDb = RedisVectorDb(namespace=lib_namespace, index_name=f'v_idx:{lib_uuid}')
-        self.mem_vector_db: InMemoryVectorDbFlat = InMemoryVectorDbFlat(lib_path, ImageLibVectorDb.IDX_FILENAME)
+        self.mem_vector_db: InMemoryVectorDb = InMemoryVectorDb(lib_path, ImageLibVectorDb.IDX_FILENAME)
         tqdm.write(f'Connected')
 
     def initialize_index(self, vector_dimension: int):

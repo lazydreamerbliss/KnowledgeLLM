@@ -12,9 +12,9 @@ from tqdm import tqdm
 
 from image_knowledge.image_lib_embedder import ImageLibEmbedder
 from image_knowledge.image_lib_vector_db import ImageLibVectorDb
-from image_knowledge.redis_client import BatchedPipeline
 from sqlite.image_lib_table import ImageLibTable
 from sqlite.sql_image_lib import DB_NAME
+from vector_db.redis_client import BatchedPipeline
 
 
 class ImageLib:

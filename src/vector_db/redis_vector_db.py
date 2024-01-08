@@ -5,8 +5,8 @@ from redis.commands.search.field import VectorField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from tqdm import tqdm
 
-from image_knowledge.redis_client import BatchedPipeline, RedisClient
 from sqlite.sql_image_lib import DB_NAME
+from vector_db.redis_client import BatchedPipeline, RedisClient
 
 
 class RedisVectorDb:

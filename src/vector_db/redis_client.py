@@ -10,55 +10,55 @@ class BatchedPipeline:
     """
 
     def __init__(self, redis_client: 'RedisClient', batch_size: int = 200):
-        self.batch_size: int = batch_size
-        self.pipeline: Pipeline = redis_client.pipeline()
+        self.__batch_size: int = batch_size
+        self.__pipeline: Pipeline = redis_client.pipeline()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if len(self.pipeline) > 0:
-            self.pipeline.execute()
-        self.pipeline.close()
+        if len(self.__pipeline) > 0:
+            self.__pipeline.execute()
+        self.__pipeline.close()
 
     def set(self, key: str, value: Any):
-        self.pipeline.set(key, value)
-        if len(self.pipeline) >= self.batch_size:
-            self.pipeline.execute()
+        self.__pipeline.set(key, value)
+        if len(self.__pipeline) >= self.__batch_size:
+            self.__pipeline.execute()
 
     def get(self, key: str) -> Any:
-        return self.pipeline.get(key)
+        return self.__pipeline.get(key)
 
     def delete(self, key: str) -> Any:
-        self.pipeline.delete(key)
-        if len(self.pipeline) >= self.batch_size:
-            self.pipeline.execute()
+        self.__pipeline.delete(key)
+        if len(self.__pipeline) >= self.__batch_size:
+            self.__pipeline.execute()
 
     def exists(self, key: str) -> bool:
-        return bool(self.pipeline.exists(key))
+        return bool(self.__pipeline.exists(key))
 
     def json_set(self, name: str, obj: Any, path: str | None = None):
         if not path:
             path = '$'
-        self.pipeline.json().set(name, path, obj)
-        if len(self.pipeline) >= self.batch_size:
-            self.pipeline.execute()
+        self.__pipeline.json().set(name, path, obj)
+        if len(self.__pipeline) >= self.__batch_size:
+            self.__pipeline.execute()
 
     def json_get(self, name: str) -> Any:
-        return self.pipeline.json().get(name)
+        return self.__pipeline.json().get(name)
 
     def json_delete(self, name: str, path: str | None = None) -> Any:
         if not path:
             path = '$'
-        self.pipeline.json().delete(name, path)
-        if len(self.pipeline) >= self.batch_size:
-            self.pipeline.execute()
+        self.__pipeline.json().delete(name, path)
+        if len(self.__pipeline) >= self.__batch_size:
+            self.__pipeline.execute()
 
     def execute(self) -> None:
-        self.pipeline.execute()
+        self.__pipeline.execute()
 
     def save(self) -> None:
-        self.pipeline.bgrewriteaof()
+        self.__pipeline.bgrewriteaof()
 
 
 def ensure_redis(func):
