@@ -1,7 +1,7 @@
 from sqlite3 import Cursor
 
-from sqlite.sql_basic import *
 from sqlite.db import SqliteConnection
+from sqlite.sql_basic import *
 from sqlite.sql_wechat_history import *
 
 
@@ -64,7 +64,7 @@ class WechatHistoryTable(SqliteConnection):
         cur.execute(cmd)
         return cur
 
-    def empty_table(self) -> None:
+    def clean_all_data(self) -> None:
         if self.db is None:
             raise ValueError('db is None')
 

@@ -1,13 +1,15 @@
 """
 Provide functionalities on feature extracting, retrieval, and reranking of documents.
 """
+import math
 import os
 import pickle
 
 import numpy as np
 import numpy.typing as npt
+from faiss import (  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
+    IndexFlatL2, IndexIVFFlat)
 from sentence_transformers import CrossEncoder, SentenceTransformer
-from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
 from tqdm import tqdm
 
 from doc_knowledge.doc_provider import WechatHistoryProvider
@@ -30,7 +32,7 @@ class DocEmbedder:
         self.doc_provider: WechatHistoryProvider | None = None
 
         if index_filename:
-            if not os.path.exists(index_filename):
+            if not os.path.isfile(index_filename):
                 return
             try:
                 tqdm.write(f'Loading index from {index_filename}...')
@@ -68,18 +70,22 @@ class DocEmbedder:
         # 调用模型 self.model.encode() 对每一个 doc 进行特征提取将其转换成向量，获得一个存储每个文档向量信息的列表
         # - 将该列表转化为 ndarray 二维矩阵，self.embeddings 的每一行表示一个文档的向量表示
         tmp: list[np.ndarray] = [self.transformer.encode(f"{r.message}-{r.replied_message}") for r in
-                              tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]  # type: ignore
+                                 tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]  # type: ignore
         self.mem_embeddings = np.asarray(tmp)
 
         # ndarray.shape 用于获取矩阵的维度，类型为元组。该元组的长度为数组的维度，每个元素表示数组在该维度上的长度
         # - 因为当前为二维矩阵，故 self.embeddings.shape 为一个长度为 2 的元组：shape[0] 表示文本数量，shape[1] 表示当前向量维度
         # - 例如：self.embeddings.shape 为 (1232, 76)，表示共有 1232 条文本，它们被转换成了 76 维的向量
         dimension: int = self.mem_embeddings.shape[1]
+        tqdm.write(f'Building index with dimension {dimension}...')
+
         # 创建向量索引
         # - 这里获取第二纬度长度，并用其创建一个 IndexFlatIP 类型索引：self.index = IndexFlatIP(dimension)
-        tqdm.write(f'Building index with dimension {dimension}...')
+        # - https://github.com/facebookresearch/faiss/wiki/Guidelines-to-choose-an-index#how-big-is-the-dataset
+        # - 根据文档，cluster_count 范围：4 * sqrt(N) ~ 16 * sqrt(N)
+        cluster_count: int = int(4 * math.sqrt(len(self.mem_embeddings)))
         quantizer: IndexFlatL2 = IndexFlatL2(dimension)
-        self.mem_index = IndexIVFFlat(quantizer, dimension, 50)
+        self.mem_index = IndexIVFFlat(quantizer, dimension, cluster_count)
 
         # 将向量添加到索引
         # - 首先调用 self.index.train() 对索引进行聚类（即分区）训练 K-means，而对于 IndexFlatIP 来说则不需要训练
@@ -91,14 +97,22 @@ class DocEmbedder:
         self.mem_index.train(self.mem_embeddings)  # type: ignore
         self.mem_index.add(self.mem_embeddings)  # type: ignore
 
+        # `nprobe` 参数用于设置检索时的聚类数量（额外检索命中聚类的最近 nprobe 个邻居的数量），它会影响检索的速度和准确度
+        # - nprobe 越大，检索速度越慢（但依然要比 Flat 快很多），但准确度越高
+        # - https://www.pinecone.io/learn/series/faiss/faiss-tutorial/
+        self.mem_index.nprobe = 5
+
         # 保存索引以便复用
         tqdm.write(f'Saving index to {index_filename}...')
         try:
             os.remove(index_filename)
         except:
             pass
-        pickle.dump({'chat_name': chat_name, 'embeddings': self.mem_embeddings,
-                    'index': self.mem_index}, open(index_filename, 'wb'))
+        pickle.dump({
+            'chat_name': chat_name,
+            'embeddings': self.mem_embeddings,
+            'index': self.mem_index
+        }, open(index_filename, 'wb'))
 
         tqdm.write(f'Initialization completed')
 

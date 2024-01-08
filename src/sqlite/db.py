@@ -41,5 +41,5 @@ class SqliteConnection:
     def select_many(self, k: int = -1, order_by: str | None = None) -> Cursor:
         raise NotImplementedError('select_many is not implemented')
 
-    def empty_table(self) -> None:
+    def clean_all_data(self) -> None:
         raise NotImplementedError('empty_table is not implemented')

@@ -4,8 +4,8 @@ from sqlite3 import Cursor
 
 from tqdm import tqdm
 
-from sqlite.wechat_history_table import WechatHistoryTable
 from sqlite.sql_wechat_history import Record
+from sqlite.wechat_history_table import WechatHistoryTable
 
 
 class WechatHistoryProvider:
@@ -24,7 +24,7 @@ class WechatHistoryProvider:
         # If doc name is provided, re-initialize the table
         if doc_name:
             tqdm.write(f'Initializing table: {chat_name}')
-            self.table.empty_table()
+            self.table.clean_all_data()
             self.__dump_chat_history_to_db(doc_name)
 
     def __process_reply(self, reply: str) -> tuple[str, str, str]:

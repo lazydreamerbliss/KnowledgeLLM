@@ -1,3 +1,4 @@
+from functools import wraps
 from typing import Any
 
 from redis import Redis
@@ -60,63 +61,87 @@ class BatchedPipeline:
         self.pipeline.bgrewriteaof()
 
 
+def ensure_redis(func):
+    """Decorator to ensure the Redis client is connected
+    """
+    @wraps(func)
+    def wrapper(self: RedisClient, *args, **kwargs):
+        if not self.__connected:
+            raise ValueError("Redis is not connected")
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
 class RedisClient:
     def __init__(self, host: str, port: int = 6379, password: str | None = None, decode_responses: bool = True):
-        self.client: Redis = Redis(host=host, port=port, password=password, decode_responses=decode_responses)
+        self.__client: Redis = Redis(host=host, port=port, password=password, decode_responses=decode_responses)
         try:
-            self.connected: bool = bool(self.client.ping())
+            self.__connected: bool = bool(self.__client.ping())
         except:
-            self.connected: bool = False
+            self.__connected: bool = False
 
+    @ensure_redis
+    def client(self) -> Redis:
+        return self.__client
+
+    @ensure_redis
     def set(self, key: str, value: Any):
-        self.client.set(key, value)
+        self.__client.set(key, value)
 
+    @ensure_redis
     def get(self, key: str) -> Any:
-        return self.client.get(key)
+        return self.__client.get(key)
 
+    @ensure_redis
     def delete(self, key: str):
-        self.client.delete(key)
+        self.__client.delete(key)
 
+    @ensure_redis
     def delete_by_prefix(self, prefix: str):
-        for key in self.client.scan_iter(f'{prefix}*'):
-            self.client.delete(key)
+        for key in self.__client.scan_iter(f'{prefix}*'):
+            self.__client.delete(key)
 
+    @ensure_redis
     def exists(self, key: str) -> bool:
-        return bool(self.client.exists(key))
+        return bool(self.__client.exists(key))
 
+    @ensure_redis
     def json_set(self, name: str, obj: Any, path: str | None = None):
         if not path:
             path = '$'
-        self.client.json().set(name, path, obj)
+        self.__client.json().set(name, path, obj)
 
+    @ensure_redis
     def json_get(self, name: str) -> Any:
-        return self.client.json().get(name)
+        return self.__client.json().get(name)
 
+    @ensure_redis
     def json_delete(self, name: str, path: str | None = None) -> Any:
         if not path:
             path = '$'
-        return self.client.json().delete(name, path)
+        return self.__client.json().delete(name, path)
 
+    @ensure_redis
     def pipeline(self) -> Pipeline:
-        if not self.connected:
-            raise ConnectionError('Redis client is not connected')
-        return self.client.pipeline()
+        return self.__client.pipeline()
 
-    def batched_pipeline(self, batch_size: int = 1000) -> BatchedPipeline | None:
-        if not self.connected:
-            return None
+    @ensure_redis
+    def batched_pipeline(self, batch_size: int = 1000) -> BatchedPipeline:
         return BatchedPipeline(self, batch_size)
 
+    @ensure_redis
     def close(self) -> None:
-        self.client.close()
+        self.__client.close()
 
+    @ensure_redis
     def snapshot(self) -> None:
         """Create a snapshot of the current database
         """
-        self.client.bgrewriteaof()
+        self.__client.bgrewriteaof()
 
+    @ensure_redis
     def save(self) -> None:
         """Dump whole database to disk
         """
         self.snapshot()
-        self.client.save()
+        self.__client.save()
