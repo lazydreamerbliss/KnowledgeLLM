@@ -7,8 +7,6 @@ from faiss import IndexFlatL2, IndexIDMap2, IndexIVFFlat
 from redis.commands.search.document import Document
 from tqdm import tqdm
 
-from sqlite.sql_image_lib import DB_NAME
-
 
 class InMemoryVectorDb:
     """It maintains a vector database (FLAT) in-memory for given image library

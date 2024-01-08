@@ -1,6 +1,6 @@
 from sqlite3 import Cursor
 
-from sqlite.db import SqliteConnection
+from sqlite.db_client import SqliteConnection
 from sqlite.sql_basic import *
 from sqlite.sql_wechat_history import *
 
