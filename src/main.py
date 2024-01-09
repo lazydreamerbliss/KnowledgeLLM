@@ -15,21 +15,23 @@ if __name__ == '__main__':
     # for i in res:
     #     print(i)
 
-    # image test
-    sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True, local_mode=False)
-    #sample_lib = ImageLib('~/Pictures/Collection')
-    sample_tagger = ImageTagger()
-
-
     image = Image.open("/Users/chengjia/Desktop/sample.jpg")
-    a = sample_lib.image_for_image_search(image, 2)
+
+    sample_lib_mem = ImageLib('~/Pictures/Collection', 'testlib', force_init=False, local_mode=True)
+    sample_tagger = ImageTagger()
+    a = sample_lib_mem.image_for_image_search(image, 2)
     print(a)
-    b = sample_lib.text_for_image_search('astronaut', 2)
+    b = sample_lib_mem.text_for_image_search('astronaut', 2)
     print(b)
-    
-    
-    c = sample_tagger.get_tags(image, 10)
-    print(c)
+
+    # sample_lib_redis = ImageLib('~/Pictures/Collection', 'testlib', force_init=False, local_mode=False)
+    # sample_tagger = ImageTagger()
+    # a = sample_lib_redis.image_for_image_search(image, 2)
+    # print(a)
+    # b = sample_lib_redis.text_for_image_search('astronaut', 2)
+    # print(b)
+    # c = sample_tagger.get_tags(image, 10)
+    # print(c)
 
     # # Prepare raw documents
     # post_filenames: list[str] = glokeys *b('. /blog/*.md')

@@ -1,5 +1,6 @@
 from functools import wraps
 
+import numpy as np
 from redis.commands.search.document import Document
 from redis.commands.search.query import Query
 from redis.commands.search.result import Result
@@ -47,6 +48,7 @@ class ImageLibVectorDb:
         if self.redis_vector_db:
             self.redis_vector_db.initialize_index(vector_dimension)
         elif self.mem_vector_db:
+            # Use flat index for in-memory vector DB, no training data provided
             self.mem_vector_db.initialize_index(vector_dimension)
 
     @ensure_vector_db_connected
@@ -97,15 +99,20 @@ class ImageLibVectorDb:
             self.mem_vector_db.persist()
 
     @ensure_vector_db_connected
-    def query(self, embeddings: bytes, top_k: int = 10, extra_params: dict | None = None) -> list[Document]:
+    def query(self, embeddings: np.ndarray, top_k: int = 10, extra_params: dict | None = None) -> list:
         """Query the given embeddings against the index for similar images
         """
-        if not embeddings or not top_k or top_k <= 0:
+        if embeddings is None or not top_k or top_k <= 0:
             return list()
 
-        param: dict = {"query_vector": embeddings} if not extra_params else \
-                      {"query_vector": embeddings} | extra_params
-        query: Query = Query(f'(*)=>[KNN {top_k} @vector $query_vector AS vector_score]')\
-            .sort_by("vector_score").return_fields("$").dialect(2)
-        search_result: Result = self.redis_vector_db.get_search().search(query, param)  # type: ignore
-        return search_result.docs
+        if self.redis_vector_db:
+            embeddings_as_bytes: bytes = embeddings.tobytes()
+            param: dict = {"query_vector": embeddings_as_bytes} if not extra_params else \
+                {"query_vector": embeddings_as_bytes} | extra_params
+            query: Query = Query(f'(*)=>[KNN {top_k} @vector $query_vector AS vector_score]')\
+                .sort_by("vector_score").return_fields("$").dialect(2)
+            search_result: Result = self.redis_vector_db.get_search().search(query, param)  # type: ignore
+            return search_result.docs
+        elif self.mem_vector_db:
+            return self.mem_vector_db.query(embeddings, top_k)
+        raise ValueError('Vector DB not connected')

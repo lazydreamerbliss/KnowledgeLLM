@@ -13,7 +13,7 @@ def ensure_index(func):
     """
     @wraps(func)
     def wrapper(self: 'InMemoryVectorDb', *args, **kwargs):
-        if not self.mem_index_flat or not self.mem_index_ivf or not self.mem_index_ivf.is_trained:
+        if not self.mem_index_flat and not self.mem_index_ivf:
             raise ValueError('Index not initialized')
         return func(self, *args, **kwargs)
     return wrapper
@@ -128,7 +128,7 @@ class InMemoryVectorDb:
     @ensure_index
     def add(self, uuid: str | None, embeddings: list[float]):
         """Save given embedding to vector DB
-        - If no UUID is given, no ID track
+        - If UUID is not given or empty, no ID track
         - If UUID is given, track the ID mapping for both flat and IVF index
 
         Args:
@@ -184,10 +184,10 @@ class InMemoryVectorDb:
         target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
         target_index.remove_ids(np.asarray(to_be_removed_ids))  # type: ignore
 
-    @ensure_index
     def clean_all_data(self):
         """Fully clean the library data for reset
         - Remove all keys in vector DB
+        - Does not need to ensure index, since it could be called before index is initialized
         """
         if self.mem_index_flat:
             self.mem_index_flat.reset()

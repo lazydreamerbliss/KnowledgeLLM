@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from uuid import uuid4
 
+import numpy as np
 from PIL import Image
 from redis.commands.search.document import Document
 from torch import Tensor
@@ -57,6 +58,7 @@ class ImageLib:
                                                             lib_namespace=self.__lib_manifest["lib_name"],
                                                             lib_path=lib_path)
         self.embedder: ImageLibEmbedder = ImageLibEmbedder()
+        self.local_mode: bool = local_mode
 
         # Initialize the library when it is a new lib or force_init is True
         if force_init or new_lib:
@@ -131,51 +133,74 @@ class ImageLib:
 
         return content
 
-    def __full_scan_and_initialize_lib(self):
-        """Get all files and relative path info under lib_path, including files in all sub folders under lib_path
-
-        Args:
-            lib_name (str): _description_
-        """
-        save_pipeline: BatchedPipeline | None = self.vector_db.get_save_pipeline(batch_size=200)
+    def __do_scan(self):
         files: list[str] = list()
         for root, _, filenames in os.walk(self.lib_path):
             for filename in filenames:
                 files.append(os.path.relpath(os.path.join(root, filename), self.lib_path))
         tqdm.write(f'Library scanned, found {len(files)} files in {self.lib_path}')
 
-        dimension: int = 512
-        with save_pipeline:
-            for file in tqdm(files, desc=f'Processing images', unit='item', ascii=' |'):
-                try:
-                    # Validate if the file is an image and insert it into the table
-                    # - After verify() the file stream is closed, need to reopen it
-                    img: Image.Image = Image.open(os.path.join(self.lib_path, file))
-                    img.verify()
-                    img = Image.open(os.path.join(self.lib_path, file))
-                except:
-                    tqdm.write(f'Invalid image: {file}, skip')
-                    continue
+        for file in tqdm(files, desc=f'Processing images', unit='item', ascii=' |'):
+            try:
+                # Validate if the file is an image and insert it into the table
+                # - After verify() the file stream is closed, need to reopen it
+                img: Image.Image = Image.open(os.path.join(self.lib_path, file))
+                img.verify()
+                img = Image.open(os.path.join(self.lib_path, file))
+            except:
+                tqdm.write(f'Invalid image: {file}, skip')
+                continue
 
-                # Write DB entry
-                timestamp: datetime = datetime.now()
-                uuid: str = str(uuid4())
-                relative_path: str = os.path.dirname(file)
-                filename: str = os.path.basename(file)
-                # (timestamp, uuid, path, filename)
-                self.table.insert_row((timestamp, uuid, relative_path, filename))
+            # Write DB entry
+            timestamp: datetime = datetime.now()
+            uuid: str = str(uuid4())
+            relative_path: str = os.path.dirname(file)
+            filename: str = os.path.basename(file)
+            # (timestamp, uuid, path, filename)
+            self.table.insert_row((timestamp, uuid, relative_path, filename))
 
-                # Embed the image and write vector DB entry
-                start_time: float = time.time()
-                embeddings: list[float] = self.embedder.embed_image_as_list(img)
-                dimension = len(embeddings)
-                time_taken: float = time.time() - start_time
-                tqdm.write(f'Image embedded: {file}, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
-                self.vector_db.add(uuid, embeddings, save_pipeline)
+            # Embed the image and write vector DB entry
+            start_time: float = time.time()
+            embeddings: list[float] = self.embedder.embed_image_as_list(img)
+            time_taken: float = time.time() - start_time
+            tqdm.write(f'Image embedded: {file}, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
+
+            # Pass the UUID and embeddings to caller
+            yield uuid, embeddings
+
+    def __full_scan_and_initialize_lib(self):
+        """Get all files and relative path info under lib_path, including files in all sub folders under lib_path
+
+        Args:
+            lib_name (str): _description_
+        """
+        save_pipeline: BatchedPipeline | None = None
+        try:
+            save_pipeline = self.vector_db.get_save_pipeline(batch_size=200)
+        except NotImplementedError:
+            pass
+
+        dimension: int = -1
+        if save_pipeline:
+            # If batched pipeline is available, use it to save the embeddings
+            with save_pipeline:
+                for uuid, embeddings in self.__do_scan():
+                    if dimension == -1:
+                        dimension = len(embeddings)
+                    self.vector_db.add(uuid, embeddings, save_pipeline)
+        else:
+            # Otherwise, save the embeddings one by one
+            for uuid, embeddings in self.__do_scan():
+                # If this is the first embedding and in local mode, initialize the index
+                if dimension == -1 and self.local_mode:
+                    dimension = len(embeddings)
+                    self.vector_db.initialize_index(dimension)
+                self.vector_db.add(uuid, embeddings)
 
         self.vector_db.persist()
         tqdm.write('Creating index...')
-        self.vector_db.initialize_index(dimension)
+        if not self.local_mode:
+            self.vector_db.initialize_index(dimension)
         tqdm.write(f'Image library DB initialized')
 
     def delete_lib(self):
@@ -221,19 +246,30 @@ class ImageLib:
             return list()
 
         start: float = time.time()
-        image_embedding: bytes = self.embedder.embed_image_as_bytes(img)
-        docs: list[Document] = self.vector_db.query(image_embedding)
+        image_embedding: np.ndarray = self.embedder.embed_image(img)
+        docs: list = self.vector_db.query(image_embedding)
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with image similarity completed, cost: {time_taken:.2f}s')
 
         # Parse the result, get file data from DB
+        # - The local key of an image is `uuid` or `id` of the vector in the index
         # - The redis key of an image is `lib_name`:`uuid`
         res: list[tuple] = list()
-        for doc in docs:
-            uuid: str = doc.id.split(':')[1]
-            row: tuple | None = self.table.select_row_by_uuid(uuid)
-            if row:
-                res.append(row)
+        if self.local_mode:
+            casted_local: list[int | str] = docs
+            for possible_uuid in casted_local:
+                if isinstance(possible_uuid, int):
+                    raise ValueError('ID tracking not enabled, cannot get UUID')
+                row: tuple | None = self.table.select_row_by_uuid(possible_uuid)
+                if row:
+                    res.append(row)
+        else:
+            casted_redis: list[Document] = docs
+            for doc in casted_redis:
+                uuid: str = doc.id.split(':')[1]
+                row: tuple | None = self.table.select_row_by_uuid(uuid)
+                if row:
+                    res.append(row)
 
         return res
 
@@ -242,19 +278,31 @@ class ImageLib:
             return list()
 
         start: float = time.time()
-        text_embedding: bytes = self.embedder.embed_text(text)
-        docs: list[Document] = self.vector_db.query(text_embedding)
+        # Text embedding is a 2D array, the first element is the embedding of the text
+        text_embedding: np.ndarray = self.embedder.embed_text(text)[0]
+        docs: list = self.vector_db.query(text_embedding)
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with text similarity completed, cost: {time_taken:.2f}s')
 
         # Parse the result, get file data from DB
+        # - The local key of an image is `uuid` or `id` of the vector in the index
         # - The redis key of an image is `lib_name`:`uuid`
         res: list[tuple] = list()
-        for doc in docs:
-            uuid: str = doc.id.split(':')[1]
-            row: tuple | None = self.table.select_row_by_uuid(uuid)
-            if row:
-                res.append(row)
+        if self.local_mode:
+            casted_local: list[int | str] = docs
+            for possible_uuid in casted_local:
+                if isinstance(possible_uuid, int):
+                    raise ValueError('ID tracking not enabled, cannot get UUID')
+                row: tuple | None = self.table.select_row_by_uuid(possible_uuid)
+                if row:
+                    res.append(row)
+        else:
+            casted_redis: list[Document] = docs
+            for doc in casted_redis:
+                uuid: str = doc.id.split(':')[1]
+                row: tuple | None = self.table.select_row_by_uuid(uuid)
+                if row:
+                    res.append(row)
 
         return res
 

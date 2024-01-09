@@ -68,7 +68,7 @@ class ImageLibEmbedder:
         embeddings: np.ndarray = self.embed_image(img, use_grad)
         return embeddings.tobytes()
 
-    def embed_text(self, text: str, use_grad: bool = False) -> bytes:
+    def embed_text(self, text: str, use_grad: bool = False) -> np.ndarray:
         """Embed the given text
         """
         inputs: BatchEncoding = self.processor(text, return_tensors="pt", padding=True)
@@ -76,8 +76,8 @@ class ImageLibEmbedder:
 
         if not use_grad:
             with torch.no_grad():
-                return text_features.numpy().astype(np.float32).tobytes()
-        return text_features.numpy().astype(np.float32).tobytes()
+                return text_features.numpy().astype(np.float32)
+        return text_features.numpy().astype(np.float32)
 
     def compute_text_image_similarity(self, text_list: list[str], img: Image.Image) -> Tensor:
         """Query the given text and image against the CLIP model for similarity
