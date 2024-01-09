@@ -1,11 +1,22 @@
 import math
 import os
 import pickle
+from functools import wraps
 
 import numpy as np
 from faiss import IndexFlatL2, IndexIDMap2, IndexIVFFlat
-from redis.commands.search.document import Document
 from tqdm import tqdm
+
+
+def ensure_index(func):
+    """Decorator to ensure the index is initialized
+    """
+    @wraps(func)
+    def wrapper(self: 'InMemoryVectorDb', *args, **kwargs):
+        if not self.mem_index_flat or not self.mem_index_ivf or not self.mem_index_ivf.is_trained:
+            raise ValueError('Index not initialized')
+        return func(self, *args, **kwargs)
+    return wrapper
 
 
 class InMemoryVectorDb:
@@ -15,17 +26,18 @@ class InMemoryVectorDb:
     IDX_FILENAME: str = 'mem_db.idx'
     DEFAULT_NEIGHBOR_COUNT: int = 5  # Default number of nearest neighbors to be queried for IVF
 
-    def __init__(self, db_path, index_filename: str | None = None):
-        if not db_path:
-            raise ValueError('A path is mandatory for using in-memory vector DB')
+    def __init__(self, folder_path, index_filename: str | None = None):
+        if not folder_path:
+            raise ValueError(
+                'A folder path is mandatory for using in-memory vector DB, index file will be created in the folder')
 
         tqdm.write(f'Loading index from disk...', end=' ')
-        db_path = os.path.expanduser(db_path)
-        if not os.path.isdir(db_path):
+        folder_path = os.path.expanduser(folder_path)
+        if not os.path.isdir(folder_path):
             raise ValueError('Path does not exist')
 
         index_filename = index_filename or InMemoryVectorDb.IDX_FILENAME
-        index_file_path: str = os.path.join(db_path, index_filename)
+        index_file_path: str = os.path.join(folder_path, index_filename)
         self.mem_index_path: str = index_file_path
         self.id_mapping: dict[int, str] | None = None  # Maintain the mapping of ID to UUID
         self.mem_index_flat: IndexIDMap2 | None = None
@@ -51,6 +63,13 @@ class InMemoryVectorDb:
                 raise ValueError('Corrupted index file')
         else:
             tqdm.write(f'Index file {index_file_path} not found, this is a new database')
+
+    def __get_index(self) -> IndexIDMap2 | IndexIVFFlat:
+        if self.mem_index_flat:
+            return self.mem_index_flat
+        if self.mem_index_ivf:
+            return self.mem_index_ivf
+        raise ValueError('Index not initialized')
 
     def initialize_index(self,
                          vector_dimension: int,
@@ -106,26 +125,24 @@ class InMemoryVectorDb:
         else:
             self.mem_index_ivf.add(training_set_np)  # type: ignore
 
-    def add(self, embeddings: np.ndarray, uuid: str | None = None):
+    @ensure_index
+    def add(self, uuid: str | None, embeddings: list[float]):
         """Save given embedding to vector DB
         - If no UUID is given, no ID track
         - If UUID is given, track the ID mapping for both flat and IVF index
 
         Args:
-            embeddings (np.ndarray): _description_
+            embeddings (list[float]): _description_
             uuid (str | None, optional): _description_. Defaults to None.
 
         Raises:
             ValueError: _description_
             ValueError: _description_
         """
-        if not self.mem_index_flat or not self.mem_index_ivf or not self.mem_index_ivf.is_trained:
-            raise ValueError('Index not initialized')
-
         if not self.id_mapping:
             self.id_mapping = dict()
 
-        target_index: IndexIDMap2 | IndexIVFFlat = self.mem_index_flat if self.mem_index_flat else self.mem_index_ivf
+        target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
 
         # Track vector ID only when the embedding is added with a UUID
         if uuid:
@@ -140,30 +157,38 @@ class InMemoryVectorDb:
         else:
             target_index.add(np.asarray([embeddings]))  # type: ignore
 
-    def remove(self, ids: list[int]):
-        """Remove given embeddings from vector DB by ID
-        - Caller should provide and ensure the ID on their own
+    @ensure_index
+    def remove(self, uuids: list[str] | None, ids: list[int] | None):
+        """Remove given embeddings from vector DB by UUID or ID
+        - If remove by UUID then ID tracking is required
+        - If both UUID and ID are given, remove by ID
         """
-        if not self.mem_index_flat or not self.mem_index_ivf or not self.mem_index_ivf.is_trained:
-            raise ValueError('Index not initialized')
+        if not uuids and not ids:
+            return
+        if uuids and not ids and not self.id_mapping:
+            raise ValueError('ID mapping is required for removing by UUID')
 
-        if not ids:
+        to_be_removed_ids: list[int] | None = None
+        if ids:
+            to_be_removed_ids = ids
+        elif uuids and self.id_mapping:
+            to_be_removed_ids = [id for id, uuid in self.id_mapping.items() if uuid in uuids]
+        if not to_be_removed_ids:
             return
 
         if self.id_mapping:
-            for id in ids:
+            for id in to_be_removed_ids:
                 if id in self.id_mapping:
                     del self.id_mapping[id]
-        target_index: IndexIDMap2 | IndexIVFFlat = self.mem_index_flat if self.mem_index_flat else self.mem_index_ivf
-        target_index.remove_ids(np.asarray(ids))  # type: ignore
 
+        target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
+        target_index.remove_ids(np.asarray(to_be_removed_ids))  # type: ignore
+
+    @ensure_index
     def clean_all_data(self):
         """Fully clean the library data for reset
         - Remove all keys in vector DB
         """
-        if not self.mem_index_flat or not self.mem_index_ivf or not self.mem_index_ivf.is_trained:
-            raise ValueError('Index not initialized')
-
         if self.mem_index_flat:
             self.mem_index_flat.reset()
         if self.mem_index_ivf:
@@ -189,6 +214,7 @@ class InMemoryVectorDb:
             'index_ivf': self.mem_index_ivf,
         }, open(self.mem_index_path, 'wb'))
 
+    @ensure_index
     def query(self,
               embeddings: np.ndarray,
               top_k: int = 10,
@@ -207,17 +233,17 @@ class InMemoryVectorDb:
         Returns:
             list[str | int]: _description_
         """
-        if not self.mem_index_flat or not self.mem_index_ivf or not self.mem_index_ivf.is_trained:
-            raise ValueError('Index not initialized')
-
+        prob_changed: bool = False
         if self.mem_index_ivf and additional_neighbors != InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT and additional_neighbors > 0:
             self.mem_index_ivf.nprobe = additional_neighbors
+            prob_changed = True
 
-        target_index: IndexIDMap2 | IndexIVFFlat = self.mem_index_flat if self.mem_index_flat else self.mem_index_ivf
+        target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
         D, I = target_index.search(np.asarray([embeddings]), top_k)  # type: ignore
 
         # Reset the number of neighbors to be queried for IVF
-        self.mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
+        if prob_changed and self.mem_index_ivf:
+            self.mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
 
         if not self.id_mapping:
             return list(I[0])

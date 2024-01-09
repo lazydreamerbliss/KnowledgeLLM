@@ -16,7 +16,7 @@ if __name__ == '__main__':
     #     print(i)
 
     # image test
-    sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True)
+    sample_lib = ImageLib('~/Pictures/Collection', 'testlib', force_init=True, local_mode=False)
     #sample_lib = ImageLib('~/Pictures/Collection')
     sample_tagger = ImageTagger()
 

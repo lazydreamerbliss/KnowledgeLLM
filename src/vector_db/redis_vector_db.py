@@ -1,4 +1,3 @@
-import numpy as np
 from redis import ResponseError
 from redis.commands.search import Search
 from redis.commands.search.field import VectorField
@@ -19,8 +18,6 @@ class RedisVectorDb:
 
         tqdm.write(f'Connecting to Redis vector DB...', end=' ')
         self.redis: RedisClient = RedisClient(host="localhost", port=6379, password="test123")
-        if not self.redis.__connected:
-            raise ValueError('Redis not connected')
         self.namespace: str = namespace
         self.index_name: str = index_name
         tqdm.write(f'Connected')

@@ -1,10 +1,7 @@
-import re
 from pathlib import Path
 
 import nltk
-import regex
 from deep_translator import GoogleTranslator
-from nltk.corpus import wordnet as wn
 
 nltk.download('wordnet')
 translator = GoogleTranslator(source='en', target='zh-CN')

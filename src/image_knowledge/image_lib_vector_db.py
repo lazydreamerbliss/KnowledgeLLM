@@ -1,13 +1,23 @@
-import numpy as np
+from functools import wraps
+
 from redis.commands.search.document import Document
 from redis.commands.search.query import Query
 from redis.commands.search.result import Result
-from tqdm import tqdm
 
-from sqlite.sql_image_lib import DB_NAME
 from vector_db.mem_vector_db import InMemoryVectorDb
 from vector_db.redis_client import BatchedPipeline
 from vector_db.redis_vector_db import RedisVectorDb
+
+
+def ensure_vector_db_connected(func):
+    """Decorator to ensure at least one vector DB is connected before calling the function
+    """
+    @wraps(func)
+    def wrapper(self: 'ImageLibVectorDb', *args, **kwargs):
+        if not self.redis_vector_db and not self.mem_vector_db:
+            raise ValueError('Vector DB not connected')
+        return func(self, *args, **kwargs)
+    return wrapper
 
 
 class ImageLibVectorDb:
@@ -22,32 +32,71 @@ class ImageLibVectorDb:
         # if use_redis:
         if use_redis and not lib_uuid or not lib_namespace:
             raise ValueError('Namespace and library UUID are mandatory for using redis as vector DB')
+        if not use_redis and not lib_path:
+            raise ValueError('Library path is mandatory for using in-memory vector DB')
 
-        self.redis_vector_db: RedisVectorDb = RedisVectorDb(namespace=lib_namespace, index_name=f'v_idx:{lib_uuid}')
-        self.mem_vector_db: InMemoryVectorDb = InMemoryVectorDb(lib_path, ImageLibVectorDb.IDX_FILENAME)
-        tqdm.write(f'Connected')
+        self.redis_vector_db: RedisVectorDb | None = None
+        self.mem_vector_db: InMemoryVectorDb | None = None
+        if use_redis:
+            self.redis_vector_db = RedisVectorDb(namespace=lib_namespace, index_name=f'v_idx:{lib_uuid}')
+        else:
+            self.mem_vector_db = InMemoryVectorDb(lib_path, ImageLibVectorDb.IDX_FILENAME)
 
+    @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int):
-        self.redis_vector_db.initialize_index(vector_dimension)
+        if self.redis_vector_db:
+            self.redis_vector_db.initialize_index(vector_dimension)
+        elif self.mem_vector_db:
+            self.mem_vector_db.initialize_index(vector_dimension)
 
+    @ensure_vector_db_connected
     def get_save_pipeline(self, batch_size: int = 1000) -> BatchedPipeline:
-        return self.redis_vector_db.get_save_pipeline(batch_size)
+        if self.redis_vector_db:
+            return self.redis_vector_db.get_save_pipeline(batch_size)
+        raise NotImplementedError('In-memory vector DB does not support batched pipeline')
 
+    @ensure_vector_db_connected
     def add(self, uuid: str, embeddings: list[float], pipeline: BatchedPipeline | None = None):
-        self.redis_vector_db.add(uuid, embeddings, pipeline)
+        if self.redis_vector_db:
+            self.redis_vector_db.add(uuid, embeddings, pipeline)
+        elif self.mem_vector_db:
+            self.mem_vector_db.add(uuid, embeddings)
 
+    @ensure_vector_db_connected
     def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
-        self.redis_vector_db.remove(uuid, pipeline)
+        if self.redis_vector_db:
+            self.redis_vector_db.remove(uuid, pipeline)
+        elif self.mem_vector_db:
+            self.mem_vector_db.remove([uuid], ids=None)
 
+    @ensure_vector_db_connected
+    def remove_many(self, uuids: list[str]):
+        if self.mem_vector_db:
+            self.mem_vector_db.remove(uuids, ids=None)
+        raise NotImplementedError('Redis vector DB does not support remove many, use batched pipeline to remove instead')
+
+    @ensure_vector_db_connected
     def clean_all_data(self):
-        self.redis_vector_db.clean_all_data()
+        if self.redis_vector_db:
+            self.redis_vector_db.clean_all_data()
+        elif self.mem_vector_db:
+            self.mem_vector_db.clean_all_data()
 
+    @ensure_vector_db_connected
     def delete_db(self):
-        self.redis_vector_db.delete_db()
+        if self.redis_vector_db:
+            self.redis_vector_db.delete_db()
+        elif self.mem_vector_db:
+            self.mem_vector_db.delete_db()
 
+    @ensure_vector_db_connected
     def persist(self):
-        self.redis_vector_db.persist()
+        if self.redis_vector_db:
+            self.redis_vector_db.persist()
+        elif self.mem_vector_db:
+            self.mem_vector_db.persist()
 
+    @ensure_vector_db_connected
     def query(self, embeddings: bytes, top_k: int = 10, extra_params: dict | None = None) -> list[Document]:
         """Query the given embeddings against the index for similar images
         """

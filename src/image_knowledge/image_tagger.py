@@ -6,10 +6,10 @@ import torch
 import torch.amp.autocast_mode
 import torchvision.transforms.functional as TVF
 from PIL import Image
-from torch import FloatTensor, Tensor
+from torch import Tensor
 from tqdm import tqdm
 
-from image_knowledge.tagger_model import TaggerModel
+from image_knowledge.tagger import TaggerModel
 
 
 class ImageTagger:

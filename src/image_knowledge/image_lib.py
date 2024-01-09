@@ -2,7 +2,6 @@ import json
 import os
 import time
 from datetime import datetime
-from pathlib import Path
 from uuid import uuid4
 
 from PIL import Image

@@ -62,10 +62,10 @@ class BatchedPipeline:
 
 
 def ensure_redis(func):
-    """Decorator to ensure the Redis client is connected
+    """Decorator to ensure the Redis client is connected on every call
     """
     @wraps(func)
-    def wrapper(self: RedisClient, *args, **kwargs):
+    def wrapper(self: 'RedisClient', *args, **kwargs):
         if not self.__connected:
             raise ValueError("Redis is not connected")
         return func(self, *args, **kwargs)
