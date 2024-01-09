@@ -66,7 +66,7 @@ def ensure_redis(func):
     """
     @wraps(func)
     def wrapper(self: 'RedisClient', *args, **kwargs):
-        if not self.__connected:
+        if not self.connected:
             raise ValueError("Redis is not connected")
         return func(self, *args, **kwargs)
     return wrapper
@@ -76,9 +76,9 @@ class RedisClient:
     def __init__(self, host: str, port: int = 6379, password: str | None = None, decode_responses: bool = True):
         self.__client: Redis = Redis(host=host, port=port, password=password, decode_responses=decode_responses)
         try:
-            self.__connected: bool = bool(self.__client.ping())
+            self.connected: bool = bool(self.__client.ping())
         except:
-            self.__connected: bool = False
+            self.connected: bool = False
 
     @ensure_redis
     def client(self) -> Redis:
