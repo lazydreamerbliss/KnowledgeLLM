@@ -2,9 +2,9 @@ from redis import ResponseError
 from redis.commands.search import Search
 from redis.commands.search.field import VectorField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
-from tqdm import tqdm
 
 from sqlite.sql_image_lib import DB_NAME
+from utils.tqdm_context import TqdmContext
 from vector_db.redis_client import BatchedPipeline, RedisClient
 
 
@@ -16,11 +16,10 @@ class RedisVectorDb:
         if not namespace or not index_name:
             raise ValueError('Namespace and index name are mandatory for using redis as vector DB')
 
-        tqdm.write(f'Connecting to Redis vector DB...', end=' ')
-        self.redis: RedisClient = RedisClient(host="localhost", port=6379, password="test123")
-        self.namespace: str = namespace
-        self.index_name: str = index_name
-        tqdm.write(f'Connected')
+        with TqdmContext('Connecting to Redis vector DB...', 'Connected'):
+            self.redis: RedisClient = RedisClient(host="localhost", port=6379, password="test123")
+            self.namespace: str = namespace
+            self.index_name: str = index_name
 
     def initialize_index(self, vector_dimension: int):
         """Create index for current image library only

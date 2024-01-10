@@ -31,7 +31,7 @@ class InMemoryVectorDb:
             raise ValueError(
                 'A folder path is mandatory for using in-memory vector DB, index file will be created in the folder')
 
-        tqdm.write(f'Loading index from disk...', end=' ')
+        tqdm.write(f'Loading vector index from disk...', end=' ')
         folder_path = os.path.expanduser(folder_path)
         if not os.path.isdir(folder_path):
             raise ValueError('Path does not exist')

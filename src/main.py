@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image
 
 from doc_knowledge.doc_embedder import DocEmbedder
+from image_knowledge.image_embedder import ImageEmbedder
 from image_knowledge.image_lib import ImageLib
 from image_knowledge.image_tagger import ImageTagger
 
@@ -15,21 +16,28 @@ if __name__ == '__main__':
     # for i in res:
     #     print(i)
 
-    image = Image.open("/Users/chengjia/Desktop/sample.jpg")
+    embedder = ImageEmbedder()
+    tagger = ImageTagger()
+    #sample = Image.open("/Users/chengjia/Desktop/sample.jpg")
+    sample = Image.open("/Users/chengjia/Desktop/sample2.jpg")
 
-    sample_lib_mem = ImageLib('~/Pictures/Collection', 'testlib', force_init=False, local_mode=True)
-    sample_tagger = ImageTagger()
-    a = sample_lib_mem.image_for_image_search(image, 2)
+    lib_mem = ImageLib(embedder, '~/Pictures/test_set_mem', 'testlib', force_init=False, local_mode=True)
+    a = lib_mem.image_for_image_search(sample, 2)
     print(a)
-    b = sample_lib_mem.text_for_image_search('astronaut', 2)
+    b = lib_mem.text_for_image_search('astronaut', 2)
+    print(b)
+    lib_mem.scan_lib()
+    lib_mem.scan_lib()
+    lib_mem.scan_lib()
+    lib_mem.scan_lib()
+
+
+    lib_redis = ImageLib(embedder, '~/Pictures/test_set_redis', 'testlib', force_init=True, local_mode=False)
+    a = lib_redis.image_for_image_search(sample, 2)
+    print(a)
+    b = lib_redis.text_for_image_search('astronaut', 2)
     print(b)
 
-    # sample_lib_redis = ImageLib('~/Pictures/Collection', 'testlib', force_init=False, local_mode=False)
-    # sample_tagger = ImageTagger()
-    # a = sample_lib_redis.image_for_image_search(image, 2)
-    # print(a)
-    # b = sample_lib_redis.text_for_image_search('astronaut', 2)
-    # print(b)
     # c = sample_tagger.get_tags(image, 10)
     # print(c)
 

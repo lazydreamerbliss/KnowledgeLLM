@@ -4,16 +4,15 @@ import numpy as np
 import torch
 from PIL import Image
 from torch import FloatTensor, Tensor
-from tqdm import tqdm
 from transformers import (ChineseCLIPModel, ChineseCLIPProcessor, CLIPModel,
                           CLIPProcessor, CLIPTokenizer)
 from transformers.models.clip.modeling_clip import CLIPOutput
 from transformers.tokenization_utils_base import BatchEncoding
 
-from sqlite.sql_image_lib import DB_NAME
+from utils.tqdm_context import TqdmContext
 
 
-class ImageLibEmbedder:
+class ImageEmbedder:
     """It maintains multiple CLIP models for different languages, and provides functionalities to embed images and texts
     """
     # Model folder: ../../../local_models/...
@@ -22,19 +21,15 @@ class ImageLibEmbedder:
     model_path_cn: str = f'{MODEL_FOLDER}/OFA-Sys--chinese-clip-vit-base-patch16/snapshots/36e679e65c2a2fead755ae21162091293ad37834'
 
     def __init__(self):
-        tqdm.write(f'Initializing embedder, loading CLIP models...', end=' ')
-
-        # Use CLIP to embed images
-        # - https://huggingface.co/docs/transformers/model_doc/clip
-        self.processor: CLIPProcessor = CLIPProcessor.from_pretrained(ImageLibEmbedder.model_path)
-        self.model: CLIPModel = CLIPModel.from_pretrained(ImageLibEmbedder.model_path)  # type: ignore
-        self.tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(ImageLibEmbedder.model_path)
-        self.model_cn: ChineseCLIPModel = ChineseCLIPModel.from_pretrained(
-            ImageLibEmbedder.model_path_cn)  # type: ignore
-        self.processor_cn: ChineseCLIPProcessor = ChineseCLIPProcessor.from_pretrained(
-            ImageLibEmbedder.model_path_cn)
-
-        tqdm.write(f'Loaded')
+        with TqdmContext('Initializing embedder, loading CLIP models...', 'Loaded'):
+            # Use CLIP to embed images
+            # - https://huggingface.co/docs/transformers/model_doc/clip
+            self.processor: CLIPProcessor = CLIPProcessor.from_pretrained(ImageEmbedder.model_path)
+            self.model: CLIPModel = CLIPModel.from_pretrained(ImageEmbedder.model_path)  # type: ignore
+            self.tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(ImageEmbedder.model_path)
+            self.model_cn: ChineseCLIPModel = ChineseCLIPModel.from_pretrained(
+                ImageEmbedder.model_path_cn)  # type: ignore
+            self.processor_cn: ChineseCLIPProcessor = ChineseCLIPProcessor.from_pretrained(ImageEmbedder.model_path_cn)
 
     def __embed_image(self, img: Image.Image) -> np.ndarray:
         # The batch size is set to 1, so the first element of the output is the embedding of the image

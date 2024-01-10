@@ -1,7 +1,6 @@
 from functools import wraps
 
 import numpy as np
-from redis.commands.search.document import Document
 from redis.commands.search.query import Query
 from redis.commands.search.result import Result
 

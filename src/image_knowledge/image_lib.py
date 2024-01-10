@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime
+from typing import Generator
 from uuid import uuid4
 
 import numpy as np
@@ -10,10 +11,11 @@ from redis.commands.search.document import Document
 from torch import Tensor
 from tqdm import tqdm
 
-from image_knowledge.image_lib_embedder import ImageLibEmbedder
+from image_knowledge.image_embedder import ImageEmbedder
 from image_knowledge.image_lib_vector_db import ImageLibVectorDb
 from sqlite.image_lib_table import ImageLibTable
 from sqlite.sql_image_lib import DB_NAME
+from utils.tqdm_context import TqdmContext
 from vector_db.redis_client import BatchedPipeline
 
 
@@ -21,7 +23,12 @@ class ImageLib:
     """Define an image library
     """
 
-    def __init__(self, lib_path: str, lib_name: str | None = None, force_init: bool = False, local_mode: bool = True):
+    def __init__(self,
+                 embedder: ImageEmbedder,
+                 lib_path: str,
+                 lib_name: str | None = None,
+                 force_init: bool = False,
+                 local_mode: bool = True):
         """
         Args:
             lib_path (str): Path to the image library
@@ -29,6 +36,9 @@ class ImageLib:
             force_init (bool, optional): Force reset and reinitialize the image library. Defaults to False.
             local_mode (bool, optional): True for use local index, False for use Redis. Defaults to True.
         """
+        if not embedder:
+            raise ValueError('Image embedder is empty')
+
         # Expand the lib path to absolute path
         lib_path = os.path.expanduser(lib_path)
         if not os.path.isdir(lib_path):
@@ -40,16 +50,14 @@ class ImageLib:
 
         # Load manifest
         self.lib_path: str = lib_path
-        if new_lib:
-            tqdm.write(f'Initializing library manifest...', end=' ')
-            self.__lib_manifest: dict = self.__initialize_lib_manifest(lib_name)
-        else:
-            tqdm.write(f'Loading library manifest...', end=' ')
-            self.__lib_manifest: dict = self.__parse_lib_manifest()
+        with TqdmContext('Loading library manifest...', 'Loaded'):
+            if new_lib:
+                self.__lib_manifest: dict = self.__initialize_lib_manifest(lib_name)
+            else:
+                self.__lib_manifest: dict = self.__parse_lib_manifest()
 
         if not self.__lib_manifest:
             raise ValueError('Library manifest not initialized')
-        tqdm.write(f'Loaded')
 
         # Connect to DB and vector DB (embedder here)
         self.table: ImageLibTable = ImageLibTable(lib_path)
@@ -57,14 +65,14 @@ class ImageLib:
                                                             lib_uuid=self.__lib_manifest['uuid'],
                                                             lib_namespace=self.__lib_manifest["lib_name"],
                                                             lib_path=lib_path)
-        self.embedder: ImageLibEmbedder = ImageLibEmbedder()
+        self.embedder: ImageEmbedder = embedder
         self.local_mode: bool = local_mode
 
         # Initialize the library when it is a new lib or force_init is True
         if force_init or new_lib:
             if force_init and not new_lib:
                 tqdm.write(
-                    f'Initialize library DB: {lib_path}, this is a force init operation and existing library data will be purged')
+                    f'Initialize library: {lib_path}, this is a force init operation and existing library data will be purged')
                 self.__lib_manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 self.__update_lib_manifest()
                 self.vector_db.clean_all_data()
@@ -72,14 +80,10 @@ class ImageLib:
             else:
                 tqdm.write(f'Initialize library DB: {lib_path} for new library')
             self.__full_scan_and_initialize_lib()
-        else:
-            tqdm.write(f'Load library DB: {lib_path}')
 
     def __is_new_lib(self, lib_path: str) -> bool:
         """Check if the image library is new
-
-        Returns:
-            bool: _description_
+        - If DB file or manifest file is missing, then it is a new library even though vector DB might exist
         """
         return not (os.path.isfile(os.path.join(lib_path, DB_NAME))
                     and os.path.isfile(os.path.join(lib_path, 'manifest.json')))
@@ -133,7 +137,18 @@ class ImageLib:
 
         return content
 
-    def __do_scan(self):
+    def __write_entry(self, file: str, embeddings: list[float], save_pipeline: BatchedPipeline | None = None):
+        """Write an entry to the DB and vector DB
+        """
+        timestamp: datetime = datetime.now()
+        uuid: str = str(uuid4())
+        relative_path: str = os.path.dirname(file)
+        filename: str = os.path.basename(file)
+        # (timestamp, uuid, path, filename)
+        self.table.insert_row((timestamp, uuid, relative_path, filename))
+        self.vector_db.add(uuid, embeddings, save_pipeline)
+
+    def __do_scan(self) -> Generator[tuple[str, list[float]], None, None]:
         files: list[str] = list()
         for root, _, filenames in os.walk(self.lib_path):
             for filename in filenames:
@@ -151,24 +166,14 @@ class ImageLib:
                 tqdm.write(f'Invalid image: {file}, skip')
                 continue
 
-            # Write DB entry
-            timestamp: datetime = datetime.now()
-            uuid: str = str(uuid4())
-            relative_path: str = os.path.dirname(file)
-            filename: str = os.path.basename(file)
-            # (timestamp, uuid, path, filename)
-            self.table.insert_row((timestamp, uuid, relative_path, filename))
-
-            # Embed the image and write vector DB entry
             start_time: float = time.time()
             embeddings: list[float] = self.embedder.embed_image_as_list(img)
             time_taken: float = time.time() - start_time
             tqdm.write(f'Image embedded: {file}, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
 
-            # Pass the UUID and embeddings to caller
-            yield uuid, embeddings
+            yield file, embeddings
 
-    def __full_scan_and_initialize_lib(self):
+    def __full_scan_and_initialize_lib(self, scan_only: bool = False):
         """Get all files and relative path info under lib_path, including files in all sub folders under lib_path
 
         Args:
@@ -184,24 +189,44 @@ class ImageLib:
         if save_pipeline:
             # If batched pipeline is available, use it to save the embeddings
             with save_pipeline:
-                for uuid, embeddings in self.__do_scan():
-                    if dimension == -1:
-                        dimension = len(embeddings)
-                    self.vector_db.add(uuid, embeddings, save_pipeline)
+                for file, embeddings in self.__do_scan():
+                    if not scan_only:
+                        if dimension == -1:
+                            dimension = len(embeddings)
+                        self.__write_entry(file, embeddings, save_pipeline)
         else:
             # Otherwise, save the embeddings one by one
-            for uuid, embeddings in self.__do_scan():
-                # If this is the first embedding and in local mode, initialize the index
-                if dimension == -1 and self.local_mode:
-                    dimension = len(embeddings)
-                    self.vector_db.initialize_index(dimension)
-                self.vector_db.add(uuid, embeddings)
+            for file, embeddings in self.__do_scan():
+                # If this is the first embedding and in local mode, initialize the index first as memory vector DB needs to build index before adding data
+                if not scan_only:
+                    if dimension == -1 and self.local_mode:
+                        dimension = len(embeddings)
+                        with TqdmContext('Creating index...', 'Index created'):
+                            self.vector_db.initialize_index(dimension)
+                    self.__write_entry(file, embeddings)
 
-        self.vector_db.persist()
-        tqdm.write('Creating index...')
-        if not self.local_mode:
-            self.vector_db.initialize_index(dimension)
-        tqdm.write(f'Image library DB initialized')
+        if not scan_only:
+            self.vector_db.persist()
+            if not self.local_mode:
+                with TqdmContext('Creating index...', 'Index created'):
+                    self.vector_db.initialize_index(dimension)
+            tqdm.write(f'Image library DB initialized')
+        else:
+            tqdm.write(f'Image library scanned')
+
+    def force_initialize_lib(self):
+        """Force initialize the image library
+        """
+        tqdm.write(
+            f'Initialize library: {self.lib_path}, this is a force init operation and existing library data will be purged')
+        self.__lib_manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.__update_lib_manifest()
+        self.vector_db.clean_all_data()
+        self.table.clean_all_data()
+        self.__full_scan_and_initialize_lib()
+
+    def scan_lib(self):
+        self.__full_scan_and_initialize_lib(scan_only=True)
 
     def delete_lib(self):
         """Delete the image library, it purges all library data
