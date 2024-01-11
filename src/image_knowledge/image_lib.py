@@ -138,7 +138,8 @@ class ImageLib:
         return content
 
     def __write_entry(self, file: str, embeddings: list[float], save_pipeline: BatchedPipeline | None = None):
-        """Write an entry to the DB and vector DB
+        """Write an image entry to both DB and vector DB
+        - An UUID is generated to identify the image globally
         """
         timestamp: datetime = datetime.now()
         uuid: str = str(uuid4())
@@ -187,7 +188,7 @@ class ImageLib:
 
         dimension: int = -1
         if save_pipeline:
-            # If batched pipeline is available, use it to save the embeddings
+            # Use batched pipeline when available
             with save_pipeline:
                 for file, embeddings in self.__do_scan():
                     if not scan_only:

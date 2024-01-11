@@ -4,8 +4,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch import FloatTensor, Tensor
-from transformers import (ChineseCLIPModel, ChineseCLIPProcessor, CLIPModel,
-                          CLIPProcessor, CLIPTokenizer)
+from transformers import ChineseCLIPModel, ChineseCLIPProcessor, CLIPModel, CLIPProcessor, CLIPTokenizer
 from transformers.models.clip.modeling_clip import CLIPOutput
 from transformers.tokenization_utils_base import BatchEncoding
 
