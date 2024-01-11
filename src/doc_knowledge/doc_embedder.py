@@ -7,12 +7,14 @@ import pickle
 
 import numpy as np
 import numpy.typing as npt
-from sentence_transformers import CrossEncoder, SentenceTransformer
 from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
+
+from sentence_transformers import CrossEncoder, SentenceTransformer
 from tqdm import tqdm
 
 from doc_knowledge.doc_provider import WechatHistoryProvider
 from sqlite.sql_wechat_history import Record
+from utils.tqdm_context import TqdmContext
 
 
 class DocEmbedder:
@@ -26,9 +28,10 @@ class DocEmbedder:
         self.mem_embeddings: np.ndarray | None = None
 
         # 初始化 SentenceTransformer 和 CrossEncoder 两个模型
-        self.transformer: SentenceTransformer = SentenceTransformer(DocEmbedder.transformer_path)
-        self.ranker: CrossEncoder = CrossEncoder(DocEmbedder.cross_encoder_path, max_length=512)
-        self.doc_provider: WechatHistoryProvider | None = None
+        with TqdmContext('Initializing text embedder, loading models...', 'Loaded'):
+            self.transformer: SentenceTransformer = SentenceTransformer(DocEmbedder.transformer_path)
+            self.ranker: CrossEncoder = CrossEncoder(DocEmbedder.cross_encoder_path, max_length=512)
+            self.doc_provider: WechatHistoryProvider | None = None
 
         if index_filename:
             if not os.path.isfile(index_filename):

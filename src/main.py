@@ -16,20 +16,22 @@ if __name__ == '__main__':
     # for i in res:
     #     print(i)
 
-    embedder = ImageEmbedder()
-    tagger = ImageTagger()
-    #sample = Image.open("/Users/chengjia/Desktop/sample.jpg")
-    sample = Image.open("/Users/chengjia/Desktop/sample2.jpg")
+    SAMPLE_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
 
-    lib_mem = ImageLib(embedder, '~/Pictures/test_set_mem', 'testlib', force_init=False, local_mode=True)
+    img_embedder = ImageEmbedder()
+    #doc_embedder = DocEmbedder()
+    tagger = ImageTagger()
+    sample = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
+
+    lib_mem = ImageLib(img_embedder, '~/Pictures/test_set_mem', 'testlib', force_init=False, local_mode=True)
     a = lib_mem.image_for_image_search(sample, 2)
     print(a)
-    # b = lib_mem.text_for_image_search('astronaut', 2)
-    # print(b)
-    lib_mem.scan_lib()
-    lib_mem.scan_lib()
-    lib_mem.scan_lib()
-    lib_mem.scan_lib()
+    b = lib_mem.text_for_image_search('astronaut', 2)
+    print(b)
+    # lib_mem.scan_lib()
+    # lib_mem.scan_lib()
+    # lib_mem.scan_lib()
+    # lib_mem.scan_lib()
 
 
     # lib_redis = ImageLib(embedder, '~/Pictures/test_set_redis', 'testlib', force_init=False, local_mode=False)

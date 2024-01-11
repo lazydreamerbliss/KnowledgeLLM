@@ -20,7 +20,7 @@ class ImageEmbedder:
     model_path_cn: str = f'{MODEL_FOLDER}/OFA-Sys--chinese-clip-vit-base-patch16/snapshots/36e679e65c2a2fead755ae21162091293ad37834'
 
     def __init__(self):
-        with TqdmContext('Initializing embedder, loading CLIP models...', 'Loaded'):
+        with TqdmContext('Initializing image embedder, loading CLIP models...', 'Loaded'):
             # Use CLIP to embed images
             # - https://huggingface.co/docs/transformers/model_doc/clip
             self.processor: CLIPProcessor = CLIPProcessor.from_pretrained(ImageEmbedder.model_path)
