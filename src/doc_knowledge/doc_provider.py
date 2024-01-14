@@ -10,13 +10,13 @@ from sqlite.wechat_history_table import WechatHistoryTable
 
 class WechatHistoryProvider:
     msg_pattern: re.Pattern = re.compile(
-        "(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)")
+        r"(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)")
     reply_pattern: re.Pattern = re.compile(
-        "「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>.+?)」[\n\r]*(?P<spliter>[ -]+)[\n\r]*(?P<message>.+)")
+        r"「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>.+?)」[\n\r]*(?P<spliter>[ -]+)[\n\r]*(?P<message>.+)")
     test_reply: re.Pattern = re.compile(
-        "「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>(.|\n|\r)*?)」")
+        r"「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>(.|\n|\r)*?)」")
     ignore_pattern: re.Pattern = re.compile(
-        "^\[.+\]$")
+        r"^\[.+\]$")
 
     def __init__(self, chat_name: str, doc_name: str | None = None):
         self.table: WechatHistoryTable = WechatHistoryTable(chat_name)

@@ -7,9 +7,8 @@ import pickle
 
 import numpy as np
 import numpy.typing as npt
-from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
-
 from sentence_transformers import CrossEncoder, SentenceTransformer
+from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise
 from tqdm import tqdm
 
 from doc_knowledge.doc_provider import WechatHistoryProvider
