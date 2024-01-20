@@ -4,30 +4,42 @@ from datetime import datetime
 
 from server.config import *
 from server.utils.file import humanized_size
+from server.utils.file_types import ICON_MAPPING
+
+HASH_TAG: str = '#'
+HASH_TAG_ENCODED: str = '|&hash;|'
+HASH_TAG_PATTERN: re.Pattern = re.compile(r'#')
+HASH_TAG_ENCODED_PATTERN: re.Pattern = re.compile(r'\|&hash;\|')
+DISPLAY_NAME_LENGTH_LIST: int = 24
+DISPLAY_NAME_LENGTH_GRID: int = 16
+
+
+def encode_hash_tag(text: str) -> str:
+    return HASH_TAG_PATTERN.sub(HASH_TAG_ENCODED, text)
+
+
+def decode_hash_tag(text: str) -> str:
+    return HASH_TAG_ENCODED_PATTERN.sub(HASH_TAG, text)
 
 
 class DirectoryItem:
     def __init__(self):
-        self.display_name: str = ''
-        self.name: str = ''
-        self.url: str = ''
-        self.current_path: str = ''
+        self.display_name: str = ''  # The name to be displayed on the UI
+        self.name: str = ''  # The real name
+        self.url: str = ''  # The url encoded name, for navigation
+        self.current_path: str = ''  # The current path of parent folder, relative to the root of current library
         self.icon: str = ''
         self.dtc: str = ''
         self.dtm: str = ''
         self.size: str = ''
 
-    def set_name(self, name: str):
-        self.name = name
-        self.display_name = f'{name[0:32]}...' if len(name) > 32 else name
-        self.url = re.sub("#", "|HASHTAG|", name)
-
     def to_dict(self) -> dict[str, str]:
+        display_length: int = DISPLAY_NAME_LENGTH_GRID if CONFIG.view_style == 'grid' else DISPLAY_NAME_LENGTH_LIST
         return {
-            'display_name': self.display_name,
+            'display_name': f'{self.display_name[0:display_length]}...' if len(self.display_name) > display_length else self.display_name,
             'name': self.name,
-            'url': self.url,
-            'current_path': self.current_path,
+            'url': encode_hash_tag(self.name),
+            'current_path': encode_hash_tag(self.current_path),
             'icon': self.icon,
             'dtc': self.dtc,
             'dtm': self.dtm,
@@ -37,10 +49,10 @@ class DirectoryItem:
 
 class FileItem:
     def __init__(self):
-        self.display_name: str = ''
-        self.name: str = ''
-        self.url: str = ''
-        self.current_path: str = ''
+        self.display_name: str = ''  # The name to be displayed on the UI
+        self.name: str = ''  # The real name
+        self.url: str = ''  # The url encoded name, for navigation
+        self.current_path: str = ''  # The current path of parent folder, relative to the root of current library
         self.icon: str = ''
         self.dtc: str = ''
         self.dtm: str = ''
@@ -48,17 +60,14 @@ class FileItem:
         self.size_b: int = -1
         self.supported: bool = False
 
-    def set_name(self, name: str):
-        self.name = name
-        self.display_name = f'{name[0:32]}...' if len(name) > 32 else name
-        self.url = re.sub("#", "|HASHTAG|", name)
-
     def to_dict(self) -> dict[str, str | bool | int]:
+        display_length: int = DISPLAY_NAME_LENGTH_GRID if CONFIG.view_style == 'grid' else DISPLAY_NAME_LENGTH_LIST
+        display_length = DISPLAY_NAME_LENGTH_GRID if CONFIG.get_current_lib_type() == 'image' else display_length
         return {
-            'display_name': self.display_name,
+            'display_name': f'{self.display_name[0:display_length]}...' if len(self.display_name) > display_length else self.display_name,
             'name': self.name,
-            'url': self.url,
-            'current_path': self.current_path,
+            'url': encode_hash_tag(self.name),
+            'current_path': encode_hash_tag(self.current_path),
             'icon': self.icon,
             'dtc': self.dtc,
             'dtm': self.dtm,
@@ -70,46 +79,73 @@ class FileItem:
 
 def list_folder_content(relative_path: str, sort_by: str = 'Name') -> tuple[list[dict], list[dict]]:
     """List the content of a folder, return a tuple of directory list and file list
+
+    Args:
+        relative_path (str): The relative path of the folder to be scanned, starting from the root of current library
+        sort_by (str, optional): _description_. Defaults to 'Name'.
+
+    Returns:
+        tuple[list[dict], list[dict]]: _description_
     """
-    target_path: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
-    all_items: list[str] = os.listdir(target_path)
+    folder_to_be_scanned: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
+    all_items: list[str] = os.listdir(folder_to_be_scanned)
     dir_list: list[dict] = list()
     file_list: list[dict] = list()
-    current_path: str = os.getcwd()
-    for name in list(filter(lambda x: os.path.isdir(x), all_items)):
-        dir_stats = os.stat(name)
+
+    all_dirs: dict[str, str] = {name: os.path.join(folder_to_be_scanned, name)
+                                for name in all_items if os.path.isdir(os.path.join(folder_to_be_scanned, name))}
+    for name, fullpath in all_dirs.items():
+        dir_relative_path: str = os.path.join(relative_path, name)
+        if CONFIG.is_excluded(dir_relative_path):
+            continue
+
         d_item: DirectoryItem = DirectoryItem()
-        d_item.set_name(name)
-        d_item.current_path = current_path
-        d_item.icon = 'folder5.png'
-        d_item.dtc = datetime.utcfromtimestamp(dir_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
-        d_item.dtm = datetime.utcfromtimestamp(dir_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+        d_item.display_name = name
+        d_item.name = name
+        d_item.url = name
+        d_item.current_path = relative_path
+        d_item.icon = '/icons/folder5.png'
+        try:
+            d_stats: os.stat_result = os.stat(fullpath)
+            d_item.dtc = datetime.utcfromtimestamp(d_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+            d_item.dtm = datetime.utcfromtimestamp(d_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+        except:
+            d_item.dtc = "-"
+            d_item.dtm = "-"
         d_item.size = "-"
         dir_list.append(d_item.to_dict())
 
-    for name in list(filter(lambda x: os.path.isfile(x), all_items)):
+    all_files: dict[str, str] = {name: os.path.join(folder_to_be_scanned, name)
+                                 for name in all_items if os.path.isfile(os.path.join(folder_to_be_scanned, name))}
+    for name, fullpath in all_files.items():
+        file_relative_path: str = os.path.join(relative_path, name)
+        if CONFIG.is_excluded(file_relative_path):
+            continue
+
         f_icon: str = ''
         extension: str = os.path.splitext(name)[1]
         if extension:
             extension = extension[1:].lower()
-            for icon in icon_dict:
-                if extension in icon_dict[icon]:
-                    f_icon = f'file_icon/{icon}'
+            for icon in ICON_MAPPING:
+                if extension in ICON_MAPPING[icon]:
+                    f_icon = f'icons/file_type/{icon}'
                     break
         if not f_icon:
-            f_icon = 'file_icon/unknown-icon.png'
+            f_icon = 'icons/file_type/unknown.png'
 
         f_item: FileItem = FileItem()
-        f_item.set_name(name)
-        f_item.current_path = current_path
+        f_item.display_name = name
+        f_item.name = name
+        f_item.url = name
+        f_item.current_path = relative_path
         f_item.icon = f_icon
         f_item.supported = extension in supported_formats
         try:
-            dir_stats = os.stat(name)
-            f_item.dtc = datetime.utcfromtimestamp(dir_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
-            f_item.dtm = datetime.utcfromtimestamp(dir_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
-            f_item.size = humanized_size(dir_stats.st_size)
-            f_item.size_b = dir_stats.st_size
+            f_stats: os.stat_result = os.stat(fullpath)
+            f_item.dtc = datetime.utcfromtimestamp(f_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+            f_item.dtm = datetime.utcfromtimestamp(f_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+            f_item.size = humanized_size(f_stats.st_size)
+            f_item.size_b = f_stats.st_size
         except:
             f_item.dtc = "-"
             f_item.dtm = "-"

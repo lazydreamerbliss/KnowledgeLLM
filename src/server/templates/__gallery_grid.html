@@ -1,0 +1,18 @@
+<div class="bg-light">
+    {% if file_dict %}
+    {% for i in range(file_dict|length) %}
+    <div class="thumbnail hvr-shadow">
+        <div class="img-grid-container" style="margin-top:10px">
+            <img id="image-grid-{{i}}" class="img-grid" src='/file/{{file_dict[i].current_path}}/{{file_dict[i].url}}'
+                onclick="clickImage(this)">
+            <p style="color:black;" data-toggle="tooltip" data-placement="right" title="{{file_dict[i].name}}">
+                {{ file_dict[i].display_name }}
+            </p>
+            <p style="color:black; text-align:center; text-decoration:none;"></p>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color:black; margin:auto; margin-top:30px">没有图片</p>
+    {% endif%}
+</div>

@@ -1,41 +1,50 @@
+import os
 import pickle
 import sys
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-video_types: set[str] = {'mp4', 'webm', 'avi', 'mov', 'flv', 'wmv', '3gp', '3g2', 'mkv', 'mpeg', 'mpg', 'm4v', 'h264', 'h265',
-                         'hevc', 'rmvb', 'rm', 'asf', 'swf', 'vob', 'ts', 'm2ts', 'divx', 'f4v', 'm2v', 'ogv', 'mxf', 'mts', 'svi', 'smi', 'm2t'}
-audio_types: set[str] = {'mp3', "wav", "ogg", "mpeg", "aac", "3gpp", "3gpp2",
-                         "aiff", "x-aiff", "amr", "mpga", 'oga', 'm4a', 'flac', 'aac', 'opus'}
-image_types: set[str] = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp',
-                         'svg', 'tiff', 'ico', 'jpe', 'jfif', 'pjpeg', 'pjp', 'avif', 'apng'}
-code_types: set[str] = {'css', 'scss', 'html', 'py', 'js', 'cpp', 'c', 'java', 'go', 'php', 'ts', 'tsx', 'dart', 'sh', 'bat', 'h', 'hpp', 'rb', 'rs', 'cs',
-                        'swift', 'kt', 'vb', 'lua', 'pl', 'm', 'r', 'sql', 'json', 'xml', 'yml', 'yaml', 'toml', 'ini', 'cfg', 'conf', 'md', 'markdown', 'rst', 'tex', 'latex', 'svg'}
 sorted_by_labels: set[str] = {'Name', 'Date Created', 'Date Modified', 'Size'}
 sorted_by_labels_ordered: list[str] = ['Name', 'Date Created', 'Date Modified', 'Size']
+view_styles: list[str] = ['grid', 'list']
 supported_formats: set[str] = {'mp4', "webm", "opgg", 'mp3', 'pdf', 'txt', 'html', 'css', 'svg', 'js', 'png', 'jpg'}
-icon_dict: dict[str, set] = {
-    'image-icon.png': image_types,
-    'audio-icon.png': audio_types,
-    'video-icon.png': video_types,
-    'pdf-icon.png': {'pdf'},
-    'doc-icon.png': {'docx', 'doc'},
-    'txt-icon.png': {'txt'},
-    'archive-icon.png': {'zip', 'rar', '7z'},
-    'code-icon.png': code_types,
+library_types: set[str] = {'image', 'video', 'document', 'general'}
+library_types_CN: list[dict] = [
+    {'name': 'image', 'cn_name': '图片库'},
+    {'name': 'video', 'cn_name': '媒体库'},
+    {'name': 'document', 'cn_name': '文档库'},
+    {'name': 'general', 'cn_name': '综合仓库'},
+]
+
+default_exclusion_list: set[str] = {
+    '$RECYCLE.BIN',
+    'System Volume Information',
+    'Thumbs.db',
+    'desktop.ini',
+    '.DS_Store',
+    '.localized',
+    '.git',
+    '.vscode',
+    '.idea',
+    '.gitattributes',
+    '.gitmodules',
+    '.gitkeep',
+    '.gitconfig',
+    '.gitmessage',
+    '.gitignore_global',
+    '.gitattributes_global',
+    '__pycache__',
+    'node_modules',
+    'package-lock.json',
+    'yarn.lock',
 }
 
-MEDIA_TYPE_IMAGE = 'icon'
-MEDIA_TYPE_VIDEO = 'video'
-MEDIA_TYPE_AUDIO = 'audio'
-MEDIA_TYPE_UNKNOWN = 'unknown'
+F_CATEGORY_IMAGE = 'icon'
+F_CATEGORY_VIDEO = 'video'
+F_CATEGORY_AUDIO = 'audio'
+F_CATEGORY_UNKNOWN = 'unknown'
 IS_WINDOWS = 'win32' in sys.platform or 'win64' in sys.platform
-
-
-class LibraryType:
-    IMAGE = 'image'
-    DOCUMENT = 'document'
-    GENERAL = 'general'
 
 
 class Library:
@@ -57,18 +66,20 @@ class Library:
 
 
 class Config:
+    """This is a single threaded, single session app, so one config instance globally is enough
+    """
     # Config file is a static path
-    #CONFIG_FILE: str = f'../config.pickle'
-    CONFIG_FILE: str = f'{Path(__file__).parent.parent}/samples/config.pickle'
+    # CONFIG_FILE: str = f'../librarian.cfg'
+    CONFIG_FILE: str = f'{Path(__file__).parent.parent.parent}/samples/librarian.cfg'  # test only
 
     def __init__(self):
         try:
             obj: dict = pickle.load(open(Config.CONFIG_FILE, 'rb'))
         except:
             obj: dict = dict()
-        self.view_style: int = obj.get('view_style', 0)
+        self.view_style: str = obj.get('view_style', 0)
         self.sorted_by: str = obj.get('sorted_by', 'Name')
-        self.libraries: dict[str, dict] = obj.get('libraries', dict())
+        self.libraries: dict[str, Library] = obj.get('libraries', dict())
         self.favorite_list: dict[str, list[str]] = obj.get('favorite_list', dict())
         self.exclusion_list: dict[str, set[str]] = obj.get('exclusion_list', dict())
         self.current_lib: str = obj.get('current_lib', '')
@@ -88,41 +99,50 @@ class Config:
     def __save(self):
         pickle.dump(self.__to_dict(), open(Config.CONFIG_FILE, 'wb'))
 
-    def get_library_list(self) -> list[str]:
-        """Get the list of libraries, sorted
+    def get_library_list(self) -> list[dict[str, str]]:
+        """Get the list of all libraries, sorted
         """
-        res: list[str] = list(self.libraries.keys())
-        res.sort()
+        res: list[dict[str, str]] = [self.libraries[lib_name].to_dict() for lib_name in self.libraries]
+        res.sort(key=lambda x: x['name'])
+        return res
+
+    def get_library_path_list(self) -> list[str]:
+        """Get the list of all libraries (lib paths), sorted
+        """
+        res: list[str] = [self.libraries[lib_name].path for lib_name in self.libraries]
         return res
 
     def switch_library(self, lib_name: str):
         """Switch to another library
         """
-        if lib_name in self.libraries:
+        if not lib_name or (lib_name and lib_name in self.libraries):
             self.current_lib = lib_name
             self.__save()
 
-    def get_current_lib(self) -> dict:
+    def get_current_lib(self) -> Library | None:
         """Get the current library info
         """
-        return self.libraries.get(self.current_lib, dict())
+        return self.libraries.get(self.current_lib, None)
 
     def get_current_lib_path(self) -> str:
-        return self.get_current_lib().get('path', '')
+        lib: Library | None = self.get_current_lib()
+        return lib.path if lib else ''
 
     def get_current_lib_type(self) -> str:
-        return self.get_current_lib().get('type', '')
+        lib: Library | None = self.get_current_lib()
+        return lib.type if lib else ''
 
     def get_current_lib_name(self) -> str:
-        return self.get_current_lib().get('name', '')
+        lib: Library | None = self.get_current_lib()
+        return lib.name if lib else ''
 
-    def add_library(self, lib: Library, switch: bool = True) -> bool:
+    def add_library(self, lib: Library, switch_to: bool = True) -> bool:
         """Add a library to the config
         """
         if lib.name in self.libraries:
             return False
-        self.libraries[lib.name] = lib.to_dict()
-        if switch:
+        self.libraries[lib.name] = lib
+        if switch_to:
             self.current_lib = lib.name
         self.__save()
         return True
@@ -139,70 +159,74 @@ class Config:
     def get_favorite_list(self) -> list[str]:
         """Get the favorite list of current library
         """
-        return self.favorite_list.get(self.current_lib, list())
+        if self.current_lib not in self.favorite_list:
+            self.favorite_list[self.current_lib] = list()
+            self.__save()
+        return self.favorite_list[self.current_lib]
 
     def add_favorite(self, relative_path: str):
         """Add a relative path as favorite of current library
         """
-        if not self.current_lib:
+        if not self.current_lib or not relative_path:
             return
 
-        if self.current_lib not in self.favorite_list:
-            self.favorite_list[self.current_lib] = list()
-        if relative_path not in self.favorite_list[self.current_lib]:
-            self.favorite_list[self.current_lib].append(relative_path)
+        favorite_list: list[str] = self.get_favorite_list()
+        if relative_path not in favorite_list:
+            favorite_list.append(relative_path)
             self.__save()
 
     def remove_favorite(self, relative_path: str):
         """Remove a relative path from favorite of current library
         """
-        if not self.current_lib:
+        if not self.current_lib or not relative_path:
             return
 
-        if self.current_lib in self.favorite_list:
-            if relative_path in self.favorite_list[self.current_lib]:
-                self.favorite_list[self.current_lib].remove(relative_path)
-                self.__save()
+        favorite_list: list[str] = self.get_favorite_list()
+        if relative_path in favorite_list:
+            favorite_list.remove(relative_path)
+            self.__save()
 
     def get_exclusion_list(self) -> set[str]:
         """Get the exclusion list of current library
         """
-        return self.exclusion_list.get(self.current_lib, set())
+        if self.current_lib not in self.exclusion_list:
+            self.exclusion_list[self.current_lib] = deepcopy(default_exclusion_list)
+            self.__save()
+        return self.exclusion_list[self.current_lib]
 
     def add_exclusion(self, relative_path: str):
         """Add a relative path as exclusion of current library
         """
-        if not self.current_lib:
+        if not self.current_lib or not relative_path:
             return
 
-        if self.current_lib not in self.exclusion_list:
-            self.exclusion_list[self.current_lib] = set()
-        if relative_path not in self.exclusion_list[self.current_lib]:
-            self.exclusion_list[self.current_lib].add(relative_path)
+        exclusion_list: set[str] = self.get_exclusion_list()
+        if relative_path not in exclusion_list:
+            exclusion_list.add(relative_path)
             self.__save()
 
     def remove_exclusion(self, relative_path: str):
         """Remove a relative path from exclusion of current library
         """
-        if not self.current_lib:
+        if not self.current_lib or not relative_path:
             return
 
-        if self.current_lib in self.exclusion_list:
-            if relative_path in self.exclusion_list[self.current_lib]:
-                self.exclusion_list[self.current_lib].remove(relative_path)
-                self.__save()
+        exclusion_list: set[str] = self.get_exclusion_list()
+        if relative_path in exclusion_list:
+            exclusion_list.remove(relative_path)
+            self.__save()
 
     def is_excluded(self, relative_path: str) -> bool:
         """Check if a relative path is excluded in current library
         """
-        if not self.current_lib:
+        if not self.current_lib or not relative_path:
             return False
 
-        if self.current_lib in self.exclusion_list:
-            return relative_path in self.exclusion_list[self.current_lib]
-        return False
+        file_or_folder_name: str = os.path.basename(relative_path)
+        exclusion_list: set[str] = self.get_exclusion_list()
+        return file_or_folder_name in exclusion_list or relative_path in exclusion_list
 
-    def change_view_style(self, style: int):
+    def change_view_style(self, style: str):
         """Change the view style
         """
         self.view_style = style

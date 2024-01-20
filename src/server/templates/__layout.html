@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/hover-min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    {{ fontawesome_html() }}
+    <title>The Librarian</title>
+</head>
+
+<body>
+    <!-- Overlay -->
+    <div id="fullscreen-overlay"></div>
+    <!-- Modal for adding library -->
+    <div class="modal fade" id="add-library-modal" tabindex="-1" role="dialog" aria-labelledby="add-library-modal-label"
+        aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content" style="height:100%;width:100%;display:flex;">
+                <h5 class="modal-title" style="margin:auto;margin-top:15px;">添加仓库</h5>
+                <form action="/addLibrary" method="POST" style="margin:30px;margin-top:15px;margin-bottom:15px;">
+                    <!-- <input type="file" id="folder-selection" webkitdirectory directory multiple
+                                    style="display:none;">
+                                <button type="button" class="btn btn-sm" onclick="selectFolder()" style="display:inline;">选择目录</button>
+                                <p id="selected-folder" style="margin-left:15px;display:inline;">尚未选择</p> -->
+                    <label for="exampleSelect">仓库名</label>
+                    <input type="text" class="form-control" style="width:100%" name="lib_name" />
+                    <label for="exampleSelect" style="margin-top:15px;">仓库文件夹路径</label>
+                    <input type="text" class="form-control" style="width:100%" name="lib_path" />
+                    {% if library_types %}
+                    <label for="exampleSelect" style="margin-top:15px;">仓库类型</label>
+                    <select class="form-control" id="exampleSelect" name="lib_type">
+                        {% for lib_type in library_types %}
+                        <option value="{{lib_type.name}}">{{lib_type.cn_name}}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                    <br>
+                    <input class="btn mr-4" type="submit" value="添加" />
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Image navigation buttons, stick on screen bottom -->
+    <div style="display:inline-block;" id="image-navigation-buttons" hidden="true">
+        <button class="btn btn-sm btn-primary" id="previous-image-button" onclick=previousImage(this)
+            style="margin-top:5px;margin-right:100px" prev="" title="上一张">
+            &larr;
+        </button>
+        <button class="btn btn-sm" onclick=closeImage() style="margin-top:5px">
+            关闭
+        </button>
+        <button class="btn btn-sm btn-primary" id="next-image-button" onclick=nextImage(this)
+            style="margin-top:5px;margin-left:100px" next="" title="下一张">
+            &rarr;
+        </button>
+    </div>
+
+    <!-- Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top" style="z-index:88;">
+        <a class="navbar-brand hvr-shadow" href="/">
+            <img src="/static/icons/logo.png" style="width:50px; margin-left:30px;">
+        </a>
+        <button class="btn btn-sm" id="toggle-sidebar" style="margin-left:30px;" title="隐藏边栏">
+            <i class="fa fa-bars"></i>
+        </button>
+        <button class="btn btn-sm" id="add-library" style="margin-left:30px;">
+            <i class="fa fa-plus"></i>&nbsp;&nbsp;添加仓库
+        </button>
+        {% if current_lib %}
+        <button class='btn btn-light mr-1 btn-sm' id="grid-view-button" {{grid_view_button_style}} style="margin-left:30px;">
+            <i class="fas fa-th-large"></i>
+        </button>
+        <button class='btn btn-light mr-3 btn-sm' id="list-view-button" {{list_view_button_style}}>
+            <i class="fas fa-list"></i>
+        </button>
+        {% endif %}
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav ml-auto mt-2 mb-2 ">
+                {% if favorite_list %}
+                {% for f in favorite_list %}
+                {% set list1 = f.split('/') %}
+                <li class="nav-item">
+                    <a class="nav-link active hvr-shadow mr-2" href="/library/{{f}}">{{list1[list1|length-1]}}
+                        <span class="sr-only">(current)</span>
+                    </a>
+                </li>
+                {% endfor %}
+                {% endif %}
+                {% if current_lib %}
+                <form id="upload-form" class="md-form" action="/upload/{{current_path}}" method="POST"
+                    enctype="multipart/form-data" style="display:none;">
+                    <input style="color:white;" class="btn btn-sm " type="file" name="file_list" multiple="true">
+                    <input class="btn btn-sm mr-4" type="submit" value="Upload" />
+                </form>
+                <button id="upload-button" class="btn btn-sm mr-4 ml-4" style="margin-bottom:6px;margin-top:3px;"
+                    title="上传文件至当前目录">
+                    上传文件
+                </button>
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Sidebar & page content, padding top is for the fixed navbar -->
+    <div class="d-flex" id="sidebar-page-content-wrapper" style="padding-top: 70px;">
+        <!-- Sidebar -->
+        <div class="border-right" id="sidebar-wrapper">
+            <div class="sidebar-title">我的仓库</div>
+            <div class="list-group list-group-flush">
+                {% if library_list %}
+                {% for lib in library_list %}
+                {% if lib.name == current_lib %}
+                <a href="/library" class="list-group-item list-group-item-action active">
+                    {% if lib.type == 'image' %}
+                    <i class="fa fa-images"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% elif lib.type == 'video' %}
+                    <i class="fas fa-video"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% elif lib.type == 'document' %}
+                    <i class="fas fa-book"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% elif lib.type == 'general' %}
+                    <i class="fa fa-archive"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% else %}
+                    <i class="fa fa-archive"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% endif %}
+                </a>
+                {% else %}
+                <a href="/library?lib={{lib.name}}" class="list-group-item list-group-item-action">
+                    {% if lib.type == 'image' %}
+                    <i class="fa fa-images"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% elif lib.type == 'video' %}
+                    <i class="fas fa-video"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% elif lib.type == 'document' %}
+                    <i class="fas fa-book"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% elif lib.type == 'general' %}
+                    <i class="fa fa-archive"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% else %}
+                    <i class="fa fa-archive"></i>&nbsp;&nbsp;&nbsp;{{lib.name}}
+                    {% endif %}
+                </a>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        <!-- Page content -->
+        <div id="page-content-wrapper" class="bg-light">
+            <!-- Actual page content - sort button & library (folder) content HTML -->
+            <div class="container">
+                <div class="row">
+                    {% if current_lib %}
+                    <div class="col-10 lead mt-4" style="text-align: left; margin-bottom:-10px;">
+                        {% autoescape false %}
+                        <a href="/library/"><img src="/static/icons/folder.png" style="height:25px;width:25px;"></a>
+                        <!-- xxx|length is len() version in jinja2 -->
+                        {% for i in range(breadcrumb_path|length) %}
+                        / <a style="color:black;"
+                            href="/library/{{'/'.join(breadcrumb_path[0:i+1])}}">{{breadcrumb_path[i]}}</a>
+                        {% endfor %}
+                        {% endautoescape %}
+                        <hr>
+                    </div>
+                    <div class="col-2 lead mt-4" style="text-align: left; margin-bottom:-10px;">
+                        <button class='btn btn-light mr-3' id="sort-button">
+                            <i class="fas fa-sort"></i>
+                        </button>
+                        <sup>
+                            <small>{{sorted_label_current}}</small>
+                        </sup>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Inherited pages' content - HTML -->
+            {% block content_html %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="{{ url_for('static', filename='script/popper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='script/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='script/gallery.js') }}"></script>
+    <script>
+        $("#upload-button").click(function () {
+            document.getElementById('upload-form').style.display = "block";
+            document.getElementById('upload-button').style.display = "none";
+        })
+        $("#toggle-sidebar").click(function (e) {
+            e.preventDefault();
+            $("#sidebar-page-content-wrapper").toggleClass("toggled");
+        });
+        $("#add-library").click(function (e) {
+            e.preventDefault();
+            // Popup modal for adding library
+            $('#add-library-modal').modal('show');
+        });
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip()
+        });
+        $('#grid-view-button').click(function () {
+            let xhr = new XMLHttpRequest();
+            xhr.open('GET', '/toggleViewStyle?viewStyle=grid', false);
+            xhr.send();
+            window.location.reload();
+        });
+        $('#list-view-button').click(function () {
+            let xhr = new XMLHttpRequest();
+            xhr.open('GET', '/toggleViewStyle?viewStyle=list', false);
+            xhr.send();
+            window.location.reload();
+        });
+        $('#sort-button').click(function () {
+            let xhr = new XMLHttpRequest();
+            xhr.onreadystatechange
+            xhr.open('GET', '/toggleSort', false);
+            xhr.send();
+            window.location.reload();
+        });
+    </script>
+</body>
+
+</html>

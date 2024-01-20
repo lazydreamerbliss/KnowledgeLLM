@@ -3,8 +3,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from image_knowledge.image_lib import ImageLib
-from image_knowledge.image_tagger import ImageTagger
+from library.image.image_lib import ImageLib
+from knowledge_base.image.image_tagger import ImageTagger
 from server.server import flask_app
 from singleton import img_embedder
 
@@ -17,15 +17,13 @@ def run_server():
                         help="True when argument is provided for debug")
     args = parser.parse_args()
 
-    # asyncio.run(task_queue.run())
-
     debug: bool = args.debug
     host: str = args.host
     port: int = args.port
     flask_app.run(host=host, port=port, debug=debug, threaded=True)
 
 
-def run_test():
+def run_model_test():
     # doc test
     # test_doc_embedder = DocEmbedder('test_index.pickle')
     # test_doc_embedder.initialize('test_index.pickle', 'test_chat',

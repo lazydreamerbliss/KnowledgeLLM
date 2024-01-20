@@ -6,6 +6,7 @@ from mimetypes import guess_type
 from flask import Response
 
 from server.config import *
+from server.utils.file_types import *
 
 range_pattern: re.Pattern = re.compile(r'(?P<start>\d+)-(?P<end>\d+)')
 
@@ -38,22 +39,22 @@ def get_file_content(file_path: str, start: int = 0, end: int | None = None) -> 
     return res
 
 
-def get_media_type_and_extension(file_path: str) -> tuple[str, str]:
-    """Return the media type and file extension of give file on either image, video or audio
+def get_file_category(file_path: str) -> tuple[str, str]:
+    """Return the category and file extension of give file on either image, video or audio
     """
     _, extension = os.path.splitext(file_path)
-    media_type: str = MEDIA_TYPE_UNKNOWN
+    category: str = F_CATEGORY_UNKNOWN
     if not extension:
-        return media_type, extension
+        return category, extension
 
     extension: str = extension.lower()[1:]
     if extension in image_types:
-        media_type = MEDIA_TYPE_IMAGE
+        category = F_CATEGORY_IMAGE
     elif extension in video_types:
-        media_type = MEDIA_TYPE_VIDEO
+        category = F_CATEGORY_VIDEO
     elif extension in audio_types:
-        media_type = MEDIA_TYPE_AUDIO
-    return media_type, extension
+        category = F_CATEGORY_AUDIO
+    return category, extension
 
 
 size_suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']

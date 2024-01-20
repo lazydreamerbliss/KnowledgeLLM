@@ -169,9 +169,10 @@ cython_debug/
 # DB file
 *.db
 
-# Pickle file
+# Pickle & config file
 *.pkl
 *.pickle
+*.cfg
 
 # Local model path
 local_models/
