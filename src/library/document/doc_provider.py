@@ -1,5 +1,4 @@
 from datetime import datetime
-from sqlite3 import Connection, Cursor
 
 from tqdm import tqdm
 
@@ -9,11 +8,13 @@ from utils.tqdm_context import TqdmContext
 
 
 class DocProvider(DocProviderBase[DocLibTable]):
-    """DocProvider inherits from DocProviderBase, with a generic type of DocLibTable as the type of SQL table
+    """A generic type of DocLibTable as the type of SQL table is needed
     """
 
-    def __init__(self, db: Connection, uuid: str, doc_path: str | None = None, re_dump: bool = False):
-        super().__init__(uuid, db_path=None, connection=db, table_factory=DocLibTable)
+    TABLE_TYPE: type = DocLibTable
+
+    def __init__(self, db_path: str, uuid: str, doc_path: str | None = None, re_dump: bool = False):
+        super().__init__(db_path, uuid, table_type=DocProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path
         if not self.table.table_row_count() or re_dump:
@@ -22,9 +23,9 @@ class DocProvider(DocProviderBase[DocLibTable]):
 
             with TqdmContext(f'Initializing doc table for {doc_path}, table name: {uuid}...', 'Loaded'):
                 self.table.clean_all_data()
-                self.__dump_document_to_db(doc_path)
+                self.initialize(doc_path)
 
-    def __dump_document_to_db(self, doc_path: str) -> None:
+    def initialize(self, doc_path: str) -> None:
         if not doc_path:
             raise ValueError('doc_path is None')
 

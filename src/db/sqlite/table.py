@@ -20,7 +20,7 @@ class SqliteTable:
     """Base class for sqlite table operations
     """
 
-    def __init__(self, table_name: str, db_path: str | None, connection: Connection | None):
+    def __init__(self, db_path: str, table_name: str):
         """
         Args:
             table_name (str): Mandatory
@@ -29,27 +29,24 @@ class SqliteTable:
         """
         self.db: Connection
         self.table_name: str
-        self.__initialize(table_name, db_path, connection)
+        self.__initialize(table_name, db_path)
 
-    def __enter__(self, db_path: str, table_name: str, connection: Connection | None) -> 'SqliteTable':
-        self.__initialize(table_name, db_path, connection)
+    def __enter__(self, db_path: str, table_name: str) -> 'SqliteTable':
+        self.__initialize(table_name, db_path)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.db is not None:
             self.db.close()
 
-    def __initialize(self, table_name: str, db_path: str | None, connection: Connection | None):
-        if not db_path and not connection:
-            raise ValueError('db_path and connection are both None')
+    def __initialize(self, table_name: str, db_path: str | None):
+        if not db_path:
+            raise ValueError('db_path is None')
         if not self.table_name:
             raise ValueError('table_name is None')
 
         self.table_name = table_name
-        if db_path:
-            self.db = sqlite3.connect(db_path)
-        elif connection:
-            self.db = connection
+        self.db = sqlite3.connect(db_path)
 
     @ensure_db
     def table_exists(self) -> bool:

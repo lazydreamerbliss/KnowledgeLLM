@@ -1,14 +1,13 @@
-import os
 from sqlite3 import Cursor
 
 from db.sqlite.sql_basic import create_index_sql
 from db.sqlite.table import SqliteTable, ensure_db
-from library.wechat.sql import *
+from library.document.wechat.sql import *
 
 
 class WechatHistoryTable(SqliteTable):
     def __init__(self, db_path: str, table_name: str):
-        super().__init__(table_name, db_path=os.path.join(db_path, DB_NAME), connection=None)
+        super().__init__(db_path, table_name)
         self.__initialize_table()
 
     @ensure_db

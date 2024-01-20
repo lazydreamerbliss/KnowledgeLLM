@@ -1,4 +1,4 @@
-from sqlite3 import Connection, Cursor
+from sqlite3 import Cursor
 from typing import Generic, Type, TypeVar
 
 from db.sqlite.table import SqliteTable
@@ -8,25 +8,28 @@ T = TypeVar('T', bound=SqliteTable)
 
 
 class DocProviderBase(Generic[T]):
-    """The abstract for an organized document management, it reads raw documents and provides functionalities to organize them
+    """The basic abstract for an organized document management, it reads raw documents and provides functionalities to organize them
     """
 
+    TABLE_TYPE: type = SqliteTable
+
     def __init__(self,
+                 db_path: str,
                  table_name: str,
-                 db_path: str | None,
-                 connection: Connection | None,
-                 table_factory: Type[T]):
+                 table_type: Type[T]):
         """Base class for document provider
 
         Args:
             table_name (str): _description_
             db_path (str | None): Mandatory if connection is None
             connection (Connection | None): Mandatory if db_path is None
-            table_factory (Type[T]): Generic type constructor for SqliteTable
+            table_type (Type[T]): Generic type constructor for SqliteTable
         """
-        self.table: T = table_factory(table_name, db_path, connection)
+        self.table: T = table_type(db_path, table_name)
 
-    def initialize(self, **kwargs):
+    def initialize(self, file_path: str):
+        """Initialize the document provider, it reads all lines from given file and insert them into the table after some processing
+        """
         raise NotImplementedError()
 
     def get_record_by_id(self, id: int) -> tuple | None:

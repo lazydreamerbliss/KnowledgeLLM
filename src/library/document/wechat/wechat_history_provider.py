@@ -5,13 +5,15 @@ from sqlite3 import Cursor
 from tqdm import tqdm
 
 from knowledge_base.document.provider import DocProviderBase
-from library.wechat.wechat_history_table import WechatHistoryTable
+from library.document.wechat.wechat_history_table import WechatHistoryTable
 from utils.tqdm_context import TqdmContext
 
 
 class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
-    """WechatHistoryProvider inherits from DocProviderBase, with a generic type of WechatHistoryTable as the type of SQL table
+    """A generic type of WechatHistoryTable as the type of SQL table is needed
     """
+
+    TABLE_TYPE: type = WechatHistoryTable
 
     msg_pattern: re.Pattern = re.compile(
         r"(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)")
@@ -22,21 +24,15 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
     ignore_pattern: re.Pattern = re.compile(
         r"^\[.+\]$")
 
-    def __init__(self, db_path: str, chat_name: str, chat_file: str, re_dump: bool = False):
-        super().__init__(chat_name, db_path, connection=None, table_factory=WechatHistoryTable)
+    def __init__(self, db_path: str, uuid: str, chat_file: str, re_dump: bool = False):
+        super().__init__(db_path, uuid, table_type=WechatHistoryProvider.TABLE_TYPE)
         if not self.table.table_row_count() or re_dump:
-            with TqdmContext(f'Initializing chat history table: {chat_name}...', 'Loaded'):
+            with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
                 self.table.clean_all_data()
-                self.__dump_chat_history_to_db(chat_file)
+                self.initialize(chat_file)
 
     def __process_reply(self, reply: str) -> tuple[str, str, str]:
         """Process a reply message, return the replied user, replied message and the message itself
-
-        Args:
-            reply (str): _description_
-
-        Returns:
-            tuple[str, str, str]: _description_
         """
         if not reply:
             return ("", "", "")
@@ -73,7 +69,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         username: str = match.group('username')
         return time, username, message
 
-    def __dump_chat_history_to_db(self, chat_filepath: str) -> None:
+    def initialize(self, chat_filepath: str) -> None:
         if not chat_filepath:
             raise ValueError('chat_filepath is None')
 

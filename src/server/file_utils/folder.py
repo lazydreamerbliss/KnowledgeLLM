@@ -3,8 +3,8 @@ import re
 from datetime import datetime
 
 from server.config import *
-from server.utils.file import humanized_size
-from server.utils.file_types import ICON_MAPPING
+from server.file_utils.file import humanized_size
+from server.file_utils.file_types import ICON_MAPPING
 
 HASH_TAG: str = '#'
 HASH_TAG_ENCODED: str = '|&hash;|'

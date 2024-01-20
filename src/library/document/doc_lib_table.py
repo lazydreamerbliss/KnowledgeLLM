@@ -1,13 +1,12 @@
-from sqlite3 import Connection, Cursor
+from sqlite3 import Cursor
 
-from db.sqlite.sql_basic import create_index_sql
 from db.sqlite.table import SqliteTable, ensure_db
 from library.document.sql import *
 
 
 class DocLibTable(SqliteTable):
-    def __init__(self, db: Connection, table_name: str):
-        super().__init__(table_name, db_path=None, connection=db)
+    def __init__(self, db_path: str, table_name: str):
+        super().__init__(db_path, table_name)
         self.__initialize_table()
 
     @ensure_db

@@ -1,9 +1,8 @@
 import json
 import os
-import sqlite3
 from datetime import datetime
 from pathlib import Path
-from sqlite3 import Connection
+from typing import Generic, Type, TypeVar
 from uuid import uuid4
 
 import numpy as np
@@ -11,8 +10,8 @@ import numpy.typing as npt
 from tqdm import tqdm
 
 from knowledge_base.document.doc_embedder import DocEmbedder
+from knowledge_base.document.provider import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
-from library.document.doc_provider import DocProvider
 from library.document.sql import DB_NAME, Record
 from utils.tqdm_context import TqdmContext
 
@@ -25,11 +24,15 @@ from tqdm import tqdm
 """
 
 
-class DocLib:
-    """Define a document library
+D = TypeVar('D', bound=DocProviderBase)
+
+
+class DocLib(Generic[D]):
+    """Define a generic document library
     - A document library is a collection of many different documents such as novels, articles, chat history
     - Each document will have it's own document DB table for storing raw data in DB in a structured way
     - Each document will also have it's own vector DB for storing embeddings of each document
+    - A document library can only have one active document at a time
     """
 
     MANIFEST: str = 'manifest.json'
@@ -73,8 +76,7 @@ class DocLib:
         if not self.__lib_manifest:
             raise ValueError('Library manifest not initialized')
 
-        self.db: Connection = sqlite3.connect(os.path.join(self.lib_path, DB_NAME))
-        self.doc_provider: DocProvider | None = None
+        self.doc_provider: D | None = None
         self.vector_db: DocLibVectorDb | None = None
         self.embedder: DocEmbedder = embedder
 
@@ -136,26 +138,29 @@ class DocLib:
 
         return content
 
-    def initialize_doc(self, relative_path: str):
+    def initialize_doc(self, relative_path: str, provider_type: Type[D]):
         """Initialize a document under the library
         """
         if not relative_path:
             raise ValueError('Invalid relative path')
+        if relative_path in self.__lib_manifest['embedded_docs']:
+            self.switch_doc(relative_path, provider_type)
+            return
 
         doc_path: str = os.path.join(self.lib_path, relative_path)
         if not os.path.isfile(doc_path):
             raise ValueError(f'Invalid doc path: {doc_path}')
-        if relative_path in self.__lib_manifest['embedded_docs']:
-            raise ValueError(f'Doc {relative_path} already initialized')
 
         # Create doc provider for this doc
         uuid: str = str(uuid4())
-        self.doc_provider = DocProvider(self.db, uuid, doc_path, re_dump=True)
+        self.doc_provider = provider_type(os.path.join(self.lib_path, DB_NAME),
+                                          uuid,
+                                          table_type=provider_type.TABLE_TYPE)
 
         # Do embedding, and create vector DB for this doc
         self.vector_db = DocLibVectorDb(self.lib_path, uuid)
-        embeddings_list: list[npt.ArrayLike] = [self.embedder.embed_text(text) for text in
-                                                tqdm(doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]  # type: ignore
+        embeddings_list: list[npt.ArrayLike] = [self.embedder.embed_text(t[1]) for t in
+                                                tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]  # type: ignore
         embeddings: np.ndarray = np.asarray(embeddings_list)
 
         # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
@@ -172,24 +177,25 @@ class DocLib:
         self.__lib_manifest['embedded_docs'][relative_path] = uuid
         self.__update_lib_manifest()
 
-    def switch_doc(self, relative_path: str):
+    def switch_doc(self, relative_path: str, provider_type: Type[D]):
         """Switch to another document under the library
-        - Document library can only have one active document at a time
         - If target document is not in manifest, then this is an uninitialized document, call initialize_doc()
         - Otherwise load the document provider and vector DB for the target document directly
         """
         if not relative_path:
             raise ValueError('Invalid relative path')
-
         if relative_path not in self.__lib_manifest['embedded_docs']:
-            self.initialize_doc(relative_path)
-        else:
-            with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-                uuid: str = self.__lib_manifest['embedded_docs'][relative_path]
-                self.doc_provider = DocProvider(self.db, uuid)
-                self.vector_db = DocLibVectorDb(self.lib_path, uuid)
+            self.initialize_doc(relative_path, provider_type)
+            return
 
-    def remove_doc_embedding(self, relative_path: str):
+        with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
+            uuid: str = self.__lib_manifest['embedded_docs'][relative_path]
+            self.doc_provider = provider_type(os.path.join(self.lib_path, DB_NAME),
+                                              uuid,
+                                              table_type=provider_type.TABLE_TYPE)
+            self.vector_db = DocLibVectorDb(self.lib_path, uuid)
+
+    def remove_doc_embedding(self, relative_path: str, provider_type: Type[D]):
         """Remove the embedding of a document under the library
         """
         if not relative_path:
@@ -198,20 +204,30 @@ class DocLib:
         if relative_path not in self.__lib_manifest['embedded_docs']:
             return
 
-        # Remove the document's table from DB
         uuid: str = self.__lib_manifest['embedded_docs'][relative_path]
-        self.doc_provider = DocProvider(self.db, uuid)
-        self.doc_provider.delete_table()
+        is_current_doc: bool = False
+        if self.doc_provider:
+            is_current_doc = self.doc_provider.table.table_name == uuid
 
-        # Remove the document's vector index
-        self.vector_db = DocLibVectorDb(self.lib_path, uuid)
-        self.vector_db.delete_db()
+        if not is_current_doc:
+            # Remove the document's table from DB
+            tmp_provider: DocProviderBase = provider_type(os.path.join(self.lib_path, DB_NAME),
+                                                          uuid,
+                                                          table_type=provider_type.TABLE_TYPE)
+            tmp_provider.delete_table()
+            # Remove the document's vector index
+            tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self.lib_path, uuid)
+            tmp_vector_db.delete_db()
+        else:
+            self.doc_provider.delete_table()  # type: ignore
+            self.doc_provider = None
+            self.vector_db.delete_db()  # type: ignore
+            self.vector_db = None
 
-        # Remove the document's record in manifest
         del self.__lib_manifest['embedded_docs'][relative_path]
         self.__update_lib_manifest()
 
-    def __retrieve(self, text: str, top_k: int = 10, relative_path: str | None = None) -> list[Record]:
+    def __retrieve(self, text: str, top_k: int = 10) -> list[Record]:
         """Get top_k most similar candidates under the given document (relative path)
         """
         if not text or top_k <= 0:
@@ -219,10 +235,7 @@ class DocLib:
 
         # If no provider/vector DB
         if not self.doc_provider or not self.vector_db:
-            if not relative_path:
-                raise ValueError('relative_path is mandatory when doc provider is empty')
-            else:
-                self.switch_doc(relative_path)
+            raise ValueError('No active document, please switch to a document first')
 
         query_embedding: npt.ArrayLike = self.embedder.embed_text(text)
         ids: list[int] = self.vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore

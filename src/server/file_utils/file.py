@@ -6,7 +6,7 @@ from mimetypes import guess_type
 from flask import Response
 
 from server.config import *
-from server.utils.file_types import *
+from server.file_utils.file_types import *
 
 range_pattern: re.Pattern = re.compile(r'(?P<start>\d+)-(?P<end>\d+)')
 
