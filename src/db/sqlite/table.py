@@ -42,7 +42,7 @@ class SqliteTable:
     def __initialize(self, table_name: str, db_path: str | None):
         if not db_path:
             raise ValueError('db_path is None')
-        if not self.table_name:
+        if not table_name:
             raise ValueError('table_name is None')
 
         self.table_name = table_name

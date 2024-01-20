@@ -8,7 +8,7 @@ from library.image.sql import *
 
 class ImageLibTable(SqliteTable):
     def __init__(self, db_path: str):
-        super().__init__(TABLE_NAME, db_path=os.path.join(db_path, DB_NAME), connection=None)
+        super().__init__(os.path.join(db_path, DB_NAME), TABLE_NAME)
         self.__initialize_table()
 
     @ensure_db

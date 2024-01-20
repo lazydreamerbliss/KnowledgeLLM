@@ -13,6 +13,7 @@ class WechatHistoryTable(SqliteTable):
     @ensure_db
     def __initialize_table(self) -> None:
         cursor = self.db.cursor()
+        a = create_index_sql(self.table_name, 'timestamp')
         cursor.execute(initialize_table_sql(self.table_name))
         cursor.execute(create_index_sql(self.table_name, 'timestamp'))
         cursor.execute(create_index_sql(self.table_name, 'sender'))

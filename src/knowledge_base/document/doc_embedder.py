@@ -28,8 +28,13 @@ class DocEmbedder:
         # - Each row of the matrix is a sample to be predicted, the first element of each row is the query text (source text), the second element is the document retrieved (target text)
         # - It returns a 1D matrix, each element is the prediction score (percentage) for the current text + doc (higher score is more relevant in semantics)
         # - https://aistudio.baidu.com/projectdetail/4951278
+        if not goal or not candidate:
+            return 0
         return self.ranker.predict([[goal, candidate]])
 
     def predict_similarity_batch(self, goal: str, candidates: list[str]) -> npt.ArrayLike:
+        if not goal or not candidates:
+            return list()
+
         merged: list[list[str]] = [[goal, candidate] for candidate in candidates]
         return self.ranker.predict(merged)

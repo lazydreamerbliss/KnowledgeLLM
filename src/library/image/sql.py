@@ -39,7 +39,7 @@ def initialize_table_sql(table_name: str) -> str:
 
     # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, uuid TEXT, path TEXT
     return f"""
-    CREATE TABLE IF NOT EXISTS {table_name} (
+    CREATE TABLE IF NOT EXISTS "{table_name}" (
         {', '.join([f'{col[0]} {col[1]}' for col in record_structure])}
     );
     """
@@ -51,7 +51,7 @@ def insert_row_sql(table_name: str) -> str:
 
     # Skip the first column (id)
     return f"""
-    INSERT INTO {table_name} ({', '.join([col[0] for col in record_structure[1:]])})
+    INSERT INTO "{table_name}" ({', '.join([col[0] for col in record_structure[1:]])})
     VALUES ({', '.join(['?' for _ in range(RECORD_LENGTH-1)])});
     """
 
@@ -61,7 +61,7 @@ def select_by_uuid_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    SELECT * FROM {table_name} WHERE uuid = ?;
+    SELECT * FROM "{table_name}" WHERE uuid = ?;
     """
 
 
@@ -70,7 +70,7 @@ def select_by_path_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    SELECT * FROM {table_name} WHERE path = ?;
+    SELECT * FROM "{table_name}" WHERE path = ?;
     """
 
 
@@ -79,7 +79,7 @@ def select_by_filename_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    SELECT * FROM {table_name} WHERE filename = ?;
+    SELECT * FROM "{table_name}" WHERE filename = ?;
     """
 
 
@@ -88,7 +88,7 @@ def select_by_path_and_filename_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    SELECT * FROM {table_name} WHERE path = ? AND filename = ?;
+    SELECT * FROM "{table_name}" WHERE path = ? AND filename = ?;
     """
 
 
@@ -97,5 +97,5 @@ def delete_by_uuid_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    DELETE FROM {table_name} WHERE uuid = ?;
+    DELETE FROM "{table_name}" WHERE uuid = ?;
     """

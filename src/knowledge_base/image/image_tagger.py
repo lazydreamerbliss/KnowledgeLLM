@@ -14,7 +14,8 @@ from knowledge_base.image.__tagger_model import TaggerModel
 
 class ImageTagger:
     SCORE_THRESHOLD = 0.4
-    model_path: str = f'{Path(__file__).parent.parent.parent}/local_models/fancyfeast--joytag'
+    MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/local_models'
+    model_path: str = f'{MODEL_FOLDER}/fancyfeast--joytag'
 
     def __init__(self, cuda: bool = False):
         self.device_type: str = 'cuda' if cuda else 'cpu'

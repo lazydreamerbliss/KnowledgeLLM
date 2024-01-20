@@ -16,8 +16,8 @@ from utils.tqdm_context import TqdmContext
 class ImageEmbedder:
     """It maintains multiple CLIP models for different languages, and provides functionalities to embed images and texts
     """
-    # Model folder: ../../../local_models/...
-    MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent}/local_models'
+    # Model folder: ../../../../local_models/...
+    MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/local_models'
     model_path: str = os.path.join(MODEL_FOLDER, 'openai--clip-vit-base-patch16', 'snapshots', '57c216476eefef5ab752ec549e440a49ae4ae5f3')
     model_path_cn: str = os.path.join(MODEL_FOLDER, 'OFA-Sys--chinese-clip-vit-base-patch16', 'snapshots', '36e679e65c2a2fead755ae21162091293ad37834')
 

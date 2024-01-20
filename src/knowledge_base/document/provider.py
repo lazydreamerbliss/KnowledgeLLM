@@ -1,5 +1,5 @@
 from sqlite3 import Cursor
-from typing import Generic, Type, TypeVar
+from typing import Callable, Generic, Type, TypeVar
 
 from db.sqlite.table import SqliteTable
 
@@ -11,11 +11,18 @@ class DocProviderBase(Generic[T]):
     """The basic abstract for an organized document management, it reads raw documents and provides functionalities to organize them
     """
 
+    # Type for the table for this type of document provider
     TABLE_TYPE: type = SqliteTable
+    # Lambda function to extract the text to be embedded from a tuple of a row
+    EMBED_LAMBDA: Callable[['DocProviderBase', tuple], str] = lambda self, x: ''
+    # Lambda function to extract the text to be re-ranked from a tuple of a row
+    RERANK_LAMBDA: Callable[['DocProviderBase', tuple], str] = lambda self, x: ''
 
     def __init__(self,
                  db_path: str,
                  table_name: str,
+                 doc_path: str | None,  # Just for Python's generic type param compatibility, not used
+                 re_dump: bool,  # Just for Python's generic type param compatibility, not used
                  table_type: Type[T]):
         """Base class for document provider
 
@@ -36,7 +43,7 @@ class DocProviderBase(Generic[T]):
         """Get one line/segment of a document by ID
         """
         row: tuple | None = self.table.select_row(id)
-        return row if row else None
+        return row
 
     def get_all_records(self) -> list[tuple]:
         """Get all lines/segments

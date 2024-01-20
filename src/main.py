@@ -3,10 +3,14 @@ from pathlib import Path
 
 from PIL import Image
 
-from library.image.image_lib import ImageLib
 from knowledge_base.image.image_tagger import ImageTagger
+from library.document.doc_lib import DocLib
+from library.document.doc_provider import DocProvider
+from library.document.wechat.wechat_history_provider import \
+    WechatHistoryProvider
+from library.image.image_lib import ImageLib
 from server.server import flask_app
-from singleton import img_embedder
+from singleton import doc_embedder, img_embedder
 
 
 def run_server():
@@ -23,35 +27,50 @@ def run_server():
     flask_app.run(host=host, port=port, debug=debug, threaded=True)
 
 
-def run_model_test():
-    # doc test
-    # test_doc_embedder = DocEmbedder('test_index.pickle')
-    # test_doc_embedder.initialize('test_index.pickle', 'test_chat',
-    #                              '/Users/chengjia/Documents/WechatDatabase/Seventh_Seal/群聊.txt')
-    # res = test_doc_embedder.query('哪家运营商可以开通公网ip？', 20, True)
+def library_test():
+    doc_lib = DocLib(doc_embedder, '~/Documents/test_lib', 'doc_lib_test')
+    # doc_lib.initialize_doc('群聊_small.txt', WechatHistoryProvider)
+    # res = doc_lib.query('哪家运营商可以开通公网ip？', 20, True)
     # for i in res:
     #     print(i)
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    doc_lib.initialize_doc('哈利波特.txt', DocProvider)
+    res = doc_lib.query('伏地魔附着在谁身上？', 20)
+    for i in res:
+        print(i)
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    doc_lib.switch_doc('群聊_small.txt', WechatHistoryProvider)
+    res = doc_lib.query('哪家运营商可以开通公网ip？', 20)
+    for i in res:
+        print(i)
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    doc_lib.switch_doc('哈利波特.txt', DocProvider)
+    res = doc_lib.query('伏地魔附着在谁身上？', 20)
+    for i in res:
+        print(i)
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
     SAMPLE_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
     test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
 
-    lib_mem = ImageLib(img_embedder, '~/Pictures/test_set_mem', 'testlib', force_init=False, local_mode=True)
-    a = lib_mem.image_for_image_search(test_img, 2)
+    img_lib1 = ImageLib(img_embedder, '~/Pictures/test_lib', 'testlib', force_init=False, local_mode=True)
+    a = img_lib1.image_for_image_search(test_img, 2)
     print(a)
-    b = lib_mem.text_for_image_search('astronaut', 2)
+    b = img_lib1.text_for_image_search('astronaut', 2)
     print(b)
-    lib_mem.scan_lib()
+    print("####################################")
 
-    lib_redis = ImageLib(img_embedder, '~/Pictures/test_set_redis', 'testlib', force_init=False, local_mode=False)
-    a = lib_redis.image_for_image_search(test_img, 2)
-    print(a)
-    b = lib_redis.text_for_image_search('astronaut', 2)
-    print(b)
-    lib_redis.scan_lib()
+    # img_lib2_redis = ImageLib(img_embedder, '~/Pictures/test_lib', 'testlib', force_init=False, local_mode=False)
+    # a = img_lib2_redis.image_for_image_search(test_img, 2)
+    # print(a)
+    # b = img_lib2_redis.text_for_image_search('astronaut', 2)
+    # print(b)
+    # print("####################################")
 
     sample_tagger = ImageTagger()
     c = sample_tagger.get_tags(test_img, 10)
     print(c)
+    print("####################################")
 
     # # Prepare raw documents
     # post_filenames: list[str] = glokeys *b('. /blog/*.md')
@@ -79,7 +98,8 @@ def run_model_test():
 
 
 if __name__ == '__main__':
-    run_server()
+    library_test()
+    # run_server()
 else:
     # Run with gunicorn
     # - See docker-compose.prod.yml `gunicorn --bind 0.0.0.0:5000 main:gunicorn_app`

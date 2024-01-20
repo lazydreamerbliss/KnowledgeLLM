@@ -42,7 +42,7 @@ def initialize_table_sql(table_name: str) -> str:
 
     # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, sender TEXT, message TEXT, reply_to TEXT, replied_message TEXT
     return f"""
-    CREATE TABLE IF NOT EXISTS {table_name} (
+    CREATE TABLE IF NOT EXISTS "{table_name}" (
         {', '.join([f'{col[0]} {col[1]}' for col in record_structure])}
     );
     """
@@ -54,7 +54,7 @@ def insert_row_sql(table_name: str) -> str:
 
     # Skip the first column (id)
     return f"""
-    INSERT INTO {table_name} ({', '.join([col[0] for col in record_structure[1:]])})
+    INSERT INTO "{table_name}" ({', '.join([col[0] for col in record_structure[1:]])})
     VALUES ({', '.join(['?' for _ in range(RECORD_LENGTH-1)])});
     """
 
@@ -64,7 +64,7 @@ def select_by_sender_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    SELECT * FROM {table_name} WHERE sender = ?;
+    SELECT * FROM "{table_name}" WHERE sender = ?;
     """
 
 
@@ -73,7 +73,7 @@ def select_by_timestamp_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    SELECT * FROM {table_name} WHERE timestamp = ?;
+    SELECT * FROM "{table_name}" WHERE timestamp = ?;
     """
 
 
@@ -82,5 +82,5 @@ def select_by_sender_and_timestamp_sql(table_name: str) -> str:
         raise ValueError('table_name is None')
 
     return f"""
-    SELECT * FROM {table_name} WHERE sender = ? AND timestamp = ?;
+    SELECT * FROM "{table_name}" WHERE sender = ? AND timestamp = ?;
     """

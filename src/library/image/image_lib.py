@@ -77,17 +77,18 @@ class ImageLib:
                     f'Initialize library: {lib_path}, this is a force init operation and existing library data will be purged')
                 self.__lib_manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 self.__update_lib_manifest()
-                self.vector_db.clean_all_data()
-                self.table.clean_all_data()
             else:
                 tqdm.write(f'Initialize library DB: {lib_path} for new library')
+            self.vector_db.clean_all_data()
+            self.table.clean_all_data()
             self.__full_scan_and_initialize_lib()
 
     def __is_new_lib(self, lib_path: str) -> bool:
-        """Check if the library is new
-        - If DB file or manifest file is missing, then it is a new library even though vector DB might exist
+        """Check if the library is new, all three items must exist for a library to be considered as initialized
+        - Other reset library and do full scan and initialize
         """
         return not (os.path.isfile(os.path.join(lib_path, DB_NAME))
+                    and os.path.isfile(os.path.join(lib_path, ImageLibVectorDb.IDX_FILENAME))
                     and os.path.isfile(os.path.join(lib_path, ImageLib.MANIFEST)))
 
     def __initialize_lib_manifest(self, lib_name: str | None) -> dict:
@@ -100,7 +101,7 @@ class ImageLib:
 
         file_path: str = os.path.join(self.lib_path, ImageLib.MANIFEST)
         if os.path.isfile(file_path):
-            raise ValueError(f'Manifest file already exists: {file_path}')
+            return self.__parse_lib_manifest()
 
         initial_manifest: dict = {
             'NOTE': 'DO NOT delete this file or modify it manually',
@@ -276,7 +277,7 @@ class ImageLib:
 
         start: float = time.time()
         image_embedding: np.ndarray = self.embedder.embed_image(img)
-        docs: list = self.vector_db.query(image_embedding)
+        docs: list = self.vector_db.query(np.asarray([image_embedding]))
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with image similarity completed, cost: {time_taken:.2f}s')
 
@@ -309,7 +310,7 @@ class ImageLib:
         start: float = time.time()
         # Text embedding is a 2D array, the first element is the embedding of the text
         text_embedding: np.ndarray = self.embedder.embed_text(text)[0]
-        docs: list = self.vector_db.query(text_embedding)
+        docs: list = self.vector_db.query(np.asarray([text_embedding]))
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with text similarity completed, cost: {time_taken:.2f}s')
 

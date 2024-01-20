@@ -1,7 +1,6 @@
 import json
 import os
 from datetime import datetime
-from pathlib import Path
 from typing import Generic, Type, TypeVar
 from uuid import uuid4
 
@@ -12,7 +11,7 @@ from tqdm import tqdm
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.document.provider import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
-from library.document.sql import DB_NAME, Record
+from library.document.sql import DB_NAME
 from utils.tqdm_context import TqdmContext
 
 """
@@ -36,14 +35,6 @@ class DocLib(Generic[D]):
     """
 
     MANIFEST: str = 'manifest.json'
-
-    # Model folder: ../../../local_models/...
-    # "cross-encoder/ms-marco-MiniLM-L-12-v2": re-rank a list of texts by their semantic similarity (https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2)
-    MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent}/local_models'
-    transformer_path: str = f'shibing624/text2vec-base-chinese'
-    # transformer_path: str = os.path.join(MODEL_FOLDER, 'shibing624--text2vec-base-chinese', '', '')
-    cross_encoder_path: str = f'hfl/chinese-roberta-wwm-ext'
-    # cross_encoder_path: str = os.path.join(MODEL_FOLDER, 'hfl--chinese-roberta-wwm-ext', '', '')
 
     def __init__(self,
                  embedder: DocEmbedder,
@@ -82,10 +73,9 @@ class DocLib(Generic[D]):
 
     def __is_new_lib(self, lib_path: str) -> bool:
         """Check if the library is new
-        - If DB file or manifest file is missing, then it is a new library even though vector DB might exist
+        - Document library initialize DB on demand only, so check manifest file only to determine if the library is new
         """
-        return not (os.path.isfile(os.path.join(lib_path, DB_NAME))
-                    and os.path.isfile(os.path.join(lib_path, DocLib.MANIFEST)))
+        return not os.path.isfile(os.path.join(lib_path, DocLib.MANIFEST))
 
     def __initialize_lib_manifest(self, lib_name: str | None) -> dict:
         """Initialize the manifest file for the library
@@ -108,6 +98,7 @@ class DocLib(Generic[D]):
             'created_on': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'embedded_docs': dict(),  # List of embedded documents under the library
+            'unfinished_docs': dict(),  # List of documents that are not finished embedding yet
         }
         with open(file_path, 'w') as f:
             json.dump(initial_manifest, f)
@@ -143,6 +134,8 @@ class DocLib(Generic[D]):
         """
         if not relative_path:
             raise ValueError('Invalid relative path')
+
+        relative_path = relative_path.lstrip(os.path.sep)
         if relative_path in self.__lib_manifest['embedded_docs']:
             self.switch_doc(relative_path, provider_type)
             return
@@ -151,16 +144,28 @@ class DocLib(Generic[D]):
         if not os.path.isfile(doc_path):
             raise ValueError(f'Invalid doc path: {doc_path}')
 
-        # Create doc provider for this doc
+        # Pre-check if given doc is in unfinished list, clean up leftover if any
+        if relative_path in self.__lib_manifest['unfinished_docs']:
+            old_uuid: str = self.__lib_manifest['unfinished_docs'][relative_path]
+            self.remove_doc_embedding(None, old_uuid, provider_type)
+            self.__lib_manifest['unfinished_docs'].pop(relative_path, None)
+            self.__update_lib_manifest()
+
+        # Record info in manifest before embedding
         uuid: str = str(uuid4())
+        self.__lib_manifest['unfinished_docs'][relative_path] = uuid
+        self.__update_lib_manifest()
+
+        # Create doc provider for this doc
         self.doc_provider = provider_type(os.path.join(self.lib_path, DB_NAME),
                                           uuid,
-                                          table_type=provider_type.TABLE_TYPE)
+                                          doc_path=doc_path,
+                                          re_dump=False)  # type: ignore
 
         # Do embedding, and create vector DB for this doc
         self.vector_db = DocLibVectorDb(self.lib_path, uuid)
-        embeddings_list: list[npt.ArrayLike] = [self.embedder.embed_text(t[1]) for t in
-                                                tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]  # type: ignore
+        embeddings_list: list[npt.ArrayLike] = [self.embedder.embed_text(self.doc_provider.EMBED_LAMBDA(t)) for t in  # type: ignore
+                                                tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]
         embeddings: np.ndarray = np.asarray(embeddings_list)
 
         # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
@@ -173,7 +178,8 @@ class DocLib(Generic[D]):
             self.vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
             self.vector_db.persist()
 
-        # Record info in manifest
+        # Record info in manifest after finished embedding
+        self.__lib_manifest['unfinished_docs'].pop(relative_path, None)
         self.__lib_manifest['embedded_docs'][relative_path] = uuid
         self.__update_lib_manifest()
 
@@ -181,9 +187,12 @@ class DocLib(Generic[D]):
         """Switch to another document under the library
         - If target document is not in manifest, then this is an uninitialized document, call initialize_doc()
         - Otherwise load the document provider and vector DB for the target document directly
+        - Target document's provider type is mandatory
         """
         if not relative_path:
             raise ValueError('Invalid relative path')
+
+        relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self.__lib_manifest['embedded_docs']:
             self.initialize_doc(relative_path, provider_type)
             return
@@ -192,44 +201,57 @@ class DocLib(Generic[D]):
             uuid: str = self.__lib_manifest['embedded_docs'][relative_path]
             self.doc_provider = provider_type(os.path.join(self.lib_path, DB_NAME),
                                               uuid,
-                                              table_type=provider_type.TABLE_TYPE)
+                                              doc_path=None,
+                                              re_dump=False)  # type: ignore
             self.vector_db = DocLibVectorDb(self.lib_path, uuid)
 
-    def remove_doc_embedding(self, relative_path: str, provider_type: Type[D]):
+    def remove_doc_embedding(self, relative_path: str | None, uuid: str | None, provider_type: Type[D]):
         """Remove the embedding of a document under the library
+        1. Delete the document's table from DB
+        2. Delete the document's vector index
+
+        If relative_path is None, then uuid must be provided, and vice versa
+        If both are provided, then relative_path will be used
         """
-        if not relative_path:
-            raise ValueError('Invalid relative path')
+        if not relative_path and not uuid:
+            raise ValueError('Invalid relative path and UUID')
 
-        if relative_path not in self.__lib_manifest['embedded_docs']:
-            return
+        if relative_path:
+            relative_path = relative_path.lstrip(os.path.sep)
+            if relative_path not in self.__lib_manifest['embedded_docs']:
+                return
+            uuid = self.__lib_manifest['embedded_docs'][relative_path]
 
-        uuid: str = self.__lib_manifest['embedded_docs'][relative_path]
+        # The UUID after current code line will be either the provided UUID or the one in manifest here
         is_current_doc: bool = False
         if self.doc_provider:
             is_current_doc = self.doc_provider.table.table_name == uuid
 
-        if not is_current_doc:
-            # Remove the document's table from DB
-            tmp_provider: DocProviderBase = provider_type(os.path.join(self.lib_path, DB_NAME),
-                                                          uuid,
-                                                          table_type=provider_type.TABLE_TYPE)
-            tmp_provider.delete_table()
-            # Remove the document's vector index
-            tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self.lib_path, uuid)
-            tmp_vector_db.delete_db()
-        else:
-            self.doc_provider.delete_table()  # type: ignore
-            self.doc_provider = None
-            self.vector_db.delete_db()  # type: ignore
-            self.vector_db = None
+        with TqdmContext(f'Removing embedding data for {relative_path}...', 'Done'):
+            if not is_current_doc:
+                # Remove the document's table from DB
+                tmp_provider: DocProviderBase = provider_type(os.path.join(self.lib_path, DB_NAME),
+                                                              uuid,
+                                                              doc_path=None,
+                                                              re_dump=False)  # type: ignore
+                tmp_provider.delete_table()
+                # Remove the document's vector index
+                tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self.lib_path, uuid)  # type: ignore
+                tmp_vector_db.delete_db()
+            else:
+                self.doc_provider.delete_table()  # type: ignore
+                self.doc_provider = None
+                self.vector_db.delete_db()  # type: ignore
+                self.vector_db = None
 
-        del self.__lib_manifest['embedded_docs'][relative_path]
+        # Record info in manifest after finished deletion
+        self.__lib_manifest['embedded_docs'].pop(relative_path, None)
         self.__update_lib_manifest()
 
-    def __retrieve(self, text: str, top_k: int = 10) -> list[Record]:
+    def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)
         """
+
         if not text or top_k <= 0:
             return list()
 
@@ -238,18 +260,27 @@ class DocLib(Generic[D]):
             raise ValueError('No active document, please switch to a document first')
 
         query_embedding: npt.ArrayLike = self.embedder.embed_text(text)
-        ids: list[int] = self.vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
-        res: list[Record] = list()
-        for i in ids:
-            # in-mem index's ID starts from 0 but DB's ID column starts from 1, so plus 1
-            record: tuple | None = self.doc_provider.get_record_by_id(i + 1)  # type: ignore
+        ids: list[np.int64] = self.vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
+        res: list[tuple] = list()
+
+        for i64 in ids:
+            # If number of candidates is lesser than top_k, then the rest IDs are all -1
+            i: int = int(i64)
+            if i == -1:
+                break
+
+            # in-mem index's ID starts from 0 but DB's ID column starts from 1, plus 1
+            record: tuple | None = self.doc_provider.get_record_by_id(i + 1)
             if record:
-                res.append(Record(record))
+                res.append(record)
         return res
 
-    def __rerank(self, text: str, candidates: list[Record]) -> list[Record]:
+    def __rerank(self, text: str, candidates: list[tuple]) -> list[tuple]:
+        if not self.doc_provider:
+            raise ValueError('No active document, please switch to a document first')
+
         tqdm.write(f'Reranking {len(candidates)} candidates...')
-        candidates_str: list[str] = [f'{r.text}' for r in candidates]
+        candidates_str: list[str] = [self.doc_provider.RERANK_LAMBDA(c) for c in candidates]  # type: ignore
         scores: npt.ArrayLike = self.embedder.predict_similarity_batch(text, candidates_str)
 
         # Re-sort the ranking result
@@ -258,13 +289,22 @@ class DocLib(Generic[D]):
         sorted_ids: np.ndarray = np.argsort(scores)[::-1]
 
         # Reorder the candidates list by the ranking
-        return [Record(candidates[i]) for i in sorted_ids]
+        return [candidates[i] for i in sorted_ids]
 
-    def query(self, query_text: str, top_k: int = 10, rerank: bool = False) -> list[Record]:
+    def query(self, query_text: str, top_k: int = 10, rerank: bool = False) -> list[tuple]:
+        """Query given text in the active document
+
+        Args:
+            query_text (str): _description_
+            top_k (int, optional): _description_. Defaults to 10.
+            rerank (bool, optional): If the result should be reranked. Defaults to False.
+            rerank_lambda (int, optional): The function used to fetch specific data from a row for rerank.
+            It needs to accept a tuple (the row data) and return a string. Defaults to None.
+        """
         tqdm.write(f'Q: {query_text}, get top {top_k} matches...')
         if rerank:
-            candidates: list[Record] = self.__retrieve(query_text, top_k * 10)
-            reranked: list[Record] = self.__rerank(query_text, candidates)
+            candidates: list[tuple] = self.__retrieve(query_text, top_k * 10)
+            reranked: list[tuple] = self.__rerank(query_text, candidates)
             return reranked[:top_k]
-
-        return self.__retrieve(query_text, top_k)
+        else:
+            return self.__retrieve(query_text, top_k)

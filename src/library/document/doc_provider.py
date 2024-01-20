@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Callable
 
 from tqdm import tqdm
 
@@ -11,10 +12,15 @@ class DocProvider(DocProviderBase[DocLibTable]):
     """A generic type of DocLibTable as the type of SQL table is needed
     """
 
+    # Type for the table for this type of document provider
     TABLE_TYPE: type = DocLibTable
+    # Lambda function to extract the text to be embedded from a tuple of a row
+    EMBED_LAMBDA: Callable[['DocProvider', tuple], str] = lambda self, x: x[2]
+    # Lambda function to extract the text to be re-ranked from a tuple of a row
+    RERANK_LAMBDA: Callable[['DocProvider', tuple], str] = lambda self, x: x[2]
 
     def __init__(self, db_path: str, uuid: str, doc_path: str | None = None, re_dump: bool = False):
-        super().__init__(db_path, uuid, table_type=DocProvider.TABLE_TYPE)
+        super().__init__(db_path, uuid, doc_path, re_dump, table_type=DocProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path
         if not self.table.table_row_count() or re_dump:

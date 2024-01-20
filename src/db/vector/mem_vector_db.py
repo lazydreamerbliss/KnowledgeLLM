@@ -34,7 +34,7 @@ class InMemoryVectorDb:
         tqdm.write(f'Loading vector index from disk...', end=' ')
         folder_path = os.path.expanduser(folder_path)
         if not os.path.isdir(folder_path):
-            raise ValueError('Path does not exist')
+            os.makedirs(folder_path)
 
         index_filename = index_filename or InMemoryVectorDb.IDX_FILENAME
         index_file_path: str = os.path.join(folder_path, index_filename)
@@ -92,7 +92,7 @@ class InMemoryVectorDb:
         """
         # FLAT index case
         # - If no training set is given, use flat index and no further action is needed
-        if not training_set:
+        if training_set is None:
             index: IndexFlatL2 = IndexFlatL2(vector_dimension)
             self.mem_index_flat = IndexIDMap2(index)
             return
@@ -242,7 +242,7 @@ class InMemoryVectorDb:
 
         # Index search returns a tuple of two arrays: distances and IDs
         target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
-        D, I = target_index.search(np.asarray([embeddings]), top_k)  # type: ignore
+        D, I = target_index.search(embeddings, top_k)  # type: ignore
 
         # Reset the number of neighbors to be queried for IVF
         if prob_changed and self.mem_index_ivf:

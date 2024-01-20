@@ -34,7 +34,7 @@ class DocLibVectorDb:
 
     @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int, training_set: np.ndarray, dataset_size: int):
-        if not training_set:
+        if training_set is None:
             raise ValueError('training_set is None')
 
         # Use IVF index for in-memory vector DB

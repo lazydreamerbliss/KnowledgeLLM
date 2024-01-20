@@ -1,6 +1,7 @@
 import re
 from datetime import datetime, timedelta
 from sqlite3 import Cursor
+from typing import Callable
 
 from tqdm import tqdm
 
@@ -13,7 +14,12 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
     """A generic type of WechatHistoryTable as the type of SQL table is needed
     """
 
+    # Type for the table for this type of document provider
     TABLE_TYPE: type = WechatHistoryTable
+    # Lambda function to extract the text to be embedded from a tuple of a row
+    EMBED_LAMBDA: Callable[['WechatHistoryProvider', tuple], str] = lambda self, x: f"{x[3]}-{x[5]}" if x[5] else x[3]
+    # Lambda function to extract the text to be re-ranked from a tuple of a row
+    RERANK_LAMBDA: Callable[['WechatHistoryProvider', tuple], str] = lambda self, x: f"{x[3]}-{x[5]}" if x[5] else x[3]
 
     msg_pattern: re.Pattern = re.compile(
         r"(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)")
@@ -24,12 +30,17 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
     ignore_pattern: re.Pattern = re.compile(
         r"^\[.+\]$")
 
-    def __init__(self, db_path: str, uuid: str, chat_file: str, re_dump: bool = False):
-        super().__init__(db_path, uuid, table_type=WechatHistoryProvider.TABLE_TYPE)
+    def __init__(self, db_path: str, uuid: str, doc_path: str | None = None, re_dump: bool = False):
+        super().__init__(db_path, uuid, doc_path, re_dump, table_type=WechatHistoryProvider.TABLE_TYPE)
+
+        # If the table is empty, initialize it with given doc_path (chat history)
         if not self.table.table_row_count() or re_dump:
+            if not doc_path:
+                raise ValueError('doc_path is mandatory when table is empty')
+
             with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
                 self.table.clean_all_data()
-                self.initialize(chat_file)
+                self.initialize(doc_path)
 
     def __process_reply(self, reply: str) -> tuple[str, str, str]:
         """Process a reply message, return the replied user, replied message and the message itself

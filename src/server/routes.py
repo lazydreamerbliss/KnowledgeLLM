@@ -45,8 +45,8 @@ def preprocess_relative_path(relative_path: str) -> str:
     """
     if not relative_path:
         return relative_path
-    relative_path = relative_path.rstrip('\\') if IS_WINDOWS else relative_path.rstrip('/')
-    relative_path = relative_path.lstrip('\\') if IS_WINDOWS else relative_path.lstrip('/')
+    relative_path = relative_path.rstrip(os.path.sep)
+    relative_path = relative_path.lstrip(os.path.sep)
     return decode_hash_tag(relative_path)
 
 
