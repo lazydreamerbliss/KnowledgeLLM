@@ -4,6 +4,8 @@ from typing import Any
 from redis import Redis
 from redis.client import Pipeline
 
+from env import *
+
 
 class BatchedPipeline:
     """A redis pipeline that executes commands automatically in batches of a given size as a context manager
@@ -73,8 +75,12 @@ def ensure_redis(func):
 
 
 class RedisClient:
-    def __init__(self, host: str, port: int = 6379, password: str | None = None, decode_responses: bool = True):
-        self.__client: Redis = Redis(host=host, port=port, password=password, decode_responses=decode_responses)
+    def __init__(self, decode_responses: bool = True):
+        self.__client: Redis = Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            password=REDIS_PWD,
+            decode_responses=decode_responses)
         try:
             self.connected: bool = bool(self.__client.ping())
         except:

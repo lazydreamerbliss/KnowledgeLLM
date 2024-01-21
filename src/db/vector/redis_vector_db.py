@@ -16,7 +16,7 @@ class RedisVectorDb:
             raise ValueError('Namespace and index name are mandatory for using redis as vector DB')
 
         with TqdmContext('Connecting to Redis vector DB...', 'Connected'):
-            self.redis: RedisClient = RedisClient(host="localhost", port=6379, password="test123")
+            self.redis: RedisClient = RedisClient()
             self.namespace: str = namespace
             self.index_name: str = index_name
 
