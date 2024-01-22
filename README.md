@@ -9,8 +9,7 @@ On the main page of the app (after started the local server), simply pick a fold
 - Initialize your knowledge library into embeddings, and:
   - Text serch for your document library
   - Image/Text to image search for your image library
-  - Ask AI assistent about anything in your library
-
+  - Ask AI assistent about anything in your library (under development)
 
 ## Install backend requirements
 (Python 3.10+) `pip install -r requirements.txt`
