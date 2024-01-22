@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Any
+from typing import Any, Iterator
 
 from redis import Redis
 from redis.client import Pipeline
@@ -97,6 +97,17 @@ class RedisClient:
     @ensure_redis
     def get(self, key: str) -> Any:
         return self.__client.get(key)
+
+    @ensure_redis
+    def get_one_with_prefix(self, prefix: str) -> Any:
+        """Get one key-value pair with given prefix
+        """
+        res: Any = None
+        cursor: Iterator = self.__client.scan_iter(f'{prefix}*')
+        for key in cursor:
+            res = self.__client.get(key)
+            break
+        return res
 
     @ensure_redis
     def delete(self, key: str):

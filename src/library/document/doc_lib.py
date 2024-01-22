@@ -84,7 +84,7 @@ class DocLib(Generic[D], LibBase):
     def set_embedder(self, embedder: DocEmbedder):
         self.embedder = embedder
 
-    def initialize_doc(self, relative_path: str, provider_type: Type[D]):
+    def __initialize_doc(self, relative_path: str, provider_type: Type[D]):
         """Initialize a document under the library
         """
         if not relative_path:
@@ -112,8 +112,8 @@ class DocLib(Generic[D], LibBase):
         self.update_lib_manifest()
 
         # Create doc provider for this doc
-        self.doc_provider = provider_type(db_file=self.path_db,
-                                          table_name=uuid,
+        self.doc_provider = provider_type(self.path_db,
+                                          uuid,
                                           doc_path=doc_path,
                                           re_dump=False)  # type: ignore
 
@@ -149,13 +149,13 @@ class DocLib(Generic[D], LibBase):
 
         relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self.manifest['embedded_docs']:
-            self.initialize_doc(relative_path, provider_type)
+            self.__initialize_doc(relative_path, provider_type)
             return
 
         with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
             uuid: str = self.manifest['embedded_docs'][relative_path]
-            self.doc_provider = provider_type(db_file=self.path_db,
-                                              table_name=uuid,
+            self.doc_provider = provider_type(self.path_db,
+                                              uuid,
                                               doc_path=None,
                                               re_dump=False)  # type: ignore
             self.vector_db = DocLibVectorDb(self.path_lib, uuid)
@@ -185,8 +185,8 @@ class DocLib(Generic[D], LibBase):
         with TqdmContext(f'Removing embedding data for {relative_path}...', 'Done'):
             if not is_current_doc:
                 # Remove the document's table from DB
-                tmp_provider: DocProviderBase = provider_type(db_file=self.path_db,
-                                                              table_name=uuid,
+                tmp_provider: DocProviderBase = provider_type(self.path_db,
+                                                              uuid,
                                                               doc_path=None,
                                                               re_dump=False)  # type: ignore
                 tmp_provider.delete_table()

@@ -216,6 +216,11 @@ class InMemoryVectorDb:
             'index_ivf': self.mem_index_ivf,
         }, open(self.mem_index_path, 'wb'))
 
+    def index_exists(self) -> bool:
+        """Check if the index exists
+        """
+        return os.path.isfile(self.mem_index_path)
+
     @ensure_index
     def query(self,
               embeddings: np.ndarray,

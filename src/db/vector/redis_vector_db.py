@@ -102,3 +102,9 @@ class RedisVectorDb:
 
     def get_search(self) -> Search:
         return self.redis.client().ft(self.index_name)
+
+    def namespace_exists(self) -> bool:
+        """Check if the namespace exists
+        - It tries to get one key with the namespace prefix
+        """
+        return self.redis.get_one_with_prefix(f'{self.namespace}:') is not None

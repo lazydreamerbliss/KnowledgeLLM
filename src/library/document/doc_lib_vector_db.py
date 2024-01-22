@@ -85,3 +85,12 @@ class DocLibVectorDb:
             return list()
 
         return self.mem_vector_db.query(embeddings, top_k)
+
+    @ensure_vector_db_connected
+    def db_is_empty(self) -> bool:
+        """Check if the vector DB is empty
+        - For in-memory, check if the index file exists
+        """
+        if self.mem_vector_db:
+            return not self.mem_vector_db.index_exists()
+        return True

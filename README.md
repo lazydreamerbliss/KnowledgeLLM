@@ -6,7 +6,7 @@ This project offers a reference implementation that combines document retrieval 
 
 ## Install backend requirements
 (Python 3.10+) `pip install -r requirements.txt`
-- Note: `torch` might need to be installed manually from https://pytorch.org/get-started/locally/, depends on local hardware
+- `torch` needs to be installed manually from https://pytorch.org/get-started/locally/, depends on local hardware
 
 ## Downlod model pack
 There are two options to use the models:

@@ -158,7 +158,7 @@ def list_library_content(relative_path: str = ''):
                            breadcrumb_path=relative_path.split('/'),
                            dir_dict=dir_dict,
                            file_dict=file_dict,
-                           sorted_label_current=CONFIG.sorted_by)
+                           sorted_label_current=sorted_by_labels_CN[CONFIG.sorted_by])
 
 
 @librarian_routes.route('/file/<path:relative_path>', defaults={"browse": True}, methods=['GET'])

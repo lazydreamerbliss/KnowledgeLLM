@@ -83,26 +83,36 @@ class ImageLib(LibBase):
         if ready and not force_init:
             return
 
-        # Initialize the library when it is a new lib or force_init is True
-        if force_init or not ready:
+        if not self.embedder:
+            raise ValueError('Embedder not set')
+
+        # Load SQL DB and vector DB, and "not ready" has two cases:
+        # 1. The lib is a new lib
+        # 2. The lib is an existing lib but not loaded
+        if not ready:
             self.table = ImageLibTable(self.path_lib)
             self.vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                               lib_uuid=self.manifest['uuid'],
                                               lib_namespace=self.manifest["lib_name"],
                                               lib_path=self.path_lib)
-            if ready:
-                # If the lib is already ready, purge all data and re-initialize it
-                tqdm.write(
-                    f'Initialize library: {self.path_lib}, this is a force init operation and existing library data will be purged')
+
+        # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
+        if not force_init and self.table.table_row_count() > 0 and not self.vector_db.db_is_empty():  # type: ignore
+            return
+
+        # Refresh ready status, initialize the library for force init or new lib cases
+        ready = self.lib_is_ready()
+        if ready:
+            with TqdmContext(f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...', 'Cleaned'):
                 self.manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 self.update_lib_manifest()
-                self.vector_db.clean_all_data()
-                self.table.clean_all_data()
-            else:
-                tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
+                self.vector_db.clean_all_data()  # type: ignore
+                self.table.clean_all_data()  # type: ignore
+        else:
+            tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
 
-            # Do full scan and initialize the lib
-            self.__full_scan_and_initialize_lib()
+        # Do full scan and initialize the lib
+        self.__full_scan_and_initialize_lib()
 
     def __write_entry(self, file: str, embeddings: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry to both DB and vector DB
