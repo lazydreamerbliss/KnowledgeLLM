@@ -4,6 +4,13 @@ This project offers a reference implementation that combines document retrieval 
 - It supports both In-Memory and Redis-based vector DB, depends on your configuration
 - If In-Memory vector DB is used, then no Redis is needed and this application is a stand-alone app
 
+On the main page of the app (after started the local server), simply pick a folder a your knowledge library, and ask questions to it!
+- Navigate your knowledge library in different view styles and image gallery mode
+- Initialize your knowledge library into embeddings, and:
+  - Text serch for your document library
+  - Image/Text to image search for your image library
+  - Ask AI assistent about anything in your library (under development)
+
 ## Install backend requirements
 (Python 3.10+) `pip install -r requirements.txt`
 - `torch` needs to be installed manually from https://pytorch.org/get-started/locally/, depends on local hardware
