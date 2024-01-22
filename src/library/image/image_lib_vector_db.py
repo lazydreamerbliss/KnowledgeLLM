@@ -1,3 +1,4 @@
+import os
 from functools import wraps
 
 import numpy as np
@@ -41,7 +42,7 @@ class ImageLibVectorDb:
         if use_redis:
             self.redis_vector_db = RedisVectorDb(namespace=lib_namespace, index_name=f'v_idx:{lib_uuid}')
         else:
-            self.mem_vector_db = InMemoryVectorDb(lib_path, ImageLibVectorDb.IDX_FILENAME)
+            self.mem_vector_db = InMemoryVectorDb(folder_path=lib_path, index_filename=ImageLibVectorDb.IDX_FILENAME)
 
     @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int):
@@ -90,6 +91,14 @@ class ImageLibVectorDb:
             self.redis_vector_db.delete_db()
         elif self.mem_vector_db:
             self.mem_vector_db.delete_db()
+
+    @staticmethod
+    def delete_mem_db_file(lib_path: str):
+        """Delete the in-memory vector DB file
+        """
+        file_path: str = os.path.join(lib_path, ImageLibVectorDb.IDX_FILENAME)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
 
     @ensure_vector_db_connected
     def persist(self):

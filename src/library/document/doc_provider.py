@@ -46,3 +46,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
             if not line:
                 continue
             self.table.insert_row((timestamp, line))
+
+    @staticmethod
+    def delete_db_file():
+        

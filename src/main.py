@@ -28,7 +28,8 @@ def run_server():
 
 
 def library_test():
-    doc_lib = DocLib(doc_embedder, '~/Documents/test_lib', 'doc_lib_test')
+    doc_lib = DocLib('~/Documents/test_lib', 'doc_lib_test')
+    doc_lib.set_embedder(doc_embedder)
     # doc_lib.initialize_doc('群聊_small.txt', WechatHistoryProvider)
     # res = doc_lib.query('哪家运营商可以开通公网ip？', 20, True)
     # for i in res:
@@ -53,7 +54,8 @@ def library_test():
     SAMPLE_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
     test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
 
-    img_lib1 = ImageLib(img_embedder, '~/Pictures/test_lib', 'testlib', force_init=False, local_mode=True)
+    img_lib1 = ImageLib('~/Pictures/test_lib', 'testlib', local_mode=True)
+    img_lib1.set_embedder(img_embedder)
     a = img_lib1.image_for_image_search(test_img, 2)
     print(a)
     b = img_lib1.text_for_image_search('astronaut', 2)

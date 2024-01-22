@@ -1,3 +1,4 @@
+import os
 from sqlite3 import Cursor
 from typing import Callable, Generic, Type, TypeVar
 
@@ -19,20 +20,19 @@ class DocProviderBase(Generic[T]):
     RERANK_LAMBDA: Callable[['DocProviderBase', tuple], str] = lambda self, x: ''
 
     def __init__(self,
-                 db_path: str,
+                 db_file: str,
                  table_name: str,
-                 doc_path: str | None,  # Just for Python's generic type param compatibility, not used
-                 re_dump: bool,  # Just for Python's generic type param compatibility, not used
+                 doc_path: str | None,  # Just for Python's generic type param compatibility, not used in base class
+                 re_dump: bool,  # Just for Python's generic type param compatibility, not used in base class
                  table_type: Type[T]):
         """Base class for document provider
 
         Args:
+            db_file (str | None): _description_
             table_name (str): _description_
-            db_path (str | None): Mandatory if connection is None
-            connection (Connection | None): Mandatory if db_path is None
             table_type (Type[T]): Generic type constructor for SqliteTable
         """
-        self.table: T = table_type(db_path, table_name)
+        self.table: T = table_type(db_file, table_name)
 
     def initialize(self, file_path: str):
         """Initialize the document provider, it reads all lines from given file and insert them into the table after some processing
@@ -63,3 +63,10 @@ class DocProviderBase(Generic[T]):
         """Remove current document's table from DB
         """
         self.table.drop_table()
+
+    @staticmethod
+    def delete_db_file(db_file: str):
+        """Delete the DB file, this will remove all tables in the DB
+        """
+        if os.path.isfile(db_file):
+            os.remove(db_file)

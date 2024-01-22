@@ -1,4 +1,3 @@
-import json
 import os
 import time
 from datetime import datetime
@@ -16,130 +15,94 @@ from knowledge_base.image.image_embedder import ImageEmbedder
 from library.image.image_lib_table import ImageLibTable
 from library.image.image_lib_vector_db import ImageLibVectorDb
 from library.image.sql import DB_NAME
+from library.lib_base import LibBase, ensure_lib_is_ready
 from utils.tqdm_context import TqdmContext
 
 
-class ImageLib:
+class ImageLib(LibBase):
     """Define an image library
     - Each image library will have only one table for storing images' metadata, such as UUID, path, filename, etc.
     """
 
-    MANIFEST: str = 'manifest.json'
-
     def __init__(self,
-                 embedder: ImageEmbedder,
                  lib_path: str,
                  lib_name: str | None = None,
-                 force_init: bool = False,
                  local_mode: bool = True):
         """
         Args:
             lib_path (str): Path to the library
             lib_name (str | None, optional): Name to the library, mandatory for a new library. Defaults to None.
-            force_init (bool, optional): Force reset and reinitialize the library. Defaults to False.
             local_mode (bool, optional): True for use local index, False for use Redis. Defaults to True.
         """
-        if not embedder:
-            raise ValueError('Image embedder is empty')
-
-        # Expand the lib path to absolute path
-        lib_path = os.path.expanduser(lib_path)
-        if not os.path.isdir(lib_path):
-            raise ValueError(f'Invalid lib path: {lib_path}')
-
-        new_lib: bool = self.__is_new_lib(lib_path)
-        if new_lib and not lib_name:
-            raise ValueError('A library name must be provided for a new library')
+        super().__init__(lib_path)
 
         # Load manifest
-        self.lib_path: str = lib_path
         with TqdmContext('Loading library manifest...', 'Loaded'):
-            if new_lib:
-                self.__lib_manifest: dict = self.__initialize_lib_manifest(lib_name)
+            if not self.manifest_file_exists():
+                if not lib_name:
+                    raise ValueError('Library name must be provided for a new library')
+
+                initial_manifest: dict = {
+                    'NOTE': 'DO NOT delete this file or modify it manually',
+                    'lib_name': lib_name,  # Name of the library, must be unique and it will be used as the prefix of the redis index
+                    'alias': lib_name,     # Name alias for the library, for display
+                    'uuid': str(uuid4()),
+                    'type': 'image',
+                    'created_on': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                self.manifest = self.initialize_lib_manifest(initial_manifest)
             else:
-                self.__lib_manifest: dict = self.__parse_lib_manifest()
-        if not self.__lib_manifest:
+                self.manifest = self.parse_lib_manifest()
+        if not self.manifest:
             raise ValueError('Library manifest not initialized')
 
-        # Connect to DB and vector DB (embedder here)
-        self.table: ImageLibTable = ImageLibTable(lib_path)
-        self.vector_db: ImageLibVectorDb = ImageLibVectorDb(use_redis=not local_mode,
-                                                            lib_uuid=self.__lib_manifest['uuid'],
-                                                            lib_namespace=self.__lib_manifest["lib_name"],
-                                                            lib_path=lib_path)
-        self.embedder: ImageEmbedder = embedder
+        self.path_db: str = os.path.join(self.path_lib, DB_NAME)
+        self.path_vector_db: str = os.path.join(self.path_lib, ImageLibVectorDb.IDX_FILENAME)
+        self.table: ImageLibTable | None = None
+        self.vector_db: ImageLibVectorDb | None = None
+        self.embedder: ImageEmbedder | None = None
         self.local_mode: bool = local_mode
 
+    def lib_is_ready(self) -> bool:
+        if not self.manifest_file_exists():
+            return False
+        if not self.table:
+            return False
+        if not self.vector_db:
+            return False
+        if not self.embedder:
+            return False
+        return True
+
+    def set_embedder(self, embedder: ImageEmbedder):
+        self.embedder = embedder
+
+    def initialize(self, force_init: bool = False):
+        ready: bool = self.lib_is_ready()
+        if ready and not force_init:
+            return
+
         # Initialize the library when it is a new lib or force_init is True
-        if force_init or new_lib:
-            if force_init and not new_lib:
+        if force_init or not ready:
+            self.table = ImageLibTable(self.path_lib)
+            self.vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
+                                              lib_uuid=self.manifest['uuid'],
+                                              lib_namespace=self.manifest["lib_name"],
+                                              lib_path=self.path_lib)
+            if ready:
+                # If the lib is already ready, purge all data and re-initialize it
                 tqdm.write(
-                    f'Initialize library: {lib_path}, this is a force init operation and existing library data will be purged')
-                self.__lib_manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self.__update_lib_manifest()
+                    f'Initialize library: {self.path_lib}, this is a force init operation and existing library data will be purged')
+                self.manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                self.update_lib_manifest()
+                self.vector_db.clean_all_data()
+                self.table.clean_all_data()
             else:
-                tqdm.write(f'Initialize library DB: {lib_path} for new library')
-            self.vector_db.clean_all_data()
-            self.table.clean_all_data()
+                tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
+
+            # Do full scan and initialize the lib
             self.__full_scan_and_initialize_lib()
-
-    def __is_new_lib(self, lib_path: str) -> bool:
-        """Check if the library is new, all three items must exist for a library to be considered as initialized
-        - Other reset library and do full scan and initialize
-        """
-        return not (os.path.isfile(os.path.join(lib_path, DB_NAME))
-                    and os.path.isfile(os.path.join(lib_path, ImageLibVectorDb.IDX_FILENAME))
-                    and os.path.isfile(os.path.join(lib_path, ImageLib.MANIFEST)))
-
-    def __initialize_lib_manifest(self, lib_name: str | None) -> dict:
-        """Initialize the manifest file for the library
-        - Only called when the library is under a fresh initialization (manifest file not exists), the UUID should not be changed after this
-        - File missing or modify the UUID manually will cause the library's index missing
-        """
-        if not lib_name:
-            raise ValueError('A name must be provided for a new library')
-
-        file_path: str = os.path.join(self.lib_path, ImageLib.MANIFEST)
-        if os.path.isfile(file_path):
-            return self.__parse_lib_manifest()
-
-        initial_manifest: dict = {
-            'NOTE': 'DO NOT delete this file or modify it manually',
-            'lib_name': lib_name,  # Name of the library, must be unique and it will be used as the prefix of the redis index
-            'alias': lib_name,     # Name alias for the library, for display
-            'uuid': str(uuid4()),
-            'type': 'image',
-            'created_on': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        }
-        with open(file_path, 'w') as f:
-            json.dump(initial_manifest, f)
-        return initial_manifest
-
-    def __update_lib_manifest(self):
-        """Update the manifest file for the library
-        """
-        file_path: str = os.path.join(self.lib_path, ImageLib.MANIFEST)
-        if not os.path.isfile(file_path):
-            raise ValueError(f'Manifest file missing: {file_path}')
-
-        with open(file_path, 'w') as f:
-            json.dump(self.__lib_manifest, f)
-
-    def __parse_lib_manifest(self) -> dict:
-        """Parse the manifest file of the library
-        """
-        file_path: str = os.path.join(self.lib_path, ImageLib.MANIFEST)
-        if not os.path.isfile(file_path):
-            raise ValueError(f'Manifest file missing: {file_path}')
-
-        content: dict | None = None
-        with open(file_path, 'r') as f:
-            content = json.load(f)
-        if not content or not content.get('uuid') or not content.get('lib_name'):
-            raise ValueError(f'Invalid manifest file: {file_path}')
-
-        return content
 
     def __write_entry(self, file: str, embeddings: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry to both DB and vector DB
@@ -150,43 +113,43 @@ class ImageLib:
         relative_path: str = os.path.dirname(file)
         filename: str = os.path.basename(file)
         # (timestamp, uuid, path, filename)
-        self.table.insert_row((timestamp, uuid, relative_path, filename))
-        self.vector_db.add(uuid, embeddings, save_pipeline)
+        self.table.insert_row((timestamp, uuid, relative_path, filename))  # type: ignore
+        self.vector_db.add(uuid, embeddings, save_pipeline)  # type: ignore
 
     def __do_scan(self) -> Generator[tuple[str, list[float]], None, None]:
         files: list[str] = list()
-        for root, _, filenames in os.walk(self.lib_path):
+        for root, _, filenames in os.walk(self.path_lib):
             for filename in filenames:
-                files.append(os.path.relpath(os.path.join(root, filename), self.lib_path))
-        tqdm.write(f'Library scanned, found {len(files)} files in {self.lib_path}')
+                files.append(os.path.relpath(os.path.join(root, filename), self.path_lib))
+        tqdm.write(f'Library scanned, found {len(files)} files in {self.path_lib}')
 
         for file in tqdm(files, desc=f'Processing images', unit='item', ascii=' |'):
             try:
                 # Validate if the file is an image and insert it into the table
                 # - After verify() the file stream is closed, need to reopen it
-                img: Image.Image = Image.open(os.path.join(self.lib_path, file))
+                img: Image.Image = Image.open(os.path.join(self.path_lib, file))
                 img.verify()
-                img = Image.open(os.path.join(self.lib_path, file))
+                img = Image.open(os.path.join(self.path_lib, file))
             except:
                 tqdm.write(f'Invalid image: {file}, skip')
                 continue
 
             start_time: float = time.time()
-            embeddings: list[float] = self.embedder.embed_image_as_list(img)
+            embeddings: list[float] = self.embedder.embed_image_as_list(img)  # type: ignore
             time_taken: float = time.time() - start_time
             tqdm.write(f'Image embedded: {file}, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
 
             yield file, embeddings
 
     def __full_scan_and_initialize_lib(self, scan_only: bool = False):
-        """Get all files and relative path info under lib_path, including files in all sub folders under lib_path
+        """Get all files and relative path info under self.path_lib, including files in all sub folders under lib_path
 
         Args:
             lib_name (str): _description_
         """
         save_pipeline: BatchedPipeline | None = None
         try:
-            save_pipeline = self.vector_db.get_save_pipeline(batch_size=200)
+            save_pipeline = self.vector_db.get_save_pipeline(batch_size=200)  # type: ignore
         except NotImplementedError:
             pass
 
@@ -207,32 +170,19 @@ class ImageLib:
                     if dimension == -1 and self.local_mode:
                         dimension = len(embeddings)
                         with TqdmContext('Creating index...', 'Index created'):
-                            self.vector_db.initialize_index(dimension)
+                            self.vector_db.initialize_index(dimension)  # type: ignore
                     self.__write_entry(file, embeddings)
 
         if not scan_only:
-            self.vector_db.persist()
+            self.vector_db.persist()  # type: ignore
             if not self.local_mode:
                 with TqdmContext('Creating index...', 'Index created'):
-                    self.vector_db.initialize_index(dimension)
+                    self.vector_db.initialize_index(dimension)  # type: ignore
             tqdm.write(f'Image library DB initialized')
         else:
             tqdm.write(f'Image library scanned')
 
-    def force_initialize_lib(self):
-        """Force initialize the image library
-        """
-        tqdm.write(
-            f'Initialize library: {self.lib_path}, this is a force init operation and existing library data will be purged')
-        self.__lib_manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self.__update_lib_manifest()
-        self.vector_db.clean_all_data()
-        self.table.clean_all_data()
-        self.__full_scan_and_initialize_lib()
-
-    def scan_lib(self):
-        self.__full_scan_and_initialize_lib(scan_only=True)
-
+    @ensure_lib_is_ready
     def delete_lib(self):
         """Delete the image library, it purges all library data
         1. Clean and delete the vector DB
@@ -240,44 +190,42 @@ class ImageLib:
         3. Delete the DB file
         4. Delete the manifest file
         """
-        self.vector_db.delete_db()
-        self.table.clean_all_data()
+        self.vector_db.delete_db()  # type: ignore
 
-        db_file: str = os.path.join(self.lib_path, DB_NAME)
-        if os.path.isfile(db_file):
-            os.remove(db_file)
+        self.table.clean_all_data()  # type: ignore
+        if os.path.isfile(self.path_db):
+            os.remove(self.path_db)
 
-        manifest_file: str = os.path.join(self.lib_path, ImageLib.MANIFEST)
-        if os.path.isfile(manifest_file):
-            os.remove(manifest_file)
+        self.path_manifest
+        if os.path.isfile(self.path_manifest):
+            os.remove(self.path_manifest)
 
     def change_lib_name(self, new_name: str):
         """Change the library name for display (alias only)
         - This will not change the library's UUID and `lib_name` in the manifest file
-
-        Args:
-            new_name (str): _description_
         """
-        self.__lib_manifest['alias'] = new_name
-        self.__update_lib_manifest()
+        self.manifest['alias'] = new_name
+        self.update_lib_manifest()
 
+    @ensure_lib_is_ready
     def remove_item_from_lib(self, uuid: str):
-        self.vector_db.remove(uuid)
-        self.table.delete_row_by_uuid(uuid)
+        self.vector_db.remove(uuid)  # type: ignore
+        self.table.delete_row_by_uuid(uuid)  # type: ignore
 
     def get_scan_gap(self) -> int:
         """Get the time gap from last scan in days
         """
-        last_scanned: datetime = datetime.strptime(self.__lib_manifest['last_scanned'], '%Y-%m-%d %H:%M:%S')
+        last_scanned: datetime = datetime.strptime(self.manifest['last_scanned'], '%Y-%m-%d %H:%M:%S')
         return (datetime.now() - last_scanned).days
 
+    @ensure_lib_is_ready
     def image_for_image_search(self, img: Image.Image, top_k: int = 10, extra_params: dict | None = None) -> list[tuple]:
         if not img or not top_k or top_k <= 0:
             return list()
 
         start: float = time.time()
-        image_embedding: np.ndarray = self.embedder.embed_image(img)
-        docs: list = self.vector_db.query(np.asarray([image_embedding]))
+        image_embedding: np.ndarray = self.embedder.embed_image(img)  # type: ignore
+        docs: list = self.vector_db.query(np.asarray([image_embedding]))  # type: ignore
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with image similarity completed, cost: {time_taken:.2f}s')
 
@@ -290,27 +238,28 @@ class ImageLib:
             for possible_uuid in casted_local:
                 if isinstance(possible_uuid, int):
                     raise ValueError('ID tracking not enabled, cannot get UUID')
-                row: tuple | None = self.table.select_row_by_uuid(possible_uuid)
+                row: tuple | None = self.table.select_row_by_uuid(possible_uuid)  # type: ignore
                 if row:
                     res.append(row)
         else:
             casted_redis: list[Document] = docs
             for doc in casted_redis:
                 uuid: str = doc.id.split(':')[1]
-                row: tuple | None = self.table.select_row_by_uuid(uuid)
+                row: tuple | None = self.table.select_row_by_uuid(uuid)  # type: ignore
                 if row:
                     res.append(row)
 
         return res
 
+    @ensure_lib_is_ready
     def text_for_image_search(self, text: str, top_k: int = 10, extra_params: dict | None = None) -> list[tuple]:
         if not text or not top_k or top_k <= 0:
             return list()
 
         start: float = time.time()
         # Text embedding is a 2D array, the first element is the embedding of the text
-        text_embedding: np.ndarray = self.embedder.embed_text(text)[0]
-        docs: list = self.vector_db.query(np.asarray([text_embedding]))
+        text_embedding: np.ndarray = self.embedder.embed_text(text)[0]  # type: ignore
+        docs: list = self.vector_db.query(np.asarray([text_embedding]))  # type: ignore
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with text similarity completed, cost: {time_taken:.2f}s')
 
@@ -323,24 +272,25 @@ class ImageLib:
             for possible_uuid in casted_local:
                 if isinstance(possible_uuid, int):
                     raise ValueError('ID tracking not enabled, cannot get UUID')
-                row: tuple | None = self.table.select_row_by_uuid(possible_uuid)
+                row: tuple | None = self.table.select_row_by_uuid(possible_uuid)  # type: ignore
                 if row:
                     res.append(row)
         else:
             casted_redis: list[Document] = docs
             for doc in casted_redis:
                 uuid: str = doc.id.split(':')[1]
-                row: tuple | None = self.table.select_row_by_uuid(uuid)
+                row: tuple | None = self.table.select_row_by_uuid(uuid)  # type: ignore
                 if row:
                     res.append(row)
 
         return res
 
+    @ensure_lib_is_ready
     def text_image_similarity(self, tokens: list[str], img: Image.Image) -> dict[str, float]:
         if not tokens or not img:
             return dict()
 
-        probs: Tensor = self.embedder.compute_text_image_similarity(tokens, img)
+        probs: Tensor = self.embedder.compute_text_image_similarity(tokens, img)  # type: ignore
         res: dict[str, float] = dict()
         for i in range(len(tokens)):
             res[tokens[i]] = probs[0][i].item()

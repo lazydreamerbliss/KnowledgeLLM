@@ -29,17 +29,17 @@ class SqliteTable:
         """
         self.db: Connection
         self.table_name: str
-        self.__initialize(table_name, db_path)
+        self.__initialize(db_path, table_name)
 
     def __enter__(self, db_path: str, table_name: str) -> 'SqliteTable':
-        self.__initialize(table_name, db_path)
+        self.__initialize(db_path, table_name)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.db is not None:
             self.db.close()
 
-    def __initialize(self, table_name: str, db_path: str | None):
+    def __initialize(self, db_path: str, table_name: str):
         if not db_path:
             raise ValueError('db_path is None')
         if not table_name:

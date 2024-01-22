@@ -65,6 +65,14 @@ class DocLibVectorDb:
     def delete_db(self):
         self.mem_vector_db.delete_db()
 
+    @staticmethod
+    def delete_mem_db_folder(lib_path: str):
+        """Delete the in-memory vector DB folder
+        """
+        folder_path: str = os.path.join(lib_path, DocLibVectorDb.INDEX_FOLDER)
+        if os.path.isdir(folder_path):
+            os.rmdir(folder_path)
+
     @ensure_vector_db_connected
     def persist(self):
         self.mem_vector_db.persist()
