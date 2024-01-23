@@ -15,11 +15,36 @@ DISPLAY_NAME_LENGTH_GRID: int = 16
 
 
 def encode_hash_tag(text: str) -> str:
+    if not text:
+        return text
     return HASH_TAG_PATTERN.sub(HASH_TAG_ENCODED, text)
 
 
 def decode_hash_tag(text: str) -> str:
+    if not text:
+        return text
     return HASH_TAG_ENCODED_PATTERN.sub(HASH_TAG, text)
+
+
+def preprocess_absolute_path(absolute_path: str) -> str:
+    """Preprocess absolute path, remove trailing system separators, and replace hash tags
+    """
+    absolute_path = absolute_path.strip()
+    if not absolute_path:
+        return absolute_path
+
+    absolute_path = absolute_path.rstrip(os.path.sep)
+    return decode_hash_tag(absolute_path)
+
+def preprocess_relative_path(relative_path: str) -> str:
+    """Preprocess relative path, remove all heading/trailing system separators, and replace hash tags
+    """
+    relative_path = relative_path.strip()
+    if not relative_path:
+        return relative_path
+
+    relative_path = relative_path.rstrip(os.path.sep).lstrip(os.path.sep)
+    return decode_hash_tag(relative_path)
 
 
 class DirectoryItem:

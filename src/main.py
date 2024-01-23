@@ -4,13 +4,14 @@ from pathlib import Path
 from PIL import Image
 
 from knowledge_base.image.image_tagger import ImageTagger
-from library.document.doc_lib import DocLib
+from library.document.doc_lib import DocumentLib
 from library.document.doc_provider import DocProvider
 from library.document.wechat.wechat_history_provider import \
     WechatHistoryProvider
 from library.image.image_lib import ImageLib
 from server.server import flask_app
-from singleton import doc_embedder, img_embedder
+
+#from singleton import doc_embedder, img_embedder
 
 
 def run_server():
@@ -55,7 +56,7 @@ def library_test():
     test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
 
     img_lib1 = ImageLib('~/Pictures/test_lib', 'testlib', local_mode=True)
-    img_lib1.set_embedder(img_embedder)
+    #img_lib1.set_embedder(img_embedder)
     img_lib1.initialize(force_init=True)
     a = img_lib1.image_for_image_search(test_img, 2)
     print(a)

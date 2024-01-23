@@ -15,46 +15,40 @@ from knowledge_base.image.image_embedder import ImageEmbedder
 from library.image.image_lib_table import ImageLibTable
 from library.image.image_lib_vector_db import ImageLibVectorDb
 from library.image.sql import DB_NAME
-from library.lib_base import LibBase, ensure_lib_is_ready
+from library.lib_base import *
 from utils.tqdm_context import TqdmContext
 
 
-class ImageLib(LibBase):
+class ImageLib(LibraryBase):
     """Define an image library
     - Each image library will have only one table for storing images' metadata, such as UUID, path, filename, etc.
     """
 
     def __init__(self,
                  lib_path: str,
-                 lib_name: str | None = None,
+                 uuid: str,
                  local_mode: bool = True):
         """
         Args:
             lib_path (str): Path to the library
-            lib_name (str | None, optional): Name to the library, mandatory for a new library. Defaults to None.
+            uuid (str): UUID of the library
             local_mode (bool, optional): True for use local index, False for use Redis. Defaults to True.
         """
+        if not uuid:
+            raise ValueError('Invalid UUID')
         super().__init__(lib_path)
 
         # Load manifest
         with TqdmContext('Loading library manifest...', 'Loaded'):
             if not self.manifest_file_exists():
-                if not lib_name:
-                    raise ValueError('Library name must be provided for a new library')
-
-                initial_manifest: dict = {
-                    'NOTE': 'DO NOT delete this file or modify it manually',
-                    'lib_name': lib_name,  # Name of the library, must be unique and it will be used as the prefix of the redis index
-                    'alias': lib_name,     # Name alias for the library, for display
-                    'uuid': str(uuid4()),
+                initial_manifest: dict = BASIC_MANIFEST | {
                     'type': 'image',
-                    'created_on': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'uuid': uuid,
                 }
-                self.manifest = self.initialize_lib_manifest(initial_manifest)
+                self.initialize_lib_manifest(initial_manifest)
             else:
-                self.manifest = self.parse_lib_manifest()
-        if not self.manifest:
+                self.parse_lib_manifest(uuid)
+        if not self.manifest or not self.uuid:
             raise ValueError('Library manifest not initialized')
 
         self.path_db: str = os.path.join(self.path_lib, DB_NAME)
@@ -93,7 +87,6 @@ class ImageLib(LibBase):
             self.table = ImageLibTable(self.path_lib)
             self.vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                               lib_uuid=self.manifest['uuid'],
-                                              lib_namespace=self.manifest["lib_name"],
                                               lib_path=self.path_lib)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
@@ -153,9 +146,6 @@ class ImageLib(LibBase):
 
     def __full_scan_and_initialize_lib(self, scan_only: bool = False):
         """Get all files and relative path info under self.path_lib, including files in all sub folders under lib_path
-
-        Args:
-            lib_name (str): _description_
         """
         save_pipeline: BatchedPipeline | None = None
         try:
@@ -210,13 +200,6 @@ class ImageLib(LibBase):
         if os.path.isfile(self.path_manifest):
             os.remove(self.path_manifest)
 
-    def change_lib_name(self, new_name: str):
-        """Change the library name for display (alias only)
-        - This will not change the library's UUID and `lib_name` in the manifest file
-        """
-        self.manifest['alias'] = new_name
-        self.update_lib_manifest()
-
     @ensure_lib_is_ready
     def remove_item_from_lib(self, uuid: str):
         self.vector_db.remove(uuid)  # type: ignore
@@ -241,7 +224,7 @@ class ImageLib(LibBase):
 
         # Parse the result, get file data from DB
         # - The local key of an image is `uuid` or `id` of the vector in the index
-        # - The redis key of an image is `lib_name`:`uuid`
+        # - The redis key of an image is `lib_uuid`:`img_uuid`
         res: list[tuple] = list()
         if self.local_mode:
             casted_local: list[int | str] = docs
@@ -275,7 +258,7 @@ class ImageLib(LibBase):
 
         # Parse the result, get file data from DB
         # - The local key of an image is `uuid` or `id` of the vector in the index
-        # - The redis key of an image is `lib_name`:`uuid`
+        # - The redis key of an image is `lib_uuid`:`img_uuid`
         res: list[tuple] = list()
         if self.local_mode:
             casted_local: list[int | str] = docs

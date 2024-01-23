@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from typing import Generic, Type, TypeVar
 from uuid import uuid4
 
@@ -11,7 +10,7 @@ from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.document.provider import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
-from library.lib_base import LibBase, ensure_lib_is_ready
+from library.lib_base import *
 from utils.tqdm_context import TqdmContext
 
 """
@@ -26,7 +25,7 @@ from tqdm import tqdm
 D = TypeVar('D', bound=DocProviderBase)
 
 
-class DocLib(Generic[D], LibBase):
+class DocumentLib(Generic[D], LibraryBase):
     """Define a generic document library
     - A document library is a collection of many different documents such as novels, articles, chat history
     - Each document will have it's own document DB table for storing raw data in DB in a structured way
@@ -36,35 +35,28 @@ class DocLib(Generic[D], LibBase):
 
     def __init__(self,
                  lib_path: str,
-                 lib_name: str | None = None):
+                 uuid: str):
         """
         Args:
             lib_path (str): Path to the library
-            lib_name (str | None, optional): Name to the library, mandatory for a new library. Defaults to None.
+            uuid (str): UUID of the library
         """
+        if not uuid:
+            raise ValueError('Invalid UUID')
         super().__init__(lib_path)
 
         # Load manifest
         with TqdmContext('Loading library manifest...', 'Loaded'):
             if not self.manifest_file_exists():
-                if not lib_name:
-                    raise ValueError('A library name must be provided for a new library')
-
-                initial_manifest: dict = {
-                    'NOTE': 'DO NOT delete this file or modify it manually',
-                    'lib_name': lib_name,  # Name of the library, must be unique and it will be used as the prefix of the redis index
-                    'alias': lib_name,     # Name alias for the library, for display
-                    'uuid': str(uuid4()),
-                    'type': 'document',
-                    'created_on': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                initial_manifest: dict = BASIC_MANIFEST | {
+                    'uuid': uuid,
                     'embedded_docs': dict(),  # List of embedded documents under the library
                     'unfinished_docs': dict(),  # List of documents that are not finished embedding yet
                 }
-                self.manifest = self.initialize_lib_manifest(initial_manifest)
+                self.initialize_lib_manifest(initial_manifest)
             else:
-                self.manifest = self.parse_lib_manifest()
-        if not self.manifest:
+                self.parse_lib_manifest(uuid)
+        if not self.manifest or not self.uuid:
             raise ValueError('Library manifest not initialized')
 
         self.path_db: str = os.path.join(self.path_lib, DB_NAME)
