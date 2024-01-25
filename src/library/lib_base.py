@@ -23,6 +23,7 @@ def ensure_lib_is_ready(func):
 
 
 class LibraryBase:
+    LIB_DATA_FOLDER: str = '__lib_data__'
     MANIFEST_FILE: str = 'manifest.json'
 
     def __init__(self, lib_path: str):
@@ -32,13 +33,27 @@ class LibraryBase:
             raise ValueError(f'Invalid lib path: {lib_path}')
 
         self.path_lib: str = lib_path
-        self.path_manifest: str = os.path.join(self.path_lib, LibraryBase.MANIFEST_FILE)
+        self.path_lib_data: str = os.path.join(self.path_lib, LibraryBase.LIB_DATA_FOLDER)
+        self.path_manifest: str = os.path.join(self.path_lib_data, LibraryBase.MANIFEST_FILE)
         self.manifest: dict = dict()
         self.uuid: str = ''
+
+        if not os.path.isdir(self.path_lib_data):
+            os.makedirs(self.path_lib_data)
 
     def lib_is_ready(self) -> bool:
         """Check if the library is ready for use
         - If not, means only the manifest file created
+        """
+        raise NotImplementedError()
+
+    def delete_lib(self):
+        """Delete the library
+        """
+        raise NotImplementedError()
+
+    def initialize(self, force_init: bool = False):
+        """Initialize the library
         """
         raise NotImplementedError()
 

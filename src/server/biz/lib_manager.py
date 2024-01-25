@@ -1,6 +1,3 @@
-import os
-from copy import deepcopy
-
 from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
@@ -22,6 +19,7 @@ default_exclusion_list: set[str] = {
     '.localized',
     '__pycache__',
     'node_modules',
+    LibraryBase.LIB_DATA_FOLDER,
 }
 
 
@@ -87,4 +85,15 @@ class LibraryManager:
                 return True
             except:
                 return False
+        return False
+
+    def get_ready(self) -> bool:
+        if not self.instance:
+            return False
+        if self.instance.lib_is_ready():
+            return True
+
+        if isinstance(self.instance, ImageLib):
+            self.instance.initialize(force_init=True)
+            return True
         return False

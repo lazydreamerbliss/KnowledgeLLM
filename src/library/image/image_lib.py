@@ -51,8 +51,8 @@ class ImageLib(LibraryBase):
         if not self.manifest or not self.uuid:
             raise ValueError('Library manifest not initialized')
 
-        self.path_db: str = os.path.join(self.path_lib, DB_NAME)
-        self.path_vector_db: str = os.path.join(self.path_lib, ImageLibVectorDb.IDX_FILENAME)
+        self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
+        self.path_vector_db: str = os.path.join(self.path_lib_data, ImageLibVectorDb.IDX_FILENAME)
         self.table: ImageLibTable | None = None
         self.vector_db: ImageLibVectorDb | None = None
         self.embedder: ImageEmbedder | None = None
@@ -87,7 +87,7 @@ class ImageLib(LibraryBase):
             self.table = ImageLibTable(self.path_lib)
             self.vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                               lib_uuid=self.manifest['uuid'],
-                                              lib_path=self.path_lib)
+                                              data_folder=self.path_lib_data)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
         if not force_init and self.table.table_row_count() > 0 and not self.vector_db.db_is_empty():  # type: ignore

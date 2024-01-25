@@ -26,18 +26,18 @@ class InMemoryVectorDb:
     IDX_FILENAME: str = 'mem_db.idx'  # Default index file name, if file name is not given
     DEFAULT_NEIGHBOR_COUNT: int = 5  # Default number of nearest neighbors to be queried for IVF
 
-    def __init__(self, folder_path, index_filename: str | None = None):
-        if not folder_path:
+    def __init__(self, data_folder, index_filename: str | None = None):
+        if not data_folder:
             raise ValueError(
                 'A folder path is mandatory for using in-memory vector DB, index file will be created in the folder')
 
         tqdm.write(f'Loading vector index from disk...', end=' ')
-        folder_path = os.path.expanduser(folder_path)
-        if not os.path.isdir(folder_path):
-            os.makedirs(folder_path)
+        data_folder = os.path.expanduser(data_folder)
+        if not os.path.isdir(data_folder):
+            os.makedirs(data_folder)
 
         index_filename = index_filename or InMemoryVectorDb.IDX_FILENAME
-        index_file_path: str = os.path.join(folder_path, index_filename)
+        index_file_path: str = os.path.join(data_folder, index_filename)
         self.mem_index_path: str = index_file_path
         self.id_mapping: dict[int, str] | None = None  # Maintain the mapping of ID to UUID
         self.mem_index_flat: IndexIDMap2 | None = None

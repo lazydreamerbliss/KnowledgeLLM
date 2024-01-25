@@ -23,11 +23,11 @@ class DocLibVectorDb:
     """
     INDEX_FOLDER: str = '__index__'  # All index files are stored in this folder under a library
 
-    def __init__(self, lib_path: str, db_name: str):
-        if not lib_path or not db_name:
+    def __init__(self, data_folder: str, db_name: str):
+        if not data_folder or not db_name:
             raise ValueError('Invalid input')
 
-        idx_path: str = os.path.join(lib_path, self.INDEX_FOLDER)
+        idx_path: str = os.path.join(data_folder, self.INDEX_FOLDER)
         idx_file: str = f'{db_name}.idx'
         # No need to check if path and file are valid, InMemoryVectorDb will do it
         self.mem_vector_db: InMemoryVectorDb = InMemoryVectorDb(idx_path, idx_file)

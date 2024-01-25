@@ -28,12 +28,12 @@ class ImageLibVectorDb:
 
     def __init__(self, use_redis: bool = False,
                  lib_uuid: str | None = None,
-                 lib_path: str | None = None):
+                 data_folder: str | None = None):
         # If use redis, UUID and namespace are mandatory
         if use_redis and not lib_uuid:
             raise ValueError('Library UUID is mandatory for using redis as vector DB')
         # If use in-memory DB, library path is mandatory
-        if not use_redis and not lib_path:
+        if not use_redis and not data_folder:
             raise ValueError('Library path is mandatory for using in-memory vector DB')
 
         self.redis_vector_db: RedisVectorDb | None = None
@@ -41,7 +41,7 @@ class ImageLibVectorDb:
         if use_redis:
             self.redis_vector_db = RedisVectorDb(namespace=lib_uuid, index_name=f'v_idx:{lib_uuid}')  # type: ignore
         else:
-            self.mem_vector_db = InMemoryVectorDb(folder_path=lib_path, index_filename=ImageLibVectorDb.IDX_FILENAME)
+            self.mem_vector_db = InMemoryVectorDb(data_folder=data_folder, index_filename=ImageLibVectorDb.IDX_FILENAME)
 
     @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int):

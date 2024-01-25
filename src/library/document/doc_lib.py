@@ -59,7 +59,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.manifest or not self.uuid:
             raise ValueError('Library manifest not initialized')
 
-        self.path_db: str = os.path.join(self.path_lib, DB_NAME)
+        self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
         self.doc_provider: D | None = None
         self.vector_db: DocLibVectorDb | None = None
         self.embedder: DocEmbedder | None = None
@@ -84,7 +84,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
         relative_path = relative_path.lstrip(os.path.sep)
         if relative_path in self.manifest['embedded_docs']:
-            self.switch_doc(relative_path, provider_type)
+            self.use_doc(relative_path, provider_type)
             return
 
         doc_path: str = os.path.join(self.path_lib, relative_path)
@@ -110,7 +110,7 @@ class DocumentLib(Generic[D], LibraryBase):
                                           re_dump=False)  # type: ignore
 
         # Do embedding, and create vector DB for this doc
-        self.vector_db = DocLibVectorDb(self.path_lib, uuid)
+        self.vector_db = DocLibVectorDb(self.path_lib_data, uuid)
         embeddings_list: list[npt.ArrayLike] = [self.embedder.embed_text(self.doc_provider.EMBED_LAMBDA(t)) for t in  # type: ignore
                                                 tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]
         embeddings: np.ndarray = np.asarray(embeddings_list)
@@ -130,9 +130,9 @@ class DocumentLib(Generic[D], LibraryBase):
         self.manifest['embedded_docs'][relative_path] = uuid
         self.update_lib_manifest()
 
-    def switch_doc(self, relative_path: str, provider_type: Type[D]):
-        """Switch to another document under the library
-        - If target document is not in manifest, then this is an uninitialized document, call initialize_doc()
+    def use_doc(self, relative_path: str, provider_type: Type[D]):
+        """Use one document under the library
+        - If target document is not in manifest, then this is an uninitialized document, call __initialize_doc()
         - Otherwise load the document provider and vector DB for the target document directly
         - Target document's provider type is mandatory
         """
@@ -150,7 +150,7 @@ class DocumentLib(Generic[D], LibraryBase):
                                               uuid,
                                               doc_path=None,
                                               re_dump=False)  # type: ignore
-            self.vector_db = DocLibVectorDb(self.path_lib, uuid)
+            self.vector_db = DocLibVectorDb(self.path_lib_data, uuid)
 
     def remove_doc_embedding(self, relative_path: str | None, uuid: str | None, provider_type: Type[D]):
         """Remove the embedding of a document under the library
@@ -183,7 +183,7 @@ class DocumentLib(Generic[D], LibraryBase):
                                                               re_dump=False)  # type: ignore
                 tmp_provider.delete_table()
                 # Remove the document's vector index
-                tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self.path_lib, uuid)  # type: ignore
+                tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self.path_lib_data, uuid)  # type: ignore
                 tmp_vector_db.delete_db()
             else:
                 self.doc_provider.delete_table()  # type: ignore
@@ -201,7 +201,7 @@ class DocumentLib(Generic[D], LibraryBase):
         2. Delete DB file
         3. Delete manifest file
         """
-        DocLibVectorDb.delete_mem_db_folder(self.path_lib)
+        DocLibVectorDb.delete_mem_db_folder(self.path_lib_data)
         DocProviderBase.delete_db_file(self.path_db)
 
         self.path_manifest
