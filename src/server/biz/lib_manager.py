@@ -1,6 +1,7 @@
 from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
+from singleton import task_runner
 
 library_types: set[str] = {'image', 'video', 'document', 'general'}
 library_types_CN: list[dict] = [
@@ -70,6 +71,8 @@ class LibraryManager:
         }
 
     def instanize_lib(self) -> bool:
+        """Build instance for current active library
+        """
         self.instance = None
         if self.current_lib and self.current_lib in self.libraries:
             try:
@@ -87,13 +90,25 @@ class LibraryManager:
                 return False
         return False
 
-    def get_ready(self) -> bool:
+    def get_ready(self) -> str | None:
+        """Preheat the library instance to make it workable:
+        - If the library is new, it will start initialization and load data
+        - If the library is already initialized, it will load saved data to memory directly
+
+        Returns:
+            str | None: Task ID
+        """
         if not self.instance:
-            return False
+            raise ValueError('Library is not selected')
         if self.instance.lib_is_ready():
-            return True
+            return None
 
         if isinstance(self.instance, ImageLib):
-            self.instance.initialize(force_init=True)
-            return True
-        return False
+            task_id: str = task_runner.submit_task(task_func=self.instance.initialize, callback_lambda=None, force_init=True)
+            return task_id
+        if isinstance(self.instance, DocumentLib):
+            
+            
+            
+            
+        return None
