@@ -1,7 +1,6 @@
-console.log("Hello electron!!");
-const path = require("node:path");
+import path from "node:path";
 
-const { app, BrowserWindow } = require("electron/main");
+import { app, BrowserWindow } from "electron";
 
 const createWindow = () => {
   const win = new BrowserWindow({

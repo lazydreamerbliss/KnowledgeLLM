@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "webpack-dev-server -c UI/webpack.config.js",
-    "start": "electron ."
+    "start": "tsc -p ./backend/ && electron ./backend/out/main"
   },
   "author": "ZhehooMorgen ",
   "license": "ISC",
