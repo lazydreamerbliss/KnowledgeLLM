@@ -72,7 +72,7 @@ class ImageLib(LibraryBase):
     def set_embedder(self, embedder: ImageEmbedder):
         self.embedder = embedder
 
-    def initialize(self, force_init: bool = False):
+    def initialize(self, force_init: bool = False, reporter: Callable[[int], None] | None = None):
         ready: bool = self.lib_is_ready()
         if ready and not force_init:
             return
@@ -90,7 +90,7 @@ class ImageLib(LibraryBase):
                                               data_folder=self.path_lib_data)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
-        if not force_init and self.table.table_row_count() > 0 and not self.vector_db.db_is_empty():  # type: ignore
+        if not force_init and self.table.row_count() > 0 and not self.vector_db.db_is_empty():  # type: ignore
             return
 
         # Refresh ready status, initialize the library for force init or new lib cases
@@ -105,7 +105,7 @@ class ImageLib(LibraryBase):
             tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
 
         # Do full scan and initialize the lib
-        self.__full_scan_and_initialize_lib()
+        self.__full_scan_and_initialize_lib(reporter)
 
     def __write_entry(self, file: str, embeddings: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry to both DB and vector DB
@@ -119,14 +119,15 @@ class ImageLib(LibraryBase):
         self.table.insert_row((timestamp, uuid, relative_path, filename))  # type: ignore
         self.vector_db.add(uuid, embeddings, save_pipeline)  # type: ignore
 
-    def __do_scan(self) -> Generator[tuple[str, list[float]], None, None]:
+    def __do_scan(self, reporter: Callable[[int], None] | None) -> Generator[tuple[str, list[float]], None, None]:
         files: list[str] = list()
         for root, _, filenames in os.walk(self.path_lib):
             for filename in filenames:
                 files.append(os.path.relpath(os.path.join(root, filename), self.path_lib))
-        tqdm.write(f'Library scanned, found {len(files)} files in {self.path_lib}')
+        total_files: int = len(files)
+        tqdm.write(f'Library scanned, found {total_files} files in {self.path_lib}')
 
-        for file in tqdm(files, desc=f'Processing images', unit='item', ascii=' |'):
+        for i, file in tqdm(enumerate(files), desc=f'Processing images', unit='item', ascii=' |'):
             try:
                 # Validate if the file is an image and insert it into the table
                 # - After verify() the file stream is closed, need to reopen it
@@ -137,6 +138,13 @@ class ImageLib(LibraryBase):
                 tqdm.write(f'Invalid image: {file}, skip')
                 continue
 
+            # If reporter is given, report progress to task manager
+            if reporter:
+                try:
+                    reporter(int(i / total_files * 100))
+                except:
+                    pass
+
             start_time: float = time.time()
             embeddings: list[float] = self.embedder.embed_image_as_list(img)  # type: ignore
             time_taken: float = time.time() - start_time
@@ -144,7 +152,7 @@ class ImageLib(LibraryBase):
 
             yield file, embeddings
 
-    def __full_scan_and_initialize_lib(self, scan_only: bool = False):
+    def __full_scan_and_initialize_lib(self, reporter: Callable[[int], None] | None, scan_only: bool = False):
         """Get all files and relative path info under self.path_lib, including files in all sub folders under lib_path
         """
         save_pipeline: BatchedPipeline | None = None
@@ -157,14 +165,14 @@ class ImageLib(LibraryBase):
         if save_pipeline:
             # Use batched pipeline when available
             with save_pipeline:
-                for file, embeddings in self.__do_scan():
+                for file, embeddings in self.__do_scan(reporter):
                     if not scan_only:
                         if dimension == -1:
                             dimension = len(embeddings)
                         self.__write_entry(file, embeddings, save_pipeline)
         else:
             # Otherwise, save the embeddings one by one
-            for file, embeddings in self.__do_scan():
+            for file, embeddings in self.__do_scan(reporter):
                 # If this is the first embedding and in local mode, initialize the index first as memory vector DB needs to build index before adding data
                 if not scan_only:
                     if dimension == -1 and self.local_mode:

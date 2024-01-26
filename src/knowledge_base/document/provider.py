@@ -54,6 +54,11 @@ class DocProviderBase(Generic[T]):
             return list()
         return rows
 
+    def get_record_count(self) -> int:
+        """Get the number of lines/segments of the document
+        """
+        return self.table.row_count()
+
     def get_records_by_column(self, **kwargs) -> list[tuple]:
         """Get lines/segments by specific columns defined in the table
         """

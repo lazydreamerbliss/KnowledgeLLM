@@ -1,5 +1,5 @@
 import os
-from typing import Generic, Type, TypeVar
+from typing import Callable, Generic, Type, TypeVar
 from uuid import uuid4
 
 import numpy as np
@@ -76,7 +76,7 @@ class DocumentLib(Generic[D], LibraryBase):
     def set_embedder(self, embedder: DocEmbedder):
         self.embedder = embedder
 
-    def __initialize_doc(self, relative_path: str, provider_type: Type[D]):
+    def __initialize_doc(self, relative_path: str, provider_type: Type[D], reporter: Callable[[int], None] | None):
         """Initialize a document under the library
         """
         if not relative_path:
@@ -110,9 +110,18 @@ class DocumentLib(Generic[D], LibraryBase):
                                           re_dump=False)  # type: ignore
 
         # Do embedding, and create vector DB for this doc
+        embeddings_list: list[npt.ArrayLike] = list()
+        total_records: int = self.doc_provider.get_record_count()
         self.vector_db = DocLibVectorDb(self.path_lib_data, uuid)
-        embeddings_list: list[npt.ArrayLike] = [self.embedder.embed_text(self.doc_provider.EMBED_LAMBDA(t)) for t in  # type: ignore
-                                                tqdm(self.doc_provider.get_all_records(), desc='Embedding data', ascii=' |')]
+        for i, row in tqdm(enumerate(self.doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
+            # If reporter is given, report progress to task manager
+            if reporter:
+                try:
+                    reporter(int(i / total_records * 100))
+                except:
+                    pass
+
+            embeddings_list.append(self.embedder.embed_text(self.doc_provider.EMBED_LAMBDA(row)))  # type: ignore
         embeddings: np.ndarray = np.asarray(embeddings_list)
 
         # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
@@ -130,18 +139,13 @@ class DocumentLib(Generic[D], LibraryBase):
         self.manifest['embedded_docs'][relative_path] = uuid
         self.update_lib_manifest()
 
-    def use_doc(self, relative_path: str, provider_type: Type[D]):
-        """Use one document under the library
-        - If target document is not in manifest, then this is an uninitialized document, call __initialize_doc()
-        - Otherwise load the document provider and vector DB for the target document directly
-        - Target document's provider type is mandatory
-        """
+    def use_doc(self, relative_path: str, provider_type: Type[D], reporter: Callable[[int], None] | None = None):
         if not relative_path:
             raise ValueError('Invalid relative path')
 
         relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self.manifest['embedded_docs']:
-            self.__initialize_doc(relative_path, provider_type)
+            self.__initialize_doc(relative_path, provider_type, reporter)
             return
 
         with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):

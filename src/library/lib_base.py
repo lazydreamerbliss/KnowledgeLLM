@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from functools import wraps
+from typing import Any, Callable
 
 BASIC_MANIFEST: dict = {
     'NOTE': 'DO NOT delete this file or modify it manually',
@@ -52,8 +53,33 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def initialize(self, force_init: bool = False):
+    def initialize(self, force_init: bool = False, reporter: Callable[[int], None] | None = None):
         """Initialize the library
+
+        Args:
+            force_init (bool, optional): If the initialization is a force re-initialization. Defaults to False.
+            reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
+            It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
+
+        Raises:
+            NotImplementedError: _description_
+        """
+        raise NotImplementedError()
+
+    def use_doc(self, relative_path: str, provider_type: Any, reporter: Callable[[int], None] | None = None):
+        """Initialize or switch to a document under current library
+        - If target document is not in manifest, then this is an uninitialized document, call __initialize_doc()
+        - Otherwise load the document provider and vector DB for the target document directly
+        - Target document's provider type is mandatory
+
+        Args:
+            relative_path (str): The target document's relative path based on current library
+            provider_type (Type[D]): The target document's provider's type info
+            reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
+            It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
+
+        Raises:
+            NotImplementedError: _description_
         """
         raise NotImplementedError()
 

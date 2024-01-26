@@ -104,7 +104,7 @@ class LibraryManager:
             return None
 
         if isinstance(self.instance, ImageLib):
-            task_id: str = task_runner.submit_task(task_func=self.instance.initialize, callback_lambda=None, force_init=True)
+            task_id: str = task_runner.submit_task(self.instance.initialize, callback_lambda, force_init)
             return task_id
         if isinstance(self.instance, DocumentLib):
             

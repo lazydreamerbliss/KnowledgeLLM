@@ -55,7 +55,7 @@ class SqliteTable:
         return cur.fetchone() is not None
 
     @ensure_db
-    def table_row_count(self) -> int:
+    def row_count(self) -> int:
         cur: Cursor = self.db.cursor()
         cur.execute(get_row_count_sql(self.table_name))
         res: tuple = cur.fetchone()

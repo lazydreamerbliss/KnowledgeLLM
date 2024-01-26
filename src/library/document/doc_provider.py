@@ -23,7 +23,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
         super().__init__(db_path, uuid, doc_path, re_dump, table_type=DocProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path
-        if not self.table.table_row_count() or re_dump:
+        if not self.table.row_count() or re_dump:
             if not doc_path:
                 raise ValueError('doc_path is mandatory when table is empty')
 
