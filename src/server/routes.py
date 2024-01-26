@@ -6,41 +6,42 @@ from flask import (Blueprint, jsonify, redirect, render_template, request,
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from server.biz.lib_manager import *
-from server.config import CONFIG
+from lib_constants import *
+from lib_manager import LibCreationObj
 from server.file_utils.file import *
 from server.file_utils.folder import *
-from utils.route_helpers import *
+from server.route_helpers import *
+from singleton import lib_manager
 
 librarian_routes = Blueprint('librarian_routes', __name__)
 
 
 @librarian_routes.route('/', methods=['GET'])
 def homePage():
-    CONFIG.switch_library('')
+    lib_manager.switch_library('')
     return render_template('home.html',
-                           current_lib=CONFIG.get_current_lib_uuid(),
-                           favorite_list=CONFIG.get_favorite_list(),
-                           library_list=CONFIG.get_library_list(),
+                           current_lib=lib_manager.get_lib_uuid(),
+                           favorite_list=lib_manager.favorite_list,
+                           library_list=lib_manager.get_library_list(),
                            library_types=library_types_CN)
 
 
 @librarian_routes.route('/toggleViewStyle', methods=['GET'])
 def toggle_view_style():
     view_style: str = request.args.get('viewStyle', 'grid')
-    CONFIG.change_view_style(view_style)
+    lib_manager.change_view_style(view_style)
     return jsonify({})
 
 
 @librarian_routes.route('/toggleSort', methods=['GET'])
 def toggle_sort():
-    if CONFIG.sorted_by not in sorted_by_labels:
-        CONFIG.change_sorted_by('Name')
+    if lib_manager.get_lib_sorted_by() not in sorted_by_labels:
+        lib_manager.change_sorted_by('Name')
 
     # On toggle sort, always get next sort type in sorted_by_labels_ordered
     next_sorted_by = sorted_by_labels_ordered[(
-        sorted_by_labels_ordered.index(CONFIG.sorted_by) + 1) % len(sorted_by_labels_ordered)]
-    CONFIG.change_sorted_by(next_sorted_by)
+        sorted_by_labels_ordered.index(lib_manager.get_lib_sorted_by()) + 1) % len(sorted_by_labels_ordered)]
+    lib_manager.change_sorted_by(next_sorted_by)
     return jsonify({})
 
 
@@ -63,15 +64,15 @@ def add_library():
         return render_error_page(404, '无法添加仓库，无法访问仓库内容')
 
     # Check if given absolute path is duplicated
-    if lib_path in CONFIG.get_library_path_list():
+    if lib_path in lib_manager.get_library_path_list():
         return render_error_page(404, '无法添加仓库，已存在相同路径的仓库')
 
-    lib: LibObj = LibObj()
+    lib: LibCreationObj = LibCreationObj()
     lib.name = lib_name
     lib.uuid = str(uuid.uuid4())
     lib.path = lib_path
     lib.type = lib_type
-    CONFIG.add_library(lib, switch_to=True)
+    lib_manager.add_library(lib, switch_to=True)
     return redirect('/library/')
 
 
@@ -80,13 +81,13 @@ def add_library():
 def list_library_content(relative_path: str = ''):
     # If lib uuid param is provided, means switch to and list content for another library's relative path
     # Otherwise, list content for current library with given relative path
-    uuid: str = request.args.get('uuid', '')
-    if CONFIG.lib_exists(uuid) and uuid != CONFIG.get_current_lib_uuid():
-        CONFIG.switch_library(uuid)
+    uuid: str | None = request.args.get('uuid', '')
+    if lib_manager.lib_exists(uuid) and uuid != lib_manager.get_lib_uuid():
+        lib_manager.switch_library(uuid)
     if not uuid:
-        uuid = CONFIG.get_current_lib_uuid()
+        uuid = lib_manager.get_lib_uuid()
 
-    if not CONFIG.lib_exists(uuid):
+    if not uuid or not lib_manager.lib_exists(uuid):
         return render_error_page(404, '仓库不存在')
 
     relative_path = preprocess_relative_path(relative_path)
@@ -95,40 +96,43 @@ def list_library_content(relative_path: str = ''):
         return error_page
 
     # If relative path is a file, redirect to file page
-    full_path: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
+    lib_path: str | None = lib_manager.get_lib_path()
+    if not lib_path:
+        return render_error_page(404, '仓库不存在')
+    full_path: str = os.path.join(lib_path, relative_path)
     if os.path.isfile(full_path):
         return redirect('/file/'+relative_path)
 
     # List folder content
     try:
-        dir_dict, file_dict = list_folder_content(relative_path, CONFIG.sorted_by)
+        dir_dict, file_dict = list_folder_content(relative_path, lib_manager.get_lib_sorted_by())
     except:
         return render_error_page(404, '无法读取仓库文件')
 
     grid_view_button_style, list_view_button_style = "DISABLED", ""
     template_name: str = 'library_grid.html'
-    if CONFIG.view_style == view_styles[0]:
+    if lib_manager.get_lib_view_style() == view_styles[0]:
         grid_view_button_style, list_view_button_style = "DISABLED", ""
         template_name = 'library_grid.html'
-        if CONFIG.get_current_lib_type() == 'image':
+        if lib_manager.get_lib_type() == 'image':
             template_name = 'library_gallery_grid.html'
-    elif CONFIG.view_style == view_styles[1]:
+    elif lib_manager.get_lib_view_style() == view_styles[1]:
         grid_view_button_style, list_view_button_style = "", "DISABLED"
         template_name = 'library_list.html'
-        if CONFIG.get_current_lib_type() == 'image':
+        if lib_manager.get_lib_type() == 'image':
             template_name = 'library_gallery_list.html'
     return render_template(template_name,
-                           current_lib=CONFIG.get_current_lib_uuid(),
+                           current_lib=lib_manager.get_lib_uuid(),
                            current_path=relative_path,
-                           favorite_list=CONFIG.get_favorite_list(),
-                           library_list=CONFIG.get_library_list(),
+                           favorite_list=lib_manager.favorite_list,
+                           library_list=lib_manager.get_library_list(),
                            library_types=library_types_CN,
                            grid_view_button_style=grid_view_button_style,
                            list_view_button_style=list_view_button_style,
                            breadcrumb_path=relative_path.split('/'),
                            dir_dict=dir_dict,
                            file_dict=file_dict,
-                           sorted_label_current=sorted_by_labels_CN[CONFIG.sorted_by])
+                           sorted_label_current=sorted_by_labels_CN[lib_manager.get_lib_sorted_by()])
 
 
 @librarian_routes.route('/file/<path:relative_path>', defaults={"browse": True}, methods=['GET'])
@@ -139,7 +143,10 @@ def browse_file(relative_path: str = '', browse: bool = True):
         return error_page
 
     # If relative path is a folder, redirect to folder page
-    full_path: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
+    lib_path: str | None = lib_manager.get_lib_path()
+    if not lib_path:
+        return render_error_page(404, '仓库不存在')
+    full_path: str = os.path.join(lib_path, relative_path)
     if os.path.isdir(full_path):
         return redirect('/library/'+relative_path)
 
@@ -171,7 +178,10 @@ def download_folder(relative_path: str = ''):
     if error_page:
         return error_page
 
-    full_path: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
+    lib_path: str | None = lib_manager.get_lib_path()
+    if not lib_path:
+        return render_error_page(404, '仓库不存在')
+    full_path: str = os.path.join(lib_path, relative_path)
     zip_filename: str = f'{uuid.uuid4()}.zip'
     zip_file_path: str = os.path.join(full_path, zip_filename)
     try:
@@ -189,7 +199,10 @@ def uploadFile(relative_path: str = ''):
     if error_page:
         return error_page
 
-    full_path: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
+    lib_path: str | None = lib_manager.get_lib_path()
+    if not lib_path:
+        return render_error_page(404, '仓库不存在')
+    full_path: str = os.path.join(lib_path, relative_path)
     file_list: list[FileStorage] = request.files.getlist('file_list')
     success_count: int = 0
     msg: str = ''
@@ -212,6 +225,6 @@ def uploadFile(relative_path: str = ''):
                            message=msg,
                            success_count=success_count,
                            failure_count=failure_count,
-                           favorite_list=CONFIG.get_favorite_list(),
-                           library_list=CONFIG.get_library_list(),
+                           favorite_list=lib_manager.favorite_list,
+                           library_list=lib_manager.get_library_list(),
                            library_types=library_types_CN,)

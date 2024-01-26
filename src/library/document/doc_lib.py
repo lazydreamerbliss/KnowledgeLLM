@@ -35,29 +35,33 @@ class DocumentLib(Generic[D], LibraryBase):
 
     def __init__(self,
                  lib_path: str,
+                 lib_name: str,
                  uuid: str):
         """
         Args:
             lib_path (str): Path to the library
             uuid (str): UUID of the library
         """
-        if not uuid:
-            raise ValueError('Invalid UUID')
+        if not uuid or not lib_name:
+            raise ValueError('Invalid UUID or library name')
+        super().__init__(lib_path)
         super().__init__(lib_path)
 
-        # Load manifest
-        with TqdmContext('Loading library manifest...', 'Loaded'):
-            if not self.manifest_file_exists():
-                initial_manifest: dict = BASIC_MANIFEST | {
+        # Load metadata
+        with TqdmContext('Loading library metadata...', 'Loaded'):
+            if not self.metadata_file_exists():
+                initial_metadata: dict = BASIC_METADATA | {
+                    'type': 'document',
                     'uuid': uuid,
+                    'name': lib_name,
                     'embedded_docs': dict(),  # List of embedded documents under the library
                     'unfinished_docs': dict(),  # List of documents that are not finished embedding yet
                 }
-                self.initialize_lib_manifest(initial_manifest)
+                self.initialize_metadata(initial_metadata)
             else:
-                self.parse_lib_manifest(uuid)
-        if not self.manifest or not self.uuid:
-            raise ValueError('Library manifest not initialized')
+                self.load_metadata(uuid, lib_name)
+        if not self._metadata or not self.uuid:
+            raise ValueError('Library metadata not initialized')
 
         self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
         self.doc_provider: D | None = None
@@ -65,7 +69,7 @@ class DocumentLib(Generic[D], LibraryBase):
         self.embedder: DocEmbedder | None = None
 
     def lib_is_ready(self) -> bool:
-        if not self.manifest_file_exists():
+        if not self.metadata_file_exists():
             return False
         if not self.embedder:
             return False
@@ -83,7 +87,7 @@ class DocumentLib(Generic[D], LibraryBase):
             raise ValueError('Invalid relative path')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path in self.manifest['embedded_docs']:
+        if relative_path in self._metadata['embedded_docs']:
             self.use_doc(relative_path, provider_type)
             return
 
@@ -92,16 +96,16 @@ class DocumentLib(Generic[D], LibraryBase):
             raise ValueError(f'Invalid doc path: {doc_path}')
 
         # Pre-check if given doc is in unfinished list, clean up leftover if any
-        if relative_path in self.manifest['unfinished_docs']:
-            old_uuid: str = self.manifest['unfinished_docs'][relative_path]
+        if relative_path in self._metadata['unfinished_docs']:
+            old_uuid: str = self._metadata['unfinished_docs'][relative_path]
             self.remove_doc_embedding(None, old_uuid, provider_type)
-            self.manifest['unfinished_docs'].pop(relative_path, None)
-            self.update_lib_manifest()
+            self._metadata['unfinished_docs'].pop(relative_path, None)
+            self.save_metadata()
 
-        # Record info in manifest before embedding
+        # Record info in metadata before embedding
         uuid: str = str(uuid4())
-        self.manifest['unfinished_docs'][relative_path] = uuid
-        self.update_lib_manifest()
+        self._metadata['unfinished_docs'][relative_path] = uuid
+        self.save_metadata()
 
         # Create doc provider for this doc
         self.doc_provider = provider_type(self.path_db,
@@ -134,22 +138,22 @@ class DocumentLib(Generic[D], LibraryBase):
             self.vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
             self.vector_db.persist()
 
-        # Record info in manifest after finished embedding
-        self.manifest['unfinished_docs'].pop(relative_path, None)
-        self.manifest['embedded_docs'][relative_path] = uuid
-        self.update_lib_manifest()
+        # Record info in metadata after finished embedding
+        self._metadata['unfinished_docs'].pop(relative_path, None)
+        self._metadata['embedded_docs'][relative_path] = uuid
+        self.save_metadata()
 
     def use_doc(self, relative_path: str, provider_type: Type[D], reporter: Callable[[int], None] | None = None):
         if not relative_path:
             raise ValueError('Invalid relative path')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path not in self.manifest['embedded_docs']:
+        if relative_path not in self._metadata['embedded_docs']:
             self.__initialize_doc(relative_path, provider_type, reporter)
             return
 
         with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-            uuid: str = self.manifest['embedded_docs'][relative_path]
+            uuid: str = self._metadata['embedded_docs'][relative_path]
             self.doc_provider = provider_type(self.path_db,
                                               uuid,
                                               doc_path=None,
@@ -169,11 +173,11 @@ class DocumentLib(Generic[D], LibraryBase):
 
         if relative_path:
             relative_path = relative_path.lstrip(os.path.sep)
-            if relative_path not in self.manifest['embedded_docs']:
+            if relative_path not in self._metadata['embedded_docs']:
                 return
-            uuid = self.manifest['embedded_docs'][relative_path]
+            uuid = self._metadata['embedded_docs'][relative_path]
 
-        # The UUID after current code line will be either the provided UUID or the one in manifest here
+        # The UUID after current code line will be either the provided UUID or the one in metadata here
         is_current_doc: bool = False
         if self.doc_provider:
             is_current_doc = self.doc_provider.table.table_name == uuid
@@ -195,22 +199,22 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.vector_db.delete_db()  # type: ignore
                 self.vector_db = None
 
-        # Record info in manifest after finished deletion
-        self.manifest['embedded_docs'].pop(relative_path, None)
-        self.update_lib_manifest()
+        # Record info in metadata after finished deletion
+        self._metadata['embedded_docs'].pop(relative_path, None)
+        self.save_metadata()
 
     def delete_lib(self):
         """Delete the doc library, it purges all library data
         1. Delete vector index folder
         2. Delete DB file
-        3. Delete manifest file
+        3. Delete metadata file
         """
         DocLibVectorDb.delete_mem_db_folder(self.path_lib_data)
         DocProviderBase.delete_db_file(self.path_db)
 
-        self.path_manifest
-        if os.path.isfile(self.path_manifest):
-            os.remove(self.path_manifest)
+        self.path_metadata
+        if os.path.isfile(self.path_metadata):
+            os.remove(self.path_metadata)
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)

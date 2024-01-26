@@ -2,9 +2,10 @@ import os
 import re
 from datetime import datetime
 
-from server.config import *
+from lib_constants import *
 from server.file_utils.file import humanized_size
-from server.file_utils.file_types import ICON_MAPPING
+from server.file_utils.file_constants import ICON_MAPPING
+from singleton import lib_manager
 
 HASH_TAG: str = '#'
 HASH_TAG_ENCODED: str = '|&hash;|'
@@ -36,6 +37,7 @@ def preprocess_absolute_path(absolute_path: str) -> str:
     absolute_path = absolute_path.rstrip(os.path.sep)
     return decode_hash_tag(absolute_path)
 
+
 def preprocess_relative_path(relative_path: str) -> str:
     """Preprocess relative path, remove all heading/trailing system separators, and replace hash tags
     """
@@ -59,7 +61,7 @@ class DirectoryItem:
         self.size: str = ''
 
     def to_dict(self) -> dict[str, str]:
-        display_length: int = DISPLAY_NAME_LENGTH_GRID if CONFIG.view_style == 'grid' else DISPLAY_NAME_LENGTH_LIST
+        display_length: int = DISPLAY_NAME_LENGTH_GRID if lib_manager.get_lib_view_style() == 'grid' else DISPLAY_NAME_LENGTH_LIST
         return {
             'display_name': f'{self.display_name[0:display_length]}...' if len(self.display_name) > display_length else self.display_name,
             'name': self.name,
@@ -86,8 +88,8 @@ class FileItem:
         self.supported: bool = False
 
     def to_dict(self) -> dict[str, str | bool | int]:
-        display_length: int = DISPLAY_NAME_LENGTH_GRID if CONFIG.view_style == 'grid' else DISPLAY_NAME_LENGTH_LIST
-        display_length = DISPLAY_NAME_LENGTH_GRID if CONFIG.get_current_lib_type() == 'image' else display_length
+        display_length: int = DISPLAY_NAME_LENGTH_GRID if lib_manager.get_lib_view_style() == 'grid' else DISPLAY_NAME_LENGTH_LIST
+        display_length = DISPLAY_NAME_LENGTH_GRID if lib_manager.get_lib_type() == 'image' else display_length
         return {
             'display_name': f'{self.display_name[0:display_length]}...' if len(self.display_name) > display_length else self.display_name,
             'name': self.name,
@@ -112,7 +114,11 @@ def list_folder_content(relative_path: str, sort_by: str = 'Name') -> tuple[list
     Returns:
         tuple[list[dict], list[dict]]: _description_
     """
-    folder_to_be_scanned: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
+    lib_path: str | None = lib_manager.get_lib_path()
+    if not lib_path:
+        return (list(), list())
+
+    folder_to_be_scanned: str = os.path.join(lib_path, relative_path)
     all_items: list[str] = os.listdir(folder_to_be_scanned)
     dir_list: list[dict] = list()
     file_list: list[dict] = list()
@@ -121,7 +127,7 @@ def list_folder_content(relative_path: str, sort_by: str = 'Name') -> tuple[list
                                 for name in all_items if os.path.isdir(os.path.join(folder_to_be_scanned, name))}
     for name, fullpath in all_dirs.items():
         dir_relative_path: str = os.path.join(relative_path, name)
-        if CONFIG.is_excluded(dir_relative_path):
+        if lib_manager.is_excluded(dir_relative_path):
             continue
 
         d_item: DirectoryItem = DirectoryItem()
@@ -144,7 +150,7 @@ def list_folder_content(relative_path: str, sort_by: str = 'Name') -> tuple[list
                                  for name in all_items if os.path.isfile(os.path.join(folder_to_be_scanned, name))}
     for name, fullpath in all_files.items():
         file_relative_path: str = os.path.join(relative_path, name)
-        if CONFIG.is_excluded(file_relative_path):
+        if lib_manager.is_excluded(file_relative_path):
             continue
 
         f_icon: str = ''
@@ -203,5 +209,8 @@ def is_valid_relative_path(relative_path: str) -> bool:
     if not relative_path:
         return True
 
-    full_path: str = os.path.join(CONFIG.get_current_lib_path(), relative_path)
+    lib_path: str | None = lib_manager.get_lib_path()
+    if not lib_path:
+        return False
+    full_path: str = os.path.join(lib_path, relative_path)
     return os.path.exists(full_path)

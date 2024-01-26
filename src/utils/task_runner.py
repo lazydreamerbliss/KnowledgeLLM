@@ -4,6 +4,8 @@ from datetime import datetime
 from threading import Lock
 from typing import Callable
 
+EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these seconds
+
 
 class TaskState:
     IN_PROGRESS = 'IN_PROGRESS'
@@ -13,7 +15,7 @@ class TaskState:
 
 
 class TaskObj:
-    """Define a task info under execution
+    """Define an executed task
     """
 
     def __init__(self, id: str):
@@ -24,6 +26,16 @@ class TaskObj:
         self.error: str | None = None
         self.submission_time: datetime = datetime.now()
         self.completion_time: datetime | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'state': self.state,
+            'progress': self.progress,
+            'error': self.error,
+            'submission_time': self.submission_time,
+            'completion_time': self.completion_time,
+        }
 
 
 class TaskCreationFailureException(Exception):
@@ -66,12 +78,25 @@ class TaskRunner:
             self.tasks[task_id].error = str(e)
 
     def __get_active_task_count(self) -> int:
+        """Get active task count also cleanup expired tasks
+        """
         with self.lock:
+            expired: list[str] = list()
             res: int = 0
             for id in self.tasks:
                 if self.tasks[id].state == TaskState.IN_PROGRESS:
                     res += 1
-            return res
+                else:
+                    completion_time: datetime | None = self.tasks[id].completion_time
+                    if completion_time:
+                        if (datetime.now() - completion_time).total_seconds() > EXPIRATION_DURATION:
+                            expired.append(id)
+                    else:
+                        expired.append(id)
+
+            for id in expired:
+                self.tasks.pop(id)
+        return res
 
     def submit_task(self, task_func: Callable,
                     callback_lambda: Callable | None,
@@ -116,7 +141,14 @@ class TaskRunner:
                 self.tasks[task_id].state = TaskState.CANCELLED
                 self.tasks[task_id].completion_time = datetime.now()
 
-    def get_task_state(self, task_ids: list[str]) -> list[TaskObj | None]:
+    def get_task_state(self, task_ids: list[str]) -> list[dict | None]:
         """Check the running state of given task IDs
         """
-        return [self.tasks.get(id, None) for id in task_ids]
+        res: list[dict | None] = list()
+        for id in task_ids:
+            task: TaskObj | None = self.tasks.get(id, None)
+            if task:
+                res.append(task.to_dict())
+            else:
+                res.append(None)
+        return res

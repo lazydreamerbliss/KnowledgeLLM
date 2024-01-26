@@ -26,6 +26,7 @@ class ImageLib(LibraryBase):
 
     def __init__(self,
                  lib_path: str,
+                 lib_name: str,
                  uuid: str,
                  local_mode: bool = True):
         """
@@ -34,22 +35,23 @@ class ImageLib(LibraryBase):
             uuid (str): UUID of the library
             local_mode (bool, optional): True for use local index, False for use Redis. Defaults to True.
         """
-        if not uuid:
-            raise ValueError('Invalid UUID')
+        if not uuid or not lib_name:
+            raise ValueError('Invalid UUID or library name')
         super().__init__(lib_path)
 
-        # Load manifest
-        with TqdmContext('Loading library manifest...', 'Loaded'):
-            if not self.manifest_file_exists():
-                initial_manifest: dict = BASIC_MANIFEST | {
+        # Load metadata
+        with TqdmContext('Loading library metadata...', 'Loaded'):
+            if not self.metadata_file_exists():
+                initial_metadata: dict = BASIC_METADATA | {
                     'type': 'image',
                     'uuid': uuid,
+                    'name': lib_name,
                 }
-                self.initialize_lib_manifest(initial_manifest)
+                self.initialize_metadata(initial_metadata)
             else:
-                self.parse_lib_manifest(uuid)
-        if not self.manifest or not self.uuid:
-            raise ValueError('Library manifest not initialized')
+                self.load_metadata(uuid, lib_name)
+        if not self._metadata or not self.uuid:
+            raise ValueError('Library metadata not initialized')
 
         self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
         self.path_vector_db: str = os.path.join(self.path_lib_data, ImageLibVectorDb.IDX_FILENAME)
@@ -59,7 +61,7 @@ class ImageLib(LibraryBase):
         self.local_mode: bool = local_mode
 
     def lib_is_ready(self) -> bool:
-        if not self.manifest_file_exists():
+        if not self.metadata_file_exists():
             return False
         if not self.table:
             return False
@@ -86,7 +88,7 @@ class ImageLib(LibraryBase):
         if not ready:
             self.table = ImageLibTable(self.path_lib)
             self.vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
-                                              lib_uuid=self.manifest['uuid'],
+                                              lib_uuid=self._metadata['uuid'],
                                               data_folder=self.path_lib_data)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
@@ -97,8 +99,8 @@ class ImageLib(LibraryBase):
         ready = self.lib_is_ready()
         if ready:
             with TqdmContext(f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...', 'Cleaned'):
-                self.manifest['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self.update_lib_manifest()
+                self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                self.save_metadata()
                 self.vector_db.clean_all_data()  # type: ignore
                 self.table.clean_all_data()  # type: ignore
         else:
@@ -196,7 +198,7 @@ class ImageLib(LibraryBase):
         1. Clean and delete the vector DB
         2. Delete the table
         3. Delete the DB file
-        4. Delete the manifest file
+        4. Delete the metadata file
         """
         self.vector_db.delete_db()  # type: ignore
 
@@ -204,9 +206,9 @@ class ImageLib(LibraryBase):
         if os.path.isfile(self.path_db):
             os.remove(self.path_db)
 
-        self.path_manifest
-        if os.path.isfile(self.path_manifest):
-            os.remove(self.path_manifest)
+        self.path_metadata
+        if os.path.isfile(self.path_metadata):
+            os.remove(self.path_metadata)
 
     @ensure_lib_is_ready
     def remove_item_from_lib(self, uuid: str):
@@ -216,7 +218,7 @@ class ImageLib(LibraryBase):
     def get_scan_gap(self) -> int:
         """Get the time gap from last scan in days
         """
-        last_scanned: datetime = datetime.strptime(self.manifest['last_scanned'], '%Y-%m-%d %H:%M:%S')
+        last_scanned: datetime = datetime.strptime(self._metadata['last_scanned'], '%Y-%m-%d %H:%M:%S')
         return (datetime.now() - last_scanned).days
 
     @ensure_lib_is_ready

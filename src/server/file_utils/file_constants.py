@@ -18,3 +18,8 @@ ICON_MAPPING: dict[str, set] = {
     'archive.png': {'zip', 'rar', '7z'},
     'code.png': code_types,
 }
+
+F_CATEGORY_IMAGE = 'icon'
+F_CATEGORY_VIDEO = 'video'
+F_CATEGORY_AUDIO = 'audio'
+F_CATEGORY_UNKNOWN = 'unknown'
