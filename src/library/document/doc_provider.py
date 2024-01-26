@@ -3,7 +3,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from knowledge_base.document.provider import DocProviderBase
+from knowledge_base.document.doc_provider import DocProviderBase
 from library.document.doc_lib_table import DocLibTable
 from utils.tqdm_context import TqdmContext
 

@@ -68,9 +68,7 @@ class LibraryBase:
         self.path_lib: str = lib_path
         self.path_lib_data: str = os.path.join(self.path_lib, LIB_DATA_FOLDER)
         self.path_metadata: str = os.path.join(self.path_lib_data, LibraryBase.METADATA_FILE)
-        self.type: str = ''
         self.uuid: str = ''
-        self.name: str = ''  # The only modifiable field
         self._metadata: dict = dict()
 
         if not os.path.isdir(self.path_lib_data):
@@ -136,9 +134,7 @@ class LibraryBase:
 
         pickle.dump(initial_metadata,  open(self.path_metadata, 'wb'))
         self._metadata = initial_metadata
-        self.type = initial_metadata['type']
         self.uuid = initial_metadata['uuid']
-        self.name = initial_metadata['name']
 
     def save_metadata(self):
         """Save the metadata file for any updates
@@ -162,11 +158,9 @@ class LibraryBase:
             raise ValueError(f'Invalid metadata file: {self.path_metadata}')
 
         self._metadata = content
-        self.type = content['type']
         self.uuid = content['uuid']
-        self.name = content['name']
 
-        if self.name != given_name:
+        if content['name'] != given_name:
             self.change_lib_name(given_name)
 
     def delete_metadata(self):
@@ -209,7 +203,6 @@ class LibraryBase:
         if not new_name or new_name == self._metadata['name']:
             return
         self._metadata['name'] = new_name
-        self.name = new_name
         self.save_metadata()
 
     @ensure_metadata_ready

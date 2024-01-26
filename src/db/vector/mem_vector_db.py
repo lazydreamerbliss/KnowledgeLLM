@@ -86,9 +86,6 @@ class InMemoryVectorDb:
             training_set (list[np.ndarray] | None, optional): _description_. Defaults to None.
             training_set_uuid (list[str] | None, optional): _description_. Defaults to None.
             expected_dataset_size (int, optional): _description_. Defaults to 0.
-
-        Raises:
-            ValueError: _description_
         """
         # FLAT index case
         # - If no training set is given, use flat index and no further action is needed
@@ -136,10 +133,6 @@ class InMemoryVectorDb:
         Args:
             embeddings (list[float]): _description_
             uuid (str | None, optional): _description_. Defaults to None.
-
-        Raises:
-            ValueError: _description_
-            ValueError: _description_
         """
         if self.id_mapping is None:
             self.id_mapping = dict()
@@ -233,12 +226,6 @@ class InMemoryVectorDb:
             embeddings (np.ndarray): _description_
             top_k (int, optional): _description_. Defaults to 10.
             additional_neighbors (int, optional): The additional closest neighbors to be queried for IVF. Defaults to 2.
-
-        Raises:
-            ValueError: _description_
-
-        Returns:a
-            list[str | int]: _description_
         """
         prob_changed: bool = False
         if self.mem_index_ivf and additional_neighbors != InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT and additional_neighbors > 0:

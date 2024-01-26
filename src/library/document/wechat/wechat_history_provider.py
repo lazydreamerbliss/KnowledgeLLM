@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from knowledge_base.document.provider import DocProviderBase
+from knowledge_base.document.doc_provider import DocProviderBase
 from library.document.wechat.wechat_history_table import WechatHistoryTable
 from utils.tqdm_context import TqdmContext
 

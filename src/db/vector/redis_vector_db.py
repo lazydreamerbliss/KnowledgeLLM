@@ -22,13 +22,6 @@ class RedisVectorDb:
 
     def initialize_index(self, vector_dimension: int):
         """Create index for current image library only
-
-        Raises:
-            ValueError: _description_
-            e: _description_
-
-        Returns:
-            bool: _description_
         """
         # Define redis index schema
         # - https://redis.io/docs/get-started/vector-database/

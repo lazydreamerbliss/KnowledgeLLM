@@ -31,10 +31,9 @@ class LibCreationObj:
 
 
 class LibraryManager:
-    """This is a single threaded, single session app, so one config instance globally is enough
+    """This is a single threaded, single session app, so one manager instance globally is enough
     """
     # Config file is a static path
-    # CONFIG_FILE: str = f'../librarian.bin'
     CONFIG_FILE: str = f'{Path(__file__).parent.parent.parent}/samples/librarian.bin'  # test only
 
     def __init__(self):

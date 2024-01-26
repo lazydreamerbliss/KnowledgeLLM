@@ -7,18 +7,15 @@ import numpy.typing as npt
 from tqdm import tqdm
 
 from knowledge_base.document.doc_embedder import DocEmbedder
-from knowledge_base.document.provider import DocProviderBase
+from knowledge_base.document.doc_provider import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
 from library.lib_base import *
 from utils.tqdm_context import TqdmContext
 
 """
-import numpy as np
-import numpy.typing as npt
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from faiss import IndexFlatL2, IndexIVFFlat  # Put faiss import AFTER sentence_transformers, strange SIGSEGV error otherwise on OSX
-from tqdm import tqdm
 """
 
 
