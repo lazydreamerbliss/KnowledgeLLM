@@ -40,8 +40,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
             all_lines: list[str] = f.readlines()
 
         timestamp: datetime = datetime.now()
-        paragraph: str = ''
-        for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
+        for i, line in tqdm(enumerate(all_lines), desc=f'Loading document content to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
             line = line.strip()
             if not line:
                 continue

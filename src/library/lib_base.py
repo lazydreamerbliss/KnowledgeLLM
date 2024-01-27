@@ -86,7 +86,7 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def initialize(self, force_init: bool = False, reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
+    def initialize(self, force_init: bool = False, progress_reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
         """Initialize the library
 
         Args:
@@ -100,7 +100,7 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def use_doc(self, relative_path: str, provider_type: Any, reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
+    def use_doc(self, relative_path: str, provider_type: Any, progress_reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
         """Initialize or switch to a document under current library
         - If target document is not in metadata, then this is an uninitialized document, call __initialize_doc()
         - Otherwise load the document provider and vector DB for the target document directly

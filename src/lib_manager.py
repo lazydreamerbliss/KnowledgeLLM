@@ -270,13 +270,13 @@ class LibraryManager:
             return None
 
         if isinstance(self.instance, ImageLib):
-            task_id: str = self.task_runner.submit_task(self.instance.initialize, None, True,
+            task_id: str = self.task_runner.submit_task(self.instance.initialize, None, True, True,
                                                         force_init=True)
             return task_id
         if isinstance(self.instance, DocumentLib):
             if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs:
                 raise ValueError('Invalid parameters for DocumentLib')
-            task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True,
+            task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True,
                                                         relative_path=kwargs['relative_path'],
                                                         provider_type=kwargs['provider_type'])
             return task_id

@@ -4,6 +4,8 @@ from datetime import datetime
 from threading import Event, Lock
 from typing import Callable
 
+from exceptions import TaskCancelFailureException, TaskCreationFailureException
+
 EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these seconds
 
 
@@ -41,20 +43,6 @@ class TaskObj:
         }
 
 
-class TaskCreationFailureException(Exception):
-    def __init__(self, message: str | None = None, code: int = 0):
-        super().__init__()
-        self.message: str | None = message
-        self.code: int = code
-
-
-class TaskCancelFailureException(Exception):
-    def __init__(self, message: str | None = None, code: int = 0):
-        super().__init__()
-        self.message: str | None = message
-        self.code: int = code
-
-
 class TaskRunner:
     def __init__(self, max_parallel_tasks: int = 5):
         self.tasks: dict[str, TaskObj] = dict()
@@ -65,6 +53,8 @@ class TaskRunner:
     def __mark_task_completed(self, task_id: str, termination_state: str, error: str | None = None):
         """Mark a task as completed with given state
         """
+        if termination_state == TaskState.FINISHED:
+            self.tasks[task_id].progress = 100
         now: datetime = datetime.now()
         self.tasks[task_id].state = termination_state
         self.tasks[task_id].completed_on = now
@@ -74,14 +64,16 @@ class TaskRunner:
     def __run_task_wrapper(self,
                            task_id: str,
                            task_func: Callable,
-                           reporter: Callable[[int], None] | None,
+                           progress_reporter: Callable[[int], None] | None,
                            cancel_event: Event | None,
                            args: tuple,
                            kwargs: dict):
         """Run given task
         """
         try:
-            task_func(*args, **kwargs, reporter=reporter, cancel_event=cancel_event)
+            task_func(*args, **kwargs,
+                      progress_reporter=progress_reporter,
+                      cancel_event=cancel_event)
             self.__mark_task_completed(task_id, TaskState.FINISHED)
         except Exception as e:
             self.__mark_task_completed(task_id, TaskState.FAULTED, str(e))
@@ -119,7 +111,9 @@ class TaskRunner:
             task_func (Callable): The function to be executed
             callback_lambda (Callable | None): The optional callback function to be executed after the task is finished
             reporter_lambda (Callable[[TaskObj], None] | None): The optional callback function to be executed to report the task progress
-            support_cancel (bool): If the task supports cancellation
+                To support this, target function must have a keyword argument named `progress_reporter`
+            support_cancel (bool): If the task supports cancellation.
+                To support this, target function must have a keyword argument named `cancel_event`
         """
         if self.__get_active_task_count() >= self.max_parallel_tasks:
             raise TaskCreationFailureException('Maximum number of parallel tasks exceeded')
@@ -127,13 +121,14 @@ class TaskRunner:
         with self.lock:
             task: TaskObj = TaskObj(str(uuid.uuid4()))
             # The reporter lambda is used to report the progress of this task object
-            reporter: Callable[[int], None] | None = None
+            progress_reporter: Callable[[int], None] | None = None
             if support_reporter:
-                reporter = lambda x: setattr(self.tasks[task.id], 'progress', x)
+                progress_reporter = lambda x: setattr(self.tasks[task.id], 'progress', x)
             if support_cancel:
                 task.cancel_event = Event()
 
-            future: Future = self.thread_pool.submit(self.__run_task_wrapper, task.id, task_func, reporter, task.cancel_event, task_args, task_kwargs)
+            future: Future = self.thread_pool.submit(
+                self.__run_task_wrapper, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
             task.future = future
             self.tasks[task.id] = task
 

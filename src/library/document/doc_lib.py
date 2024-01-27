@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 from tqdm import tqdm
 
+from exceptions import TaskCancellationException
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.document.doc_provider import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
@@ -61,33 +62,25 @@ class DocumentLib(Generic[D], LibraryBase):
             raise ValueError('Library metadata not initialized')
 
         self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
-        self.doc_provider: D | None = None
-        self.vector_db: DocLibVectorDb | None = None
-        self.embedder: DocEmbedder | None = None
+        self.__doc_provider: D | None = None
+        self.__vector_db: DocLibVectorDb | None = None
+        self.__embedder: DocEmbedder | None = None
 
-    def lib_is_ready(self) -> bool:
-        if not self.metadata_file_exists():
-            return False
-        if not self.embedder:
-            return False
-        if not self.doc_provider:
-            return False
-        return True
-
-    def set_embedder(self, embedder: DocEmbedder):
-        self.embedder = embedder
+    """
+    Private methods
+    """
 
     def __initialize_doc(self,
                          relative_path: str,
                          provider_type: Type[D],
-                         reporter: Callable[[int], None] | None,
+                         uuid: str,
+                         progress_reporter: Callable[[int], None] | None,
                          cancel_event: Event | None):
         """Initialize a document under the library
         """
         if not relative_path:
             raise ValueError('Invalid relative path')
 
-        relative_path = relative_path.lstrip(os.path.sep)
         if relative_path in self._metadata['embedded_docs']:
             self.use_doc(relative_path, provider_type)
             return
@@ -104,33 +97,36 @@ class DocumentLib(Generic[D], LibraryBase):
             self.save_metadata()
 
         # Record info in metadata before embedding
-        uuid: str = str(uuid4())
         self._metadata['unfinished_docs'][relative_path] = uuid
         self.save_metadata()
 
         # Create doc provider for this doc
-        self.doc_provider = provider_type(self.path_db,
-                                          uuid,
-                                          doc_path=doc_path,
-                                          re_dump=False)  # type: ignore
+        self.__doc_provider = provider_type(self.path_db,
+                                            uuid,
+                                            doc_path=doc_path,
+                                            re_dump=False)  # type: ignore
 
         # Do embedding, and create vector DB for this doc
         embeddings_list: list[npt.ArrayLike] = list()
-        total_records: int = self.doc_provider.get_record_count()
-        self.vector_db = DocLibVectorDb(self.path_lib_data, uuid)
-        for i, row in tqdm(enumerate(self.doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
+        total_records: int = self.__doc_provider.get_record_count()
+        previous_progress: int = -1
+        for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
             if cancel_event and cancel_event.is_set():
                 tqdm.write('Embedding cancelled')
-                break
+                raise TaskCancellationException('Library initialization cancelled')
 
             # If reporter is given, report progress to task manager
-            if reporter:
+            # - Reduce report frequency, only report when progress changes
+            if progress_reporter:
                 try:
-                    reporter(int(i / total_records * 100))
+                    current_progress: int = int(i / total_records * 100)
+                    if current_progress > previous_progress:
+                        previous_progress = current_progress
+                        progress_reporter(current_progress)
                 except:
                     pass
 
-            embeddings_list.append(self.embedder.embed_text(self.doc_provider.EMBED_LAMBDA(row)))  # type: ignore
+            embeddings_list.append(self.__embedder.embed_text(self.__doc_provider.EMBED_LAMBDA(row)))  # type: ignore
         embeddings: np.ndarray = np.asarray(embeddings_list)
 
         # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
@@ -139,35 +135,119 @@ class DocumentLib(Generic[D], LibraryBase):
         # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
         text_count: int = embeddings.shape[0]
         dimension: int = embeddings.shape[1]
+        self.__vector_db = DocLibVectorDb(self.path_lib_data, uuid)
         with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
-            self.vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
-            self.vector_db.persist()
+            self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
+            self.__vector_db.persist()
 
         # Record info in metadata after finished embedding
         self._metadata['unfinished_docs'].pop(relative_path, None)
         self._metadata['embedded_docs'][relative_path] = uuid
         self.save_metadata()
 
+    def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
+        """Get top_k most similar candidates under the given document (relative path)
+        """
+
+        if not text or top_k <= 0:
+            return list()
+
+        # If no provider/vector DB
+        if not self.__doc_provider or not self.__vector_db:
+            raise ValueError('No active document, please switch to a document first')
+
+        query_embedding: npt.ArrayLike = self.__embedder.embed_text(text)  # type: ignore
+        ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
+        res: list[tuple] = list()
+
+        for i64 in ids:
+            # If number of candidates is lesser than top_k, then the rest IDs are all -1
+            i: int = int(i64)
+            if i == -1:
+                break
+
+            # in-mem index's ID starts from 0 but DB's ID column starts from 1, plus 1
+            record: tuple | None = self.__doc_provider.get_record_by_id(i + 1)
+            if record:
+                res.append(record)
+        return res
+
+    def __rerank(self, text: str, candidates: list[tuple]) -> list[tuple]:
+        if not self.__doc_provider:
+            raise ValueError('No active document, please switch to a document first')
+
+        tqdm.write(f'Reranking {len(candidates)} candidates...')
+        candidates_str: list[str] = [self.__doc_provider.RERANK_LAMBDA(c) for c in candidates]  # type: ignore
+        scores: npt.ArrayLike = self.__embedder.predict_similarity_batch(text, candidates_str)  # type: ignore
+
+        # Re-sort the ranking result
+        # - np.argsort() returns the indices in ascending order, so here we use [::-1] to reverse it
+        # - https://blog.csdn.net/maoersong/article/details/21875705
+        sorted_ids: np.ndarray = np.argsort(scores)[::-1]
+
+        # Reorder the candidates list by the ranking
+        return [candidates[i] for i in sorted_ids]
+
+    """
+    Overridden public methods from LibraryBase
+    """
+
+    def lib_is_ready(self) -> bool:
+        if not self.metadata_file_exists():
+            return False
+        if not self.__embedder:
+            return False
+        if not self.__doc_provider:
+            return False
+        return True
+
     def use_doc(self,
                 relative_path: str,
                 provider_type: Type[D],
-                reporter: Callable[[int], None] | None = None,
+                progress_reporter: Callable[[int], None] | None = None,
                 cancel_event: Event | None = None):
         if not relative_path:
             raise ValueError('Invalid relative path')
 
         relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self._metadata['embedded_docs']:
-            self.__initialize_doc(relative_path, provider_type, reporter, cancel_event)
+            uuid: str = str(uuid4())
+            try:
+                self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
+            except TaskCancellationException:
+                # On cancel, clean this doc's leftover
+                self.remove_doc_embedding(None, uuid, provider_type)
+                self._metadata['unfinished_docs'].pop(relative_path, None)
+                self.save_metadata()
             return
 
         with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
             uuid: str = self._metadata['embedded_docs'][relative_path]
-            self.doc_provider = provider_type(self.path_db,
-                                              uuid,
-                                              doc_path=None,
-                                              re_dump=False)  # type: ignore
-            self.vector_db = DocLibVectorDb(self.path_lib_data, uuid)
+            self.__doc_provider = provider_type(self.path_db,
+                                                uuid,
+                                                doc_path=None,
+                                                re_dump=False)  # type: ignore
+            self.__vector_db = DocLibVectorDb(self.path_lib_data, uuid)
+
+    def delete_lib(self):
+        """Delete the doc library, it purges all library data
+        1. Delete vector index folder
+        2. Delete DB file
+        3. Delete metadata file
+        """
+        DocLibVectorDb.delete_mem_db_folder(self.path_lib_data)
+        DocProviderBase.delete_db_file(self.path_db)
+
+        self.path_metadata
+        if os.path.isfile(self.path_metadata):
+            os.remove(self.path_metadata)
+
+    """
+    Public methods
+    """
+
+    def set_embedder(self, embedder: DocEmbedder):
+        self.__embedder = embedder
 
     def remove_doc_embedding(self, relative_path: str | None, uuid: str | None, provider_type: Type[D]):
         """Remove the embedding of a document under the library
@@ -188,8 +268,8 @@ class DocumentLib(Generic[D], LibraryBase):
 
         # The UUID after current code line will be either the provided UUID or the one in metadata here
         is_current_doc: bool = False
-        if self.doc_provider:
-            is_current_doc = self.doc_provider.table.table_name == uuid
+        if self.__doc_provider:
+            is_current_doc = self.__doc_provider.table.table_name == uuid
 
         with TqdmContext(f'Removing embedding data for {relative_path}...', 'Done'):
             if not is_current_doc:
@@ -203,70 +283,14 @@ class DocumentLib(Generic[D], LibraryBase):
                 tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self.path_lib_data, uuid)  # type: ignore
                 tmp_vector_db.delete_db()
             else:
-                self.doc_provider.delete_table()  # type: ignore
-                self.doc_provider = None
-                self.vector_db.delete_db()  # type: ignore
-                self.vector_db = None
+                self.__doc_provider.delete_table()  # type: ignore
+                self.__doc_provider = None
+                self.__vector_db.delete_db()  # type: ignore
+                self.__vector_db = None
 
         # Record info in metadata after finished deletion
         self._metadata['embedded_docs'].pop(relative_path, None)
         self.save_metadata()
-
-    def delete_lib(self):
-        """Delete the doc library, it purges all library data
-        1. Delete vector index folder
-        2. Delete DB file
-        3. Delete metadata file
-        """
-        DocLibVectorDb.delete_mem_db_folder(self.path_lib_data)
-        DocProviderBase.delete_db_file(self.path_db)
-
-        self.path_metadata
-        if os.path.isfile(self.path_metadata):
-            os.remove(self.path_metadata)
-
-    def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
-        """Get top_k most similar candidates under the given document (relative path)
-        """
-
-        if not text or top_k <= 0:
-            return list()
-
-        # If no provider/vector DB
-        if not self.doc_provider or not self.vector_db:
-            raise ValueError('No active document, please switch to a document first')
-
-        query_embedding: npt.ArrayLike = self.embedder.embed_text(text)  # type: ignore
-        ids: list[np.int64] = self.vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
-        res: list[tuple] = list()
-
-        for i64 in ids:
-            # If number of candidates is lesser than top_k, then the rest IDs are all -1
-            i: int = int(i64)
-            if i == -1:
-                break
-
-            # in-mem index's ID starts from 0 but DB's ID column starts from 1, plus 1
-            record: tuple | None = self.doc_provider.get_record_by_id(i + 1)
-            if record:
-                res.append(record)
-        return res
-
-    def __rerank(self, text: str, candidates: list[tuple]) -> list[tuple]:
-        if not self.doc_provider:
-            raise ValueError('No active document, please switch to a document first')
-
-        tqdm.write(f'Reranking {len(candidates)} candidates...')
-        candidates_str: list[str] = [self.doc_provider.RERANK_LAMBDA(c) for c in candidates]  # type: ignore
-        scores: npt.ArrayLike = self.embedder.predict_similarity_batch(text, candidates_str)  # type: ignore
-
-        # Re-sort the ranking result
-        # - np.argsort() returns the indices in ascending order, so here we use [::-1] to reverse it
-        # - https://blog.csdn.net/maoersong/article/details/21875705
-        sorted_ids: np.ndarray = np.argsort(scores)[::-1]
-
-        # Reorder the candidates list by the ranking
-        return [candidates[i] for i in sorted_ids]
 
     @ensure_lib_is_ready
     def query(self, query_text: str, top_k: int = 10, rerank: bool = False) -> list[tuple]:
