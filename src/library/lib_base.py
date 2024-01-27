@@ -2,6 +2,7 @@ import os
 import pickle
 from datetime import datetime
 from functools import wraps
+from threading import Event
 from typing import Any, Callable
 
 from lib_constants import sorted_by_labels, view_styles
@@ -85,20 +86,21 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def initialize(self, force_init: bool = False, reporter: Callable[[int], None] | None = None):
+    def initialize(self, force_init: bool = False, reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
         """Initialize the library
 
         Args:
             force_init (bool, optional): If the initialization is a force re-initialization. Defaults to False.
             reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
             It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
+            cancel_event (Event | None, optional): The event object to check if the initialization is cancelled. Defaults to None.
 
         Raises:
             NotImplementedError: _description_
         """
         raise NotImplementedError()
 
-    def use_doc(self, relative_path: str, provider_type: Any, reporter: Callable[[int], None] | None = None):
+    def use_doc(self, relative_path: str, provider_type: Any, reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
         """Initialize or switch to a document under current library
         - If target document is not in metadata, then this is an uninitialized document, call __initialize_doc()
         - Otherwise load the document provider and vector DB for the target document directly
@@ -109,6 +111,7 @@ class LibraryBase:
             provider_type (Type[D]): The target document's provider's type info
             reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
             It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
+            cancel_event (Event | None, optional): The event object to check if the initialization is cancelled. Defaults to None.
 
         Raises:
             NotImplementedError: _description_

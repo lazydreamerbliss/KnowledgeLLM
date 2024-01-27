@@ -77,7 +77,11 @@ class DocumentLib(Generic[D], LibraryBase):
     def set_embedder(self, embedder: DocEmbedder):
         self.embedder = embedder
 
-    def __initialize_doc(self, relative_path: str, provider_type: Type[D], reporter: Callable[[int], None] | None):
+    def __initialize_doc(self,
+                         relative_path: str,
+                         provider_type: Type[D],
+                         reporter: Callable[[int], None] | None,
+                         cancel_event: Event | None):
         """Initialize a document under the library
         """
         if not relative_path:
@@ -115,6 +119,10 @@ class DocumentLib(Generic[D], LibraryBase):
         total_records: int = self.doc_provider.get_record_count()
         self.vector_db = DocLibVectorDb(self.path_lib_data, uuid)
         for i, row in tqdm(enumerate(self.doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
+            if cancel_event and cancel_event.is_set():
+                tqdm.write('Embedding cancelled')
+                break
+
             # If reporter is given, report progress to task manager
             if reporter:
                 try:
@@ -140,13 +148,17 @@ class DocumentLib(Generic[D], LibraryBase):
         self._metadata['embedded_docs'][relative_path] = uuid
         self.save_metadata()
 
-    def use_doc(self, relative_path: str, provider_type: Type[D], reporter: Callable[[int], None] | None = None):
+    def use_doc(self,
+                relative_path: str,
+                provider_type: Type[D],
+                reporter: Callable[[int], None] | None = None,
+                cancel_event: Event | None = None):
         if not relative_path:
             raise ValueError('Invalid relative path')
 
         relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self._metadata['embedded_docs']:
-            self.__initialize_doc(relative_path, provider_type, reporter)
+            self.__initialize_doc(relative_path, provider_type, reporter, cancel_event)
             return
 
         with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):

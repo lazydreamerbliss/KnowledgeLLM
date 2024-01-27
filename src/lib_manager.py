@@ -6,7 +6,7 @@ from pathlib import Path
 from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
-from singleton import task_runner
+from utils.task_runner import TaskRunner
 
 IS_WINDOWS = 'win32' in sys.platform or 'win64' in sys.platform
 
@@ -36,7 +36,11 @@ class LibraryManager:
     # Config file is a static path
     CONFIG_FILE: str = f'{Path(__file__).parent.parent.parent}/samples/librarian.bin'  # test only
 
-    def __init__(self):
+    def __init__(self, task_runner: TaskRunner):
+        if not task_runner:
+            raise ValueError('Task runner is not provided')
+
+        self.task_runner: TaskRunner = task_runner
         try:
             obj: dict = pickle.load(open(LibraryManager.CONFIG_FILE, 'rb'))
         except:
@@ -266,15 +270,15 @@ class LibraryManager:
             return None
 
         if isinstance(self.instance, ImageLib):
-            task_id: str = task_runner.submit_task(self.instance.initialize, None, True,
-                                                   force_init=True)
+            task_id: str = self.task_runner.submit_task(self.instance.initialize, None, True,
+                                                        force_init=True)
             return task_id
         if isinstance(self.instance, DocumentLib):
             if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs:
                 raise ValueError('Invalid parameters for DocumentLib')
-            task_id: str = task_runner.submit_task(self.instance.use_doc, None, True,
-                                                   relative_path=kwargs['relative_path'],
-                                                   provider_type=kwargs['provider_type'])
+            task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True,
+                                                        relative_path=kwargs['relative_path'],
+                                                        provider_type=kwargs['provider_type'])
             return task_id
         return None
 

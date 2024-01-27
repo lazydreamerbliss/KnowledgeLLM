@@ -74,7 +74,10 @@ class ImageLib(LibraryBase):
     def set_embedder(self, embedder: ImageEmbedder):
         self.embedder = embedder
 
-    def initialize(self, force_init: bool = False, reporter: Callable[[int], None] | None = None):
+    def initialize(self,
+                   force_init: bool = False,
+                   reporter: Callable[[int], None] | None = None,
+                   cancel_event: Event | None = None):
         ready: bool = self.lib_is_ready()
         if ready and not force_init:
             return
@@ -86,7 +89,7 @@ class ImageLib(LibraryBase):
         # 1. The lib is a new lib
         # 2. The lib is an existing lib but not loaded
         if not ready:
-            self.table = ImageLibTable(self.path_lib)
+            self.table = ImageLibTable(self.path_lib_data)
             self.vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                               lib_uuid=self._metadata['uuid'],
                                               data_folder=self.path_lib_data)
@@ -107,7 +110,7 @@ class ImageLib(LibraryBase):
             tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
 
         # Do full scan and initialize the lib
-        self.__full_scan_and_initialize_lib(reporter)
+        self.__full_scan_and_initialize_lib(reporter, cancel_event)
 
     def __write_entry(self, file: str, embeddings: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry to both DB and vector DB
@@ -154,7 +157,10 @@ class ImageLib(LibraryBase):
 
             yield file, embeddings
 
-    def __full_scan_and_initialize_lib(self, reporter: Callable[[int], None] | None, scan_only: bool = False):
+    def __full_scan_and_initialize_lib(self,
+                                       reporter: Callable[[int], None] | None,
+                                       cancel_event: Event | None,
+                                       scan_only: bool = False):
         """Get all files and relative path info under self.path_lib, including files in all sub folders under lib_path
         """
         save_pipeline: BatchedPipeline | None = None
@@ -168,6 +174,10 @@ class ImageLib(LibraryBase):
             # Use batched pipeline when available
             with save_pipeline:
                 for file, embeddings in self.__do_scan(reporter):
+                    if cancel_event is not None and cancel_event.is_set():
+                        tqdm.write(f'Library initialization cancelled')
+                        return
+
                     if not scan_only:
                         if dimension == -1:
                             dimension = len(embeddings)
@@ -175,6 +185,10 @@ class ImageLib(LibraryBase):
         else:
             # Otherwise, save the embeddings one by one
             for file, embeddings in self.__do_scan(reporter):
+                if cancel_event is not None and cancel_event.is_set():
+                    tqdm.write(f'Library initialization cancelled')
+                    return
+
                 # If this is the first embedding and in local mode, initialize the index first as memory vector DB needs to build index before adding data
                 if not scan_only:
                     if dimension == -1 and self.local_mode:

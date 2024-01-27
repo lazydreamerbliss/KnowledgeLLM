@@ -7,5 +7,5 @@ from utils.task_runner import TaskRunner
 # img_embedder = ImageEmbedder()
 # doc_embedder = DocEmbedder()
 # tagger = ImageTagger()
-lib_manager: LibraryManager = LibraryManager()
 task_runner: TaskRunner = TaskRunner()
+lib_manager: LibraryManager = LibraryManager(task_runner)
