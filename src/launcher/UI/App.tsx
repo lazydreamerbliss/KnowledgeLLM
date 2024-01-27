@@ -1,15 +1,32 @@
 import React from "react";
+import Bridge from "./bridge-render";
 
 export default function UX() {
-  const [test, setTest] = React.useState("");
-  const [error, setError] = React.useState(false);
+  const [title, setTitle] = React.useState("UX");
+  React.useEffect(() => {
+    document.title = title;
+  }, [title]);
 
   return (
     <div className="w-full h-full bg-slate-400">
       <div className="w-full h-full grid place-items-center">
-        <div className=" bg-slate-100 rounded-xl md:p-8 dark:bg-slate-800 shadow-lg ">
-          {error ? <>Cannot connect to server!</> : test ? <>You are the {test}th visitor!</> : <>Connecting</>}
+        <div
+          className=" bg-slate-100 rounded-xl md:p-8 dark:bg-slate-800 shadow-lg "
+          onClick={async () => {
+            const res = await Bridge.pickFolder();
+            console.log(res);
+          }}
+        >
+          Open Folder
         </div>
+        <input
+          type="text"
+          onChange={async (e) => {
+            setTitle(e.target.value);
+          }}
+          value={title}
+          placeholder="Input title"
+        />
       </div>
     </div>
   );
