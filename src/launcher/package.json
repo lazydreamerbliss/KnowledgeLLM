@@ -7,7 +7,6 @@
     "watch": "webpack-dev-server -c UI/webpack.config.js",
     "start": "tsc -p ./backend/ && electron ./backend/out/main"
   },
-  "author": "ZhehooMorgen ",
   "license": "ISC",
   "devDependencies": {
     "@babel/core": "^7.20.5",
