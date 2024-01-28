@@ -242,4 +242,4 @@ class InMemoryVectorDb:
 
         if not self.id_mapping:
             return list(I[0])
-        return [self.id_mapping[id] for id in I[0]]
+        return [self.id_mapping[id] for id in I[0] if id >= 0] # Should not exist negative ID in I, but just in case

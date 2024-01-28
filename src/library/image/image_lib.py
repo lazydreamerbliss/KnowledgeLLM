@@ -265,7 +265,7 @@ class ImageLib(LibraryBase):
 
         start: float = time.time()
         image_embedding: np.ndarray = self.__embedder.embed_image(img)  # type: ignore
-        docs: list = self.__vector_db.query(np.asarray([image_embedding]))  # type: ignore
+        docs: list = self.__vector_db.query(np.asarray([image_embedding]), top_k)  # type: ignore
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with image similarity completed, cost: {time_taken:.2f}s')
 
@@ -299,7 +299,7 @@ class ImageLib(LibraryBase):
         start: float = time.time()
         # Text embedding is a 2D array, the first element is the embedding of the text
         text_embedding: np.ndarray = self.__embedder.embed_text(text)[0]  # type: ignore
-        docs: list = self.__vector_db.query(np.asarray([text_embedding]))  # type: ignore
+        docs: list = self.__vector_db.query(np.asarray([text_embedding]), top_k)  # type: ignore
         time_taken: float = time.time() - start
         tqdm.write(f'Image search with text similarity completed, cost: {time_taken:.2f}s')
 
