@@ -14,8 +14,10 @@ const createWindow = () => {
   });
   mainWindow.setMenuBarVisibility(false);
 
-  mainWindow.webContents.openDevTools(); // Open the developer tools, for debugging
-  //   win.loadFile("http://localhost");
+  mainWindow.webContents.openDevTools({
+    mode: "undocked",
+    activate: false,
+  }); // Open the developer tools, for debugging
   mainWindow.loadURL("http://localhost:5012");
   console.log(app.getLocale());
 };
