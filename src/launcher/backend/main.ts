@@ -1,22 +1,42 @@
 import path from "node:path";
 
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
+import { loadApi } from "./bridge/bridge-main";
 
 const createWindow = () => {
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+  const mainWindow = new BrowserWindow({
+    minWidth: 800,
+    minHeight: 600,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: true,
     },
   });
-  win.setMenuBarVisibility(false);
+  mainWindow.setMenuBarVisibility(false);
 
-  win.webContents.openDevTools(); // Open the developer tools, for debugging
-  //   win.loadFile("http://localhost");
-  win.loadURL("http://localhost:5012");
+  mainWindow.webContents.openDevTools({
+    mode: "undocked",
+    activate: false,
+  }); // Open the developer tools, for debugging
+  mainWindow.loadURL("http://localhost:5012");
+  console.log(app.getLocale());
 };
 
 app.whenReady().then(() => {
   createWindow();
+  ipcMain.on("minimize", (event) => {
+    console.log(event);
+    const webContents = event.sender;
+    const win = BrowserWindow.fromWebContents(webContents);
+    if (win === null) return;
+    win.minimize();
+  });
+  ipcMain.on("set-title", (event, title) => {
+    console.log("set-title called: ", title);
+    const webContents = event.sender;
+    const win = BrowserWindow.fromWebContents(webContents);
+    if (win === null) return;
+    win.setTitle(title);
+  });
+  loadApi();
 });
