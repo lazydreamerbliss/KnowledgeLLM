@@ -13,67 +13,53 @@ from library.document.wechat.wechat_history_provider import \
 from library.image.image_lib import ImageLib
 from singleton import *
 
+TEST_DOC_LIB = '~/Documents/test_lib'
+TEST_IMG_LIB = '~/Pictures/test_lib'
+
 
 def test_doc_lib():
     uuid = 'e8c0bd6f-2163-4294-92e6-4d225ab10b41'
-    doc_lib = DocumentLib('~/Documents/test_lib', 'doc_lib_test', uuid)
-
+    doc_lib = DocumentLib(TEST_DOC_LIB, 'doc_lib_test', uuid)
     doc_lib.set_embedder(DocEmbedder())
-    doc_lib.use_doc('群聊_small.txt', WechatHistoryProvider)
+
+    task_id: str = task_runner.submit_task(doc_lib.use_doc, None, True, True,
+                                           relative_path='群聊_small.txt', provider_type=WechatHistoryProvider)
+    while True:
+        print(task_runner.get_task_state([task_id]))
+        if task_runner.is_task_done(task_id):
+            break
+        time.sleep(1)
+
     res = doc_lib.query('哪家运营商可以开通公网ip？', 20, True)
     for i in res:
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
     doc_lib.set_embedder(DocEmbedder())
-    doc_lib.use_doc('哈利波特.txt', DocProvider)
+    task_id: str = task_runner.submit_task(doc_lib.use_doc, None, True, True,
+                                           relative_path='哈利波特.txt', provider_type=DocProvider)
+    while True:
+        print(task_runner.get_task_state([task_id]))
+        if task_runner.is_task_done(task_id):
+            break
+        time.sleep(1)
     res = doc_lib.query('伏地魔附着在谁身上？', 20)
     for i in res:
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
-    # task_id: str = task_runner.submit_task(doc_lib.use_doc, None, True, True,
-    #                                        relative_path='群聊_small.txt', provider_type=WechatHistoryProvider)
-    # while True:
-    #     if task_runner.is_task_done(task_id):
-    #         break
-    #     else:
-    #         print(task_runner.get_task_state([task_id]))
-    #     time.sleep(1)
-
-    # res = doc_lib.query('哪家运营商可以开通公网ip？', 20, True)
-    # for i in res:
-    #     print(i)
-    # print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-
-    # doc_lib.set_embedder(DocEmbedder())
-    # task_id: str = task_runner.submit_task(doc_lib.use_doc, None, True, True,
-    #                                        relative_path='哈利波特.txt', provider_type=DocProvider)
-    # while True:
-    #     if task_runner.is_task_done(task_id):
-    #         break
-    #     else:
-    #         print(task_runner.get_task_state([task_id]))
-    #     time.sleep(1)
-    # res = doc_lib.query('伏地魔附着在谁身上？', 20)
-    # for i in res:
-    #     print(i)
-    # print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-
 
 def test_image_lib():
     uuid = '53821604-76a2-41b1-a655-e07a86096f93'
-    img_lib1 = ImageLib('~/Pictures/test_lib', 'testlib', uuid, local_mode=True)
+    img_lib1 = ImageLib(TEST_IMG_LIB, 'testlib', uuid, local_mode=True)
     img_lib1.set_embedder(ImageEmbedder())
     task_id: str = task_runner.submit_task(img_lib1.initialize, None, True, True, force_init=True)
     while True:
+        print(task_runner.get_task_state([task_id]))
         if task_runner.is_task_done(task_id):
             break
-        else:
-            print(task_runner.get_task_state([task_id]))
         time.sleep(1)
 
-    print(task_runner.get_task_state([task_id]))
     SAMPLE_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
     test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
     a = img_lib1.image_for_image_search(test_img, 2)
@@ -117,5 +103,5 @@ def test_llm():
 
 if __name__ == '__main__':
     test_doc_lib()
-    # test_image_lib()
+    test_image_lib()
     test_llm()

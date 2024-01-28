@@ -12,7 +12,7 @@ class DocEmbedder:
     MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/local_models'
     transformer_path: str = os.path.join(MODEL_FOLDER, 'sentence_transformers', 'shibing624_text2vec-base-chinese')
     # "cross-encoder/ms-marco-MiniLM-L-12-v2": re-rank a list of candidate by their semantic similarity (https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2)
-    cross_encoder_path: str = os.path.join(MODEL_FOLDER, 'hfl--chinese-roberta-wwm-ext', 'snapshots', '5c58d0b8ec1d9014354d691c538661bf00bfdb44')
+    cross_encoder_path: str = os.path.join(MODEL_FOLDER, 'hfl--chinese-roberta-wwm-ext')
 
     def __init__(self):
         with TqdmContext('Initializing text embedder, loading transformers...', 'Loaded'):

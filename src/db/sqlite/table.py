@@ -46,7 +46,7 @@ class SqliteTable:
             raise ValueError('table_name is None')
 
         self.table_name = table_name
-        self.db = sqlite3.connect(db_path)
+        self.db = sqlite3.connect(db_path, check_same_thread=False)
 
     @ensure_db
     def table_exists(self) -> bool:

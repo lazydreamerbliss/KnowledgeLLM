@@ -208,6 +208,8 @@ class DocumentLib(Generic[D], LibraryBase):
                 cancel_event: Event | None = None):
         if not relative_path:
             raise ValueError('Invalid relative path')
+        if not self.__embedder:
+            raise ValueError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self._metadata['embedded_docs']:
