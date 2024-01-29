@@ -2,6 +2,8 @@ import os
 import pickle
 import sys
 from pathlib import Path
+from knowledge_base.document.doc_embedder import DocEmbedder
+from knowledge_base.image.image_embedder import ImageEmbedder
 
 from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
@@ -284,6 +286,7 @@ class LibraryManager:
         if isinstance(self.instance, ImageLib):
             if self.instance.lib_is_ready():
                 return UUID_EMPTY
+            self.instance.set_embedder(ImageEmbedder())
             task_id: str = self.task_runner.submit_task(self.instance.initialize, None, True, True,
                                                         force_init=kwargs.get('force_init', False))
             return task_id
@@ -294,6 +297,7 @@ class LibraryManager:
                 raise LibraryError('Invalid parameters for DocumentLib')
             if self.instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
                 return UUID_EMPTY
+            self.instance.set_embedder(DocEmbedder())
             task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True,
                                                         relative_path=kwargs['relative_path'],
                                                         provider_type=kwargs['provider_type'],

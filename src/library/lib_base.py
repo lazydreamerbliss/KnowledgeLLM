@@ -85,6 +85,11 @@ class LibraryBase:
     Interface methods
     """
 
+    def set_embedder(embedder: Any):
+        """Set embedder for library
+        """
+        raise NotImplementedError()
+
     def lib_is_ready(self) -> bool:
         """Check if the library is ready for use
         - If not, means only the metadata file created
