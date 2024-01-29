@@ -4,6 +4,7 @@ from redis.commands.search.field import VectorField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 
 from db.vector.redis_client import BatchedPipeline, RedisClient
+from utils.exceptions.db_errors import VectorDbError
 from utils.tqdm_context import TqdmContext
 
 
@@ -13,7 +14,7 @@ class RedisVectorDb:
 
     def __init__(self, namespace: str, index_name: str):
         if not namespace or not index_name:
-            raise ValueError('Namespace and index name are mandatory for using redis as vector DB')
+            raise VectorDbError('Namespace and index name are mandatory for using redis as vector DB')
 
         with TqdmContext('Connecting to Redis vector DB...', 'Connected'):
             self.redis: RedisClient = RedisClient()

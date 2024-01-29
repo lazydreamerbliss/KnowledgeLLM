@@ -6,7 +6,7 @@ from flask import (Blueprint, jsonify, redirect, render_template, request,
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from lib_constants import *
+from utils.constants.lib_constants import *
 from lib_manager import LibCreationObj
 from server.file_utils.file import *
 from server.file_utils.folder import *

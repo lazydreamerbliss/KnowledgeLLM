@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from knowledge_base.document.doc_provider import DocProviderBase
+from knowledge_base.document.doc_provider import *
 from library.document.wechat.wechat_history_table import WechatHistoryTable
 from utils.tqdm_context import TqdmContext
 
@@ -36,7 +36,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         # If the table is empty, initialize it with given doc_path (chat history)
         if not self.table.row_count() or re_dump:
             if not doc_path:
-                raise ValueError('doc_path is mandatory when table is empty')
+                raise DocProviderError('doc_path is mandatory when table is empty')
 
             with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
                 self.table.clean_all_data()
@@ -82,7 +82,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
     def initialize(self, chat_filepath: str) -> None:
         if not chat_filepath:
-            raise ValueError('chat_filepath is None')
+            raise DocProviderError('chat_filepath is None')
 
         cached_reply: str = ""
         reply_time: datetime | None = None  # Reply message has no timestamp, use previous message's timestamp instead

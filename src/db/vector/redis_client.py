@@ -5,6 +5,7 @@ from redis import Redis
 from redis.client import Pipeline
 
 from env import *
+from utils.exceptions.db_errors import VectorDbError
 
 
 class BatchedPipeline:
@@ -69,7 +70,7 @@ def ensure_redis(func):
     @wraps(func)
     def wrapper(self: 'RedisClient', *args, **kwargs):
         if not self.connected:
-            raise ValueError("Redis is not connected")
+            raise VectorDbError("Redis is not connected")
         return func(self, *args, **kwargs)
     return wrapper
 

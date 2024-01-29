@@ -5,6 +5,7 @@ import numpy as np
 
 from db.vector.mem_vector_db import InMemoryVectorDb
 from db.vector.redis_client import BatchedPipeline
+from utils.exceptions.db_errors import VectorDbError
 
 
 def ensure_vector_db_connected(func):
@@ -13,7 +14,7 @@ def ensure_vector_db_connected(func):
     @wraps(func)
     def wrapper(self: 'DocLibVectorDb', *args, **kwargs):
         if not self.mem_vector_db:
-            raise ValueError('Vector DB not connected')
+            raise VectorDbError('Vector DB not connected')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -21,11 +22,11 @@ def ensure_vector_db_connected(func):
 class DocLibVectorDb:
     """It maintains a vector database on memory only
     """
-    INDEX_FOLDER: str = '__index__'  # All index files are stored in this folder under a library
+    INDEX_FOLDER: str = '__index__'  # All index files are stored in this folder under library's data folder
 
     def __init__(self, data_folder: str, db_name: str):
         if not data_folder or not db_name:
-            raise ValueError('Invalid input')
+            raise VectorDbError('Invalid input')
 
         idx_path: str = os.path.join(data_folder, self.INDEX_FOLDER)
         idx_file: str = f'{db_name}.idx'
@@ -35,7 +36,7 @@ class DocLibVectorDb:
     @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int, training_set: np.ndarray, dataset_size: int):
         if training_set is None:
-            raise ValueError('training_set is None')
+            raise VectorDbError('training_set is None')
 
         # Use IVF index for in-memory vector DB
         self.mem_vector_db.initialize_index(vector_dimension, training_set=training_set,

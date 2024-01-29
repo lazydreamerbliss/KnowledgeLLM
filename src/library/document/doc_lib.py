@@ -6,12 +6,12 @@ import numpy as np
 import numpy.typing as npt
 from tqdm import tqdm
 
-from exceptions import TaskCancellationException
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.document.doc_provider import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
 from library.lib_base import *
+from utils.exceptions.task_errors import TaskCancellationException
 from utils.tqdm_context import TqdmContext
 
 """
@@ -41,7 +41,7 @@ class DocumentLib(Generic[D], LibraryBase):
             uuid (str): UUID of the library
         """
         if not uuid or not lib_name:
-            raise ValueError('Invalid UUID or library name')
+            raise LibraryError('Invalid UUID or library name')
         super().__init__(lib_path)
         super().__init__(lib_path)
 
@@ -59,7 +59,7 @@ class DocumentLib(Generic[D], LibraryBase):
             else:
                 self.load_metadata(uuid, lib_name)
         if not self._metadata or not self.uuid:
-            raise ValueError('Library metadata not initialized')
+            raise LibraryError('Library metadata not initialized')
 
         self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
         self.__doc_provider: D | None = None
@@ -79,7 +79,7 @@ class DocumentLib(Generic[D], LibraryBase):
         """Initialize a document under the library
         """
         if not relative_path:
-            raise ValueError('Invalid relative path')
+            raise LibraryError('Invalid relative path')
 
         if relative_path in self._metadata['embedded_docs']:
             self.use_doc(relative_path, provider_type)
@@ -87,7 +87,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
         doc_path: str = os.path.join(self.path_lib, relative_path)
         if not os.path.isfile(doc_path):
-            raise ValueError(f'Invalid doc path: {doc_path}')
+            raise LibraryError(f'Invalid doc path: {doc_path}')
 
         # Pre-check if given doc is in unfinished list, clean up leftover if any
         if relative_path in self._metadata['unfinished_docs']:
@@ -148,13 +148,12 @@ class DocumentLib(Generic[D], LibraryBase):
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)
         """
-
         if not text or top_k <= 0:
             return list()
 
         # If no provider/vector DB
         if not self.__doc_provider or not self.__vector_db:
-            raise ValueError('No active document, please switch to a document first')
+            raise LibraryError('No active document, please switch to a document first')
 
         query_embedding: npt.ArrayLike = self.__embedder.embed_text(text)  # type: ignore
         ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
@@ -174,7 +173,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
     def __rerank(self, text: str, candidates: list[tuple]) -> list[tuple]:
         if not self.__doc_provider:
-            raise ValueError('No active document, please switch to a document first')
+            raise LibraryError('No active document, please switch to a document first')
 
         tqdm.write(f'Reranking {len(candidates)} candidates...')
         candidates_str: list[str] = [self.__doc_provider.RERANK_LAMBDA(c) for c in candidates]  # type: ignore
@@ -204,32 +203,39 @@ class DocumentLib(Generic[D], LibraryBase):
     def use_doc(self,
                 relative_path: str,
                 provider_type: Type[D],
+                force_init: bool = False,
                 progress_reporter: Callable[[int], None] | None = None,
                 cancel_event: Event | None = None):
         if not relative_path:
-            raise ValueError('Invalid relative path')
+            raise LibraryError('Invalid relative path')
         if not self.__embedder:
-            raise ValueError('Embedder not set')
+            raise LibraryError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path not in self._metadata['embedded_docs']:
-            uuid: str = str(uuid4())
-            try:
-                self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
-            except TaskCancellationException:
-                # On cancel, clean this doc's leftover
-                self.remove_doc_embedding(None, uuid, provider_type)
-                self._metadata['unfinished_docs'].pop(relative_path, None)
-                self.save_metadata()
+        need_initialization: bool = force_init or relative_path not in self._metadata['embedded_docs']
+        # If no need to initialize, just switch to the doc and return
+        if not need_initialization:
+            with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
+                uuid: str = self._metadata['embedded_docs'][relative_path]
+                self.__doc_provider = provider_type(self.path_db,
+                                                    uuid,
+                                                    doc_path=None,
+                                                    re_dump=False)  # type: ignore
+                self.__vector_db = DocLibVectorDb(self.path_lib_data, uuid)
             return
 
-        with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-            uuid: str = self._metadata['embedded_docs'][relative_path]
-            self.__doc_provider = provider_type(self.path_db,
-                                                uuid,
-                                                doc_path=None,
-                                                re_dump=False)  # type: ignore
-            self.__vector_db = DocLibVectorDb(self.path_lib_data, uuid)
+        # Do initialization
+        if force_init and relative_path in self._metadata['embedded_docs']:
+            self.remove_doc_embedding(relative_path, None, provider_type)
+
+        uuid: str = str(uuid4())
+        try:
+            self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
+        except TaskCancellationException:
+            # On cancel, clean this doc's leftover
+            self.remove_doc_embedding(None, uuid, provider_type)
+            self._metadata['unfinished_docs'].pop(relative_path, None)
+            self.save_metadata()
 
     def delete_lib(self):
         """Delete the doc library, it purges all library data
@@ -248,6 +254,18 @@ class DocumentLib(Generic[D], LibraryBase):
     Public methods
     """
 
+    def lib_is_ready_on_current_doc(self, relative_path: str) -> bool:
+        """Check if library is ready on the given document
+        - This need to ensure lib_is_ready() and confirm the given relative_path is the current doc
+        """
+        if not self.lib_is_ready() or not relative_path:
+            return False
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        if relative_path not in self._metadata['embedded_docs']:
+            return False
+        return self.__doc_provider.table.table_name == self._metadata['embedded_docs'][relative_path]  # type: ignore
+
     def set_embedder(self, embedder: DocEmbedder):
         self.__embedder = embedder
 
@@ -256,11 +274,11 @@ class DocumentLib(Generic[D], LibraryBase):
         1. Delete the document's table from DB
         2. Delete the document's vector index
 
-        If relative_path is None, then uuid must be provided, and vice versa
-        If both are provided, then relative_path will be used
+        If relative_path is None, then UUID must be provided, and vice versa
+        If both are provided, only relative_path will be used
         """
         if not relative_path and not uuid:
-            raise ValueError('Invalid relative path and UUID')
+            raise LibraryError('Invalid relative path and UUID')
 
         if relative_path:
             relative_path = relative_path.lstrip(os.path.sep)

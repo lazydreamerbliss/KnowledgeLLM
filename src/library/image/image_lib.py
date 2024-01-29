@@ -11,12 +11,12 @@ from torch import Tensor
 from tqdm import tqdm
 
 from db.vector.redis_client import BatchedPipeline
-from exceptions import TaskCancellationException
 from knowledge_base.image.image_embedder import ImageEmbedder
 from library.image.image_lib_table import ImageLibTable
 from library.image.image_lib_vector_db import ImageLibVectorDb
 from library.image.sql import DB_NAME
 from library.lib_base import *
+from utils.exceptions.task_errors import TaskCancellationException
 from utils.tqdm_context import TqdmContext
 
 
@@ -37,7 +37,7 @@ class ImageLib(LibraryBase):
             local_mode (bool, optional): True for use local index, False for use Redis. Defaults to True.
         """
         if not uuid or not lib_name:
-            raise ValueError('Invalid UUID or library name')
+            raise LibraryError('Invalid UUID or library name')
         super().__init__(lib_path)
 
         # Load metadata
@@ -52,7 +52,7 @@ class ImageLib(LibraryBase):
             else:
                 self.load_metadata(uuid, lib_name)
         if not self._metadata or not self.uuid:
-            raise ValueError('Library metadata not initialized')
+            raise LibraryError('Library metadata not initialized')
 
         self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
         self.path_vector_db: str = os.path.join(self.path_lib_data, ImageLibVectorDb.IDX_FILENAME)
@@ -188,7 +188,7 @@ class ImageLib(LibraryBase):
             return
 
         if not self.__embedder:
-            raise ValueError('Embedder not set')
+            raise LibraryError('Embedder not set')
 
         # Load SQL DB and vector DB, and "not ready" has two cases:
         # 1. The lib is a new lib
@@ -277,7 +277,7 @@ class ImageLib(LibraryBase):
             casted_local: list[int | str] = docs
             for possible_uuid in casted_local:
                 if isinstance(possible_uuid, int):
-                    raise ValueError('ID tracking not enabled, cannot get UUID')
+                    raise LibraryError('ID tracking not enabled, cannot get UUID')
                 row: tuple | None = self.__table.select_row_by_uuid(possible_uuid)  # type: ignore
                 if row:
                     res.append(row)
@@ -311,7 +311,7 @@ class ImageLib(LibraryBase):
             casted_local: list[int | str] = docs
             for possible_uuid in casted_local:
                 if isinstance(possible_uuid, int):
-                    raise ValueError('ID tracking not enabled, cannot get UUID')
+                    raise LibraryError('ID tracking not enabled, cannot get UUID')
                 row: tuple | None = self.__table.select_row_by_uuid(possible_uuid)  # type: ignore
                 if row:
                     res.append(row)

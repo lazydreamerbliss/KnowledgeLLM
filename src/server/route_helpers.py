@@ -2,7 +2,7 @@ import binascii
 
 from flask import render_template
 
-from lib_constants import library_types_CN
+from utils.constants.lib_constants import library_types_CN
 from server.file_utils.folder import is_valid_relative_path
 from singleton import lib_manager
 

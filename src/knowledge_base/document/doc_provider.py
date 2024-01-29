@@ -3,6 +3,7 @@ from sqlite3 import Cursor
 from typing import Callable, Generic, Type, TypeVar
 
 from db.sqlite.table import SqliteTable
+from utils.exceptions.lib_errors import *
 
 # Generic type for SqliteTable
 T = TypeVar('T', bound=SqliteTable)

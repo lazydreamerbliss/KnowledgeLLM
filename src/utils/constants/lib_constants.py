@@ -7,6 +7,8 @@ sorted_by_labels_CN: dict[str, str] = {
     'Size': '大小',
 }
 view_styles: list[str] = ['grid', 'list']
+
+
 supported_formats: set[str] = {'mp4', "webm", "opgg", 'mp3', 'pdf', 'txt', 'html', 'css', 'svg', 'js', 'png', 'jpg'}
 
 

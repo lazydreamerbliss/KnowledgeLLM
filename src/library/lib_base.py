@@ -5,7 +5,8 @@ from functools import wraps
 from threading import Event
 from typing import Any, Callable
 
-from lib_constants import sorted_by_labels, view_styles
+from utils.constants.lib_constants import sorted_by_labels, view_styles
+from utils.exceptions.lib_errors import LibraryError
 
 LIB_DATA_FOLDER: str = '__library_data__'
 
@@ -23,7 +24,7 @@ DEFAULT_EXCLUSION_LIST: set[str] = {
 
 BASIC_METADATA: dict = {
     'type': '',
-    'uuid': '',  # UUID of the library, uniquely identify the library
+    'uuid': '',
     'name': '',
     'created_on': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -40,7 +41,7 @@ def ensure_lib_is_ready(func):
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
         if not self.lib_is_ready():
-            raise ValueError(f'Library is not ready: {self.path_lib}')
+            raise LibraryError(f'Library is not ready: {self.path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -51,7 +52,7 @@ def ensure_metadata_ready(func):
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
         if not self._metadata:
-            raise ValueError(f'Library is not ready: {self.path_lib}')
+            raise LibraryError(f'Library is not ready: {self.path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -64,16 +65,25 @@ class LibraryBase:
         # Expand the lib path to absolute path
         lib_path = os.path.expanduser(lib_path)
         if not os.path.isdir(lib_path):
-            raise ValueError(f'Invalid lib path: {lib_path}')
+            raise LibraryError(f'Invalid lib path: {lib_path}')
 
+        # Path to the library root folder
         self.path_lib: str = lib_path
+        # Path to the library's data folder
         self.path_lib_data: str = os.path.join(self.path_lib, LIB_DATA_FOLDER)
+        # Path to the library's metadata file
         self.path_metadata: str = os.path.join(self.path_lib_data, LibraryBase.METADATA_FILE)
+        # UUID of the library
         self.uuid: str = ''
+        # In-memory metadata
         self._metadata: dict = dict()
 
         if not os.path.isdir(self.path_lib_data):
             os.makedirs(self.path_lib_data)
+
+    """
+    Interface methods
+    """
 
     def lib_is_ready(self) -> bool:
         """Check if the library is ready for use
@@ -100,7 +110,7 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def use_doc(self, relative_path: str, provider_type: Any, progress_reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
+    def use_doc(self, relative_path: str, provider_type: Any, force_init: bool = False, progress_reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
         """Initialize or switch to a document under current library
         - If target document is not in metadata, then this is an uninitialized document, call __initialize_doc()
         - Otherwise load the document provider and vector DB for the target document directly
@@ -109,6 +119,7 @@ class LibraryBase:
         Args:
             relative_path (str): The target document's relative path based on current library
             provider_type (Type[D]): The target document's provider's type info
+            force_init (bool, optional): If the initialization is a force re-initialization, this will delete doc's previous embeddings (if any). Defaults to False.
             reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
             It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
             cancel_event (Event | None, optional): The event object to check if the initialization is cancelled. Defaults to None.
@@ -133,7 +144,7 @@ class LibraryBase:
         - File missing or modify the UUID manually will cause the library's index missing
         """
         if not initial_metadata:
-            raise ValueError('Initial metadata must be provided for a new library')
+            raise LibraryError('Initial metadata must be provided for a new library')
 
         pickle.dump(initial_metadata,  open(self.path_metadata, 'wb'))
         self._metadata = initial_metadata
@@ -143,7 +154,7 @@ class LibraryBase:
         """Save the metadata file for any updates
         """
         if not os.path.isfile(self.path_metadata):
-            raise ValueError(f'metadata file missing: {self.path_metadata}')
+            raise LibraryError(f'metadata file missing: {self.path_metadata}')
 
         pickle.dump(self._metadata,  open(self.path_metadata, 'wb'))
 
@@ -151,14 +162,14 @@ class LibraryBase:
         """Load the metadata file of the library
         """
         if not os.path.isfile(self.path_metadata):
-            raise ValueError(f'metadata file missing: {self.path_metadata}')
+            raise LibraryError(f'metadata file missing: {self.path_metadata}')
 
         try:
             content: dict = pickle.load(open(self.path_metadata, 'rb'))
         except:
             content: dict = dict()
         if not content or not content.get('uuid', None) or content['uuid'] != given_uuid:
-            raise ValueError(f'Invalid metadata file: {self.path_metadata}')
+            raise LibraryError(f'Invalid metadata file: {self.path_metadata}')
 
         self._metadata = content
         self.uuid = content['uuid']

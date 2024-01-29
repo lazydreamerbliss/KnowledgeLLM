@@ -1,3 +1,5 @@
+from utils.exceptions.db_errors import SqlTableError
+
 record_structure: list[list[str]] = [
     ['id', 'INTEGER PRIMARY KEY'],
     ['timestamp', 'INTEGER NOT NULL'],
@@ -18,7 +20,7 @@ RECORD_LENGTH: int = len(record_structure)
 class Record:
     def __init__(self, row: tuple):
         if not row or len(row) != RECORD_LENGTH:
-            raise ValueError('row size is not correct')
+            raise SqlTableError('row size is not correct')
 
         self.id: int = row[0]
         self.timestamp: int = row[1]
@@ -38,7 +40,7 @@ class Record:
 
 def initialize_table_sql(table_name: str) -> str:
     if not table_name:
-        raise ValueError('table_name is None')
+        raise SqlTableError('table_name is None')
 
     # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, sender TEXT, message TEXT, reply_to TEXT, replied_message TEXT
     return f"""
@@ -50,7 +52,7 @@ def initialize_table_sql(table_name: str) -> str:
 
 def insert_row_sql(table_name: str) -> str:
     if not table_name:
-        raise ValueError('table_name is None')
+        raise SqlTableError('table_name is None')
 
     # Skip the first column (id)
     return f"""
@@ -61,7 +63,7 @@ def insert_row_sql(table_name: str) -> str:
 
 def select_by_sender_sql(table_name: str) -> str:
     if not table_name:
-        raise ValueError('table_name is None')
+        raise SqlTableError('table_name is None')
 
     return f"""
     SELECT * FROM "{table_name}" WHERE sender = ?;
@@ -70,7 +72,7 @@ def select_by_sender_sql(table_name: str) -> str:
 
 def select_by_timestamp_sql(table_name: str) -> str:
     if not table_name:
-        raise ValueError('table_name is None')
+        raise SqlTableError('table_name is None')
 
     return f"""
     SELECT * FROM "{table_name}" WHERE timestamp = ?;
@@ -79,7 +81,7 @@ def select_by_timestamp_sql(table_name: str) -> str:
 
 def select_by_sender_and_timestamp_sql(table_name: str) -> str:
     if not table_name:
-        raise ValueError('table_name is None')
+        raise SqlTableError('table_name is None')
 
     return f"""
     SELECT * FROM "{table_name}" WHERE sender = ? AND timestamp = ?;

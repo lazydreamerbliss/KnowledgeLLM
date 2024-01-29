@@ -4,7 +4,8 @@ from datetime import datetime
 from threading import Event, Lock
 from typing import Callable
 
-from exceptions import TaskCancelFailureException, TaskCreationFailureException
+from utils.exceptions.task_errors import (TaskCancelFailureException,
+                                          TaskCreationFailureException)
 
 EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these seconds
 

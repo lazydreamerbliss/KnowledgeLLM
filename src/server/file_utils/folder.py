@@ -2,7 +2,7 @@ import os
 import re
 from datetime import datetime
 
-from lib_constants import *
+from utils.constants.lib_constants import *
 from server.file_utils.file import humanized_size
 from server.file_utils.file_constants import ICON_MAPPING
 from singleton import lib_manager

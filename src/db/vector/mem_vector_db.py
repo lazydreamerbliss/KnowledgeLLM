@@ -7,6 +7,8 @@ import numpy as np
 from faiss import IndexFlatL2, IndexIDMap2, IndexIVFFlat
 from tqdm import tqdm
 
+from utils.exceptions.db_errors import VectorDbError
+
 
 def ensure_index(func):
     """Decorator to ensure the index is initialized
@@ -14,7 +16,7 @@ def ensure_index(func):
     @wraps(func)
     def wrapper(self: 'InMemoryVectorDb', *args, **kwargs):
         if not self.mem_index_flat and not self.mem_index_ivf:
-            raise ValueError('Index not initialized')
+            raise VectorDbError('Index not initialized')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -28,7 +30,7 @@ class InMemoryVectorDb:
 
     def __init__(self, data_folder, index_filename: str | None = None):
         if not data_folder:
-            raise ValueError(
+            raise VectorDbError(
                 'A folder path is mandatory for using in-memory vector DB, index file will be created in the folder')
 
         tqdm.write(f'Loading vector index from disk...', end=' ')
@@ -60,7 +62,7 @@ class InMemoryVectorDb:
 
                 tqdm.write(f'Loaded index from {index_file_path}')
             except:
-                raise ValueError('Corrupted index file')
+                raise VectorDbError('Corrupted index file')
         else:
             tqdm.write(f'Index file {index_file_path} not found, this is a new database')
 
@@ -69,7 +71,7 @@ class InMemoryVectorDb:
             return self.mem_index_flat
         if self.mem_index_ivf:
             return self.mem_index_ivf
-        raise ValueError('Index not initialized')
+        raise VectorDbError('Index not initialized')
 
     def initialize_index(self,
                          vector_dimension: int,
@@ -96,7 +98,7 @@ class InMemoryVectorDb:
 
         # IVF index case
         if training_set_uuid and len(training_set) != len(training_set_uuid):
-            raise ValueError('Training set and UUID list have different lengths')
+            raise VectorDbError('Training set and UUID list have different lengths')
 
         if expected_dataset_size <= 100000:
             tqdm.write(f'Dataset size {expected_dataset_size} is too small for IVF, suggest using flat index instead')
@@ -161,7 +163,7 @@ class InMemoryVectorDb:
         if not uuids and not ids:
             return
         if uuids and not ids and not self.id_mapping:
-            raise ValueError('ID mapping is required for removing by UUID')
+            raise VectorDbError('ID mapping is required for removing by UUID')
 
         to_be_removed_ids: list[int] | None = None
         if ids:

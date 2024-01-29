@@ -2,6 +2,7 @@ from sqlite3 import Cursor
 
 from db.sqlite.table import SqliteTable, ensure_db
 from library.document.sql import *
+from utils.exceptions.db_errors import SqlTableError
 
 
 class DocLibTable(SqliteTable):
@@ -23,7 +24,7 @@ class DocLibTable(SqliteTable):
     def insert_row(self, row: tuple) -> int | None:
         # Skip the first column (id)
         if not row or len(row) != RECORD_LENGTH-1:
-            raise ValueError('row size is not correct')
+            raise SqlTableError('row size is not correct')
 
         cur: Cursor = self.db.cursor()
         cur.execute(insert_row_sql(self.table_name), row)
@@ -35,7 +36,7 @@ class DocLibTable(SqliteTable):
         # Skip the first column (id)
         for row in rows:
             if not row or len(row) != RECORD_LENGTH-1:
-                raise ValueError('row size is not correct')
+                raise SqlTableError('row size is not correct')
 
         cur: Cursor = self.db.cursor()
         cur.executemany(insert_row_sql(self.table_name), rows)

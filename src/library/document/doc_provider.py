@@ -3,7 +3,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from knowledge_base.document.doc_provider import DocProviderBase
+from knowledge_base.document.doc_provider import *
 from library.document.doc_lib_table import DocLibTable
 from utils.tqdm_context import TqdmContext
 
@@ -25,7 +25,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
         # If the table is empty, initialize it with given doc_path
         if not self.table.row_count() or re_dump:
             if not doc_path:
-                raise ValueError('doc_path is mandatory when table is empty')
+                raise DocProviderError('doc_path is mandatory when table is empty')
 
             with TqdmContext(f'Initializing doc table for {doc_path}, table name: {uuid}...', 'Loaded'):
                 self.table.clean_all_data()
@@ -33,7 +33,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
 
     def initialize(self, doc_path: str) -> None:
         if not doc_path:
-            raise ValueError('doc_path is None')
+            raise DocProviderError('doc_path is None')
 
         with open(doc_path, 'r', encoding='utf-8') as f:
             # 'ascii' param needs an extra space, try to remove it to see what happens

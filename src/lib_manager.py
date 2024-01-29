@@ -6,6 +6,7 @@ from pathlib import Path
 from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
+from utils.exceptions.lib_errors import LibraryError, LibraryManagerException
 from utils.task_runner import TaskRunner
 
 IS_WINDOWS = 'win32' in sys.platform or 'win64' in sys.platform
@@ -38,7 +39,7 @@ class LibraryManager:
 
     def __init__(self, task_runner: TaskRunner):
         if not task_runner:
-            raise ValueError('Task runner is not provided')
+            raise LibraryManagerException('Task runner is not provided')
 
         self.task_runner: TaskRunner = task_runner
         try:
@@ -263,23 +264,31 @@ class LibraryManager:
             str | None: Task ID
         """
         if not self.instance:
-            raise ValueError('Library is not selected')
+            raise LibraryManagerException('Library is not selected')
 
-        # Do nothing for already-readied library
-        if self.instance.lib_is_ready():
-            return None
-
+        # Image library case
         if isinstance(self.instance, ImageLib):
+            if self.instance.lib_is_ready():
+                return None
             task_id: str = self.task_runner.submit_task(self.instance.initialize, None, True, True,
-                                                        force_init=True)
+                                                        force_init=kwargs.get('force_init', False))
             return task_id
+
+        # Document library case
         if isinstance(self.instance, DocumentLib):
             if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs:
-                raise ValueError('Invalid parameters for DocumentLib')
+                raise LibraryError('Invalid parameters for DocumentLib')
+            if self.instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
+                return None
             task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True,
                                                         relative_path=kwargs['relative_path'],
-                                                        provider_type=kwargs['provider_type'])
+                                                        provider_type=kwargs['provider_type'],
+                                                        force_init=kwargs.get('force_init', False))
             return task_id
+
+        # And more...
+        # TODO: Add more library types here
+
         return None
 
     def add_favorite(self, relative_path: str):
