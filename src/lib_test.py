@@ -6,6 +6,7 @@ from PIL import Image
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.image.image_embedder import ImageEmbedder
 from knowledge_base.image.image_tagger import ImageTagger
+from lib_manager import LibCreationObj
 from library.document.doc_lib import DocumentLib
 from library.document.doc_provider import DocProvider
 from library.document.wechat.wechat_history_provider import \
@@ -13,13 +14,8 @@ from library.document.wechat.wechat_history_provider import \
 from library.image.image_lib import ImageLib
 from singleton import *
 
-TEST_DOC_LIB = '~/Documents/test_lib'
-TEST_IMG_LIB = '~/Pictures/test_lib'
 
-
-def test_doc_lib():
-    uuid = 'e8c0bd6f-2163-4294-92e6-4d225ab10b41'
-    doc_lib = DocumentLib(TEST_DOC_LIB, 'doc_lib_test', uuid)
+def test_doc_lib(doc_lib: DocumentLib):
     doc_lib.set_embedder(DocEmbedder())
 
     task_id: str = task_runner.submit_task(doc_lib.use_doc, None, True, True,
@@ -49,11 +45,9 @@ def test_doc_lib():
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
 
-def test_image_lib():
-    uuid = '53821604-76a2-41b1-a655-e07a86096f93'
-    img_lib1 = ImageLib(TEST_IMG_LIB, 'testlib', uuid, local_mode=True)
-    img_lib1.set_embedder(ImageEmbedder())
-    task_id: str = task_runner.submit_task(img_lib1.initialize, None, True, True, force_init=True)
+def test_image_lib(img_lib: ImageLib):
+    img_lib.set_embedder(ImageEmbedder())
+    task_id: str = task_runner.submit_task(img_lib.initialize, None, True, True, force_init=True)
     while True:
         print(task_runner.get_task_state([task_id]))
         if task_runner.is_task_done(task_id):
@@ -62,9 +56,9 @@ def test_image_lib():
 
     SAMPLE_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
     test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
-    a = img_lib1.image_for_image_search(test_img, 2)
+    a = img_lib.image_for_image_search(test_img, 2)
     print(a)
-    b = img_lib1.text_for_image_search('astronaut', 2)
+    b = img_lib.text_for_image_search('astronaut', 2)
     print(b)
     print("####################################")
 
@@ -102,6 +96,30 @@ def test_llm():
 
 
 if __name__ == '__main__':
-    test_doc_lib()
-    test_image_lib()
+    TEST_DOC_LIB = '~/Documents/test_lib'
+    TEST_IMG_LIB = '~/Pictures/test_lib'
+    doc_lib_uuid = 'e8c0bd6f-2163-4294-92e6-4d225ab10b41'
+    img_lib_uuid = '53821604-76a2-41b1-a655-e07a86096f93'
+
+    doc_lib_creation = LibCreationObj()
+    doc_lib_creation.type = 'document'
+    doc_lib_creation.name = 'test_doc_lib'
+    doc_lib_creation.uuid = doc_lib_uuid
+    doc_lib_creation.path = TEST_DOC_LIB
+    img_lib_creation = LibCreationObj()
+    img_lib_creation.type = 'image'
+    img_lib_creation.name = 'test_img_lib'
+    img_lib_creation.uuid = img_lib_uuid
+    img_lib_creation.path = TEST_IMG_LIB
+    lib_manager.create_library(doc_lib_creation)
+    lib_manager.create_library(img_lib_creation)
+
+    lib_manager.use_library(doc_lib_uuid)
+    doc_lib: DocumentLib = lib_manager.instance  # type: ignore
+    test_doc_lib(doc_lib)
+
+    lib_manager.use_library(img_lib_uuid)
+    img_lib: ImageLib = lib_manager.instance  # type: ignore
+    test_image_lib(img_lib)
+
     test_llm()

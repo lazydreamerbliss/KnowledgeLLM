@@ -11,7 +11,7 @@ def ensure_db(func):
     @wraps(func)
     def wrapper(self: 'SqliteTable', *args, **kwargs):
         if not self.db:
-            raise ValueError("db is None")
+            raise SqlTableError("db is None")
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -41,9 +41,9 @@ class SqliteTable:
 
     def __initialize(self, db_path: str, table_name: str):
         if not db_path:
-            raise ValueError('db_path is None')
+            raise SqlTableError('db_path is None')
         if not table_name:
-            raise ValueError('table_name is None')
+            raise SqlTableError('table_name is None')
 
         self.table_name = table_name
         self.db = sqlite3.connect(db_path, check_same_thread=False)

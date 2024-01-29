@@ -237,16 +237,22 @@ class DocumentLib(Generic[D], LibraryBase):
             self._metadata['unfinished_docs'].pop(relative_path, None)
             self.save_metadata()
 
-    def delete_lib(self):
+    def demolish(self):
         """Delete the doc library, it purges all library data
         1. Delete vector index folder
         2. Delete DB file
         3. Delete metadata file
         """
-        DocLibVectorDb.delete_mem_db_folder(self.path_lib_data)
-        DocProviderBase.delete_db_file(self.path_db)
+        self.__embedder = None
+        self.__doc_provider = None
+        self.__vector_db = None
 
-        self.path_metadata
+        folder_path: str = os.path.join(self.path_lib_data, DocLibVectorDb.INDEX_FOLDER)
+        if os.path.isdir(folder_path):
+            os.rmdir(folder_path)
+
+        if os.path.isfile(self.path_db):
+            os.remove(self.path_db)
         if os.path.isfile(self.path_metadata):
             os.remove(self.path_metadata)
 

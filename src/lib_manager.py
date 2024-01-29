@@ -1,6 +1,7 @@
 import os
 import pickle
 import sys
+import uuid
 from pathlib import Path
 
 from library.document.doc_lib import DocumentLib
@@ -10,6 +11,8 @@ from utils.exceptions.lib_errors import LibraryError, LibraryManagerException
 from utils.task_runner import TaskRunner
 
 IS_WINDOWS = 'win32' in sys.platform or 'win64' in sys.platform
+UUID_EMPTY = '00000000-0000-0000-0000-000000000000'
+CONFIG_FOLDER = f'{Path(__file__).parent.parent.parent}/samples'
 
 
 class LibCreationObj:
@@ -34,18 +37,24 @@ class LibCreationObj:
 class LibraryManager:
     """This is a single threaded, single session app, so one manager instance globally is enough
     """
-    # Config file is a static path
-    CONFIG_FILE: str = f'{Path(__file__).parent.parent.parent}/samples/librarian.bin'  # test only
+
+    CONFIG_FILE: str = 'librarian.bin'
 
     def __init__(self, task_runner: TaskRunner):
         if not task_runner:
             raise LibraryManagerException('Task runner is not provided')
 
         self.task_runner: TaskRunner = task_runner
+        config_file_path: str = os.path.join(CONFIG_FOLDER, LibraryManager.CONFIG_FILE)
         try:
-            obj: dict = pickle.load(open(LibraryManager.CONFIG_FILE, 'rb'))
+            obj: dict = pickle.load(open(config_file_path, 'rb'))
         except:
-            obj: dict = dict()
+            # If failed to load and the config file does not exist, it means it's the first time to run the app
+            # - Otherwise the config file is corrupted
+            if not os.path.isfile(config_file_path):
+                obj: dict = dict()
+            else:
+                raise LibraryManagerException('Config file corrupted')
 
         # KV: uuid -> Library
         self.libraries: dict[str, LibCreationObj] = obj.get('libraries', dict())
@@ -55,46 +64,19 @@ class LibraryManager:
 
         # Current library instance and UUID
         self.instance: LibraryBase | None = None  # The instance of currently active library
-        self.current_lib: str = obj.get('current_lib', '')
-        if self.current_lib and self.current_lib not in self.libraries:
-            self.current_lib = ''
-        else:
-            self.instanize_lib()
+        current_lib: str = obj.get('current_lib', '')
+        if current_lib:
+            if current_lib not in self.libraries:
+                raise LibraryManagerException('Config file corrupted')
+            self.instanize_lib(current_lib)
 
     def __save(self):
         pickle.dump(
             {
                 'libraries': self.libraries,
-                'current_lib': self.current_lib,
+                'current_lib': self.instance.uuid if self.instance else ''
             },
             open(LibraryManager.CONFIG_FILE, 'wb'))
-
-    def instanize_lib(self) -> bool:
-        """Build instance for current active library and load library metadata
-        """
-        if self.instance and self.instance.uuid == self.current_lib:
-            return True
-
-        self.instance = None
-        if self.current_lib and self.current_lib in self.libraries:
-            try:
-                obj: LibCreationObj = self.libraries[self.current_lib]
-                if obj.type == 'image':
-                    self.instance = ImageLib(obj.path, obj.name, obj.uuid, local_mode=True)
-                elif obj.type == 'video':
-                    pass
-                elif obj.type == 'document':
-                    self.instance = DocumentLib(obj.path, obj.name, obj.uuid)
-                elif obj.type == 'general':
-                    pass
-
-                if self.instance:
-                    self.favorite_list = self.instance.get_favorite_list()
-                    self.exclusion_list = self.instance.get_exclusion_list()
-                return True
-            except:
-                return False
-        return False
 
     """
     Get current library information
@@ -121,7 +103,7 @@ class LibraryManager:
         - Only check if path is favorited
         - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
         """
-        if not self.current_lib or not relative_path or not self.favorite_list:
+        if not self.instance or not relative_path or not self.favorite_list:
             return False
         return relative_path in self.favorite_list
 
@@ -130,7 +112,7 @@ class LibraryManager:
         - Check both file/folder name and it's relative path
         - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
         """
-        if not self.current_lib or not relative_path or not self.exclusion_list:
+        if not self.instance or not relative_path or not self.exclusion_list:
             return False
 
         file_or_folder_name: str = os.path.basename(relative_path)
@@ -139,9 +121,9 @@ class LibraryManager:
     def get_current_lib(self) -> LibCreationObj | None:
         """Get the general info of current library
         """
-        if not self.current_lib:
+        if not self.instance:
             return None
-        return self.libraries[self.current_lib]
+        return self.libraries[self.instance.uuid]
 
     def get_lib_name(self) -> str | None:
         obj: LibCreationObj | None = self.get_current_lib()
@@ -181,16 +163,15 @@ class LibraryManager:
     Manager operations for managing current library
     """
 
-    def switch_library(self, uuid: str):
+    def use_library(self, uuid: str):
         """Switch to another library with given UUID
         """
         if uuid and uuid in self.libraries:
-            self.current_lib = uuid
-            if self.instanize_lib():
+            if self.instanize_lib(uuid):
                 self.__save()
 
-    def add_library(self, new_lib: LibCreationObj, switch_to: bool = True) -> bool:
-        """Add a library to the config
+    def create_library(self, new_lib: LibCreationObj, switch_to: bool = False) -> bool:
+        """Add a library to the manager, this only write the library info to config file unless the switch_to flag is set
         - Pre check to params must be done before calling this method
         """
         if new_lib.uuid in self.libraries or new_lib.path in self.get_library_path_list():
@@ -198,27 +179,29 @@ class LibraryManager:
 
         self.libraries[new_lib.uuid] = new_lib
         if switch_to:
-            self.current_lib = new_lib.uuid
-            if self.instanize_lib():
+            if self.instanize_lib(new_lib.uuid):
                 self.__save()
         else:
             self.__save()
         return True
 
-    def remove_library(self, uuid: str):
-        """Remove a library from the config
+    def demolish_library(self, uuid: str):
+        """Demolish current library, a UUID must be provided to identify the library
         """
-        if uuid in self.libraries:
-            self.libraries.pop(uuid)
-            if uuid == self.current_lib:
-                self.current_lib = ''
-                self.instance = None
-                self.favorite_list = set()
-                self.exclusion_list = set()
-            self.__save()
+        if not uuid or uuid not in self.libraries:
+            return
+        if not self.instance or self.instance.uuid != uuid:
+            raise LibraryManagerException('Current library is not matching the UUID')
+
+        self.instance.demolish()
+        self.instance = None
+        self.libraries.pop(uuid)
+        self.favorite_list = set()
+        self.exclusion_list = set()
+        self.__save()
 
     def change_name(self, new_name: str):
-        if not self.current_lib or not self.instance or not new_name:
+        if not self.instance or not new_name:
             return
 
         obj: LibCreationObj | None = self.get_current_lib()
@@ -230,7 +213,7 @@ class LibraryManager:
         self.__save()
 
     def change_view_style(self, new_style: str):
-        if not self.current_lib or not self.instance or not new_style:
+        if not self.instance or not new_style:
             return
 
         obj: LibCreationObj | None = self.get_current_lib()
@@ -241,7 +224,7 @@ class LibraryManager:
         self.__save()
 
     def change_sorted_by(self, new_sorted_by: str):
-        if not self.current_lib or not self.instance or not new_sorted_by:
+        if not self.instance or not new_sorted_by:
             return
 
         obj: LibCreationObj | None = self.get_current_lib()
@@ -255,10 +238,42 @@ class LibraryManager:
     Library operations
     """
 
+    def instanize_lib(self, lib_uuid: str) -> bool:
+        """Build instance for current active library and load library metadata
+
+        Return True if the instanization is succeeded, otherwise False
+        """
+        if self.instance and self.instance.uuid == lib_uuid:
+            return True
+
+        self.instance = None
+        if lib_uuid in self.libraries:
+            try:
+                obj: LibCreationObj = self.libraries[lib_uuid]
+                if obj.type == 'image':
+                    self.instance = ImageLib(obj.path, obj.name, obj.uuid, local_mode=True)
+                elif obj.type == 'video':
+                    pass
+                elif obj.type == 'document':
+                    self.instance = DocumentLib(obj.path, obj.name, obj.uuid)
+                elif obj.type == 'general':
+                    pass
+
+                if self.instance:
+                    self.favorite_list = self.instance.get_favorite_list()
+                    self.exclusion_list = self.instance.get_exclusion_list()
+                return True
+            except:
+                return False
+        return False
+
     def get_ready(self, **kwargs) -> str | None:
         """Preheat the library instance to make it workable:
         - If the library is new, it will start initialization and load data
         - If the library is already initialized, it will load saved data to memory directly
+
+        If UUID_EMPTY is returned, it means the library is already ready
+        - Otherwise use returned task ID to track the progress of preheat
 
         Returns:
             str | None: Task ID
@@ -269,7 +284,7 @@ class LibraryManager:
         # Image library case
         if isinstance(self.instance, ImageLib):
             if self.instance.lib_is_ready():
-                return None
+                return UUID_EMPTY
             task_id: str = self.task_runner.submit_task(self.instance.initialize, None, True, True,
                                                         force_init=kwargs.get('force_init', False))
             return task_id
@@ -279,7 +294,7 @@ class LibraryManager:
             if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs:
                 raise LibraryError('Invalid parameters for DocumentLib')
             if self.instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
-                return None
+                return UUID_EMPTY
             task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True,
                                                         relative_path=kwargs['relative_path'],
                                                         provider_type=kwargs['provider_type'],
@@ -295,7 +310,7 @@ class LibraryManager:
         """Add a relative path as favorite of current library
         - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
         """
-        if not self.current_lib or not self.instance or not relative_path:
+        if not self.instance or not relative_path:
             return
 
         if relative_path not in self.favorite_list:
@@ -306,7 +321,7 @@ class LibraryManager:
         """Remove a relative path from favorite of current library
         - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
         """
-        if not self.current_lib or not self.instance or not relative_path:
+        if not self.instance or not relative_path:
             return
 
         if relative_path in self.favorite_list:
@@ -317,7 +332,7 @@ class LibraryManager:
         """Add a relative path as exclusion of current library
         - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
         """
-        if not self.current_lib or not self.instance or not relative_path:
+        if not self.instance or not relative_path:
             return
 
         if relative_path not in self.exclusion_list:
@@ -328,7 +343,7 @@ class LibraryManager:
         """Remove a relative path from exclusion of current library
         - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
         """
-        if not self.current_lib or not self.instance or not relative_path:
+        if not self.instance or not relative_path:
             return
 
         if relative_path in self.exclusion_list:

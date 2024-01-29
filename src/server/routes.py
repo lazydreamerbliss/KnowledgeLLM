@@ -6,19 +6,19 @@ from flask import (Blueprint, jsonify, redirect, render_template, request,
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from utils.constants.lib_constants import *
 from lib_manager import LibCreationObj
 from server.file_utils.file import *
 from server.file_utils.folder import *
 from server.route_helpers import *
 from singleton import lib_manager
+from utils.constants.lib_constants import *
 
 librarian_routes = Blueprint('librarian_routes', __name__)
 
 
 @librarian_routes.route('/', methods=['GET'])
 def homePage():
-    lib_manager.switch_library('')
+    lib_manager.use_library('')
     return render_template('home.html',
                            current_lib=lib_manager.get_lib_uuid(),
                            favorite_list=lib_manager.favorite_list,
@@ -72,7 +72,7 @@ def add_library():
     lib.uuid = str(uuid.uuid4())
     lib.path = lib_path
     lib.type = lib_type
-    lib_manager.add_library(lib, switch_to=True)
+    lib_manager.create_library(lib, switch_to=True)
     return redirect('/library/')
 
 
@@ -83,7 +83,7 @@ def list_library_content(relative_path: str = ''):
     # Otherwise, list content for current library with given relative path
     uuid: str | None = request.args.get('uuid', '')
     if lib_manager.lib_exists(uuid) and uuid != lib_manager.get_lib_uuid():
-        lib_manager.switch_library(uuid)
+        lib_manager.use_library(uuid)
     if not uuid:
         uuid = lib_manager.get_lib_uuid()
 

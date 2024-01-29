@@ -91,8 +91,8 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def delete_lib(self):
-        """Delete the library
+    def demolish(self):
+        """Completely destroy the library
         """
         raise NotImplementedError()
 

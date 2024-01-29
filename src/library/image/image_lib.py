@@ -222,21 +222,26 @@ class ImageLib(LibraryBase):
             self.__vector_db.clean_all_data()  # type: ignore
             self.__table.clean_all_data()  # type: ignore
 
-    @ensure_lib_is_ready
-    def delete_lib(self):
+    def demolish(self):
         """Delete the image library, it purges all library data
-        1. Clean and delete the vector DB
-        2. Delete the table
-        3. Delete the DB file
-        4. Delete the metadata file
+        1. Delete vector index, delete file directly if local mode, otherwise delete from Redis
+        2. Delete DB file
+        3. Delete metadata file
         """
-        self.__vector_db.delete_db()  # type: ignore
+        if self.local_mode:
+            if os.path.isfile(self.path_vector_db):
+                os.remove(self.path_vector_db)
+        else:
+            if not self.__vector_db:
+                raise LibraryError('For Redis vector DB, the library must be initialized before demolish')
+            self.__vector_db.delete_db()
 
-        self.__table.clean_all_data()  # type: ignore
+        self.__embedder = None
+        self.__table = None
+        self.__vector_db = None
+
         if os.path.isfile(self.path_db):
             os.remove(self.path_db)
-
-        self.path_metadata
         if os.path.isfile(self.path_metadata):
             os.remove(self.path_metadata)
 

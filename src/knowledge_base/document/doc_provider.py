@@ -10,7 +10,8 @@ T = TypeVar('T', bound=SqliteTable)
 
 
 class DocProviderBase(Generic[T]):
-    """The basic abstract for an organized document management, it reads raw documents and provides functionalities to organize them
+    """Document provider is a wrapper for SQL table, it reads raw documents and organize them into a table for later use
+    - DocProviderBase is the basic abstract for an organized document management
     """
 
     # Type for the table for this type of document provider
@@ -69,10 +70,3 @@ class DocProviderBase(Generic[T]):
         """Remove current document's table from DB
         """
         self.table.drop_table()
-
-    @staticmethod
-    def delete_db_file(db_file: str):
-        """Delete the DB file, this will remove all tables in the DB
-        """
-        if os.path.isfile(db_file):
-            os.remove(db_file)
