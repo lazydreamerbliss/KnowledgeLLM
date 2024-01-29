@@ -1,7 +1,6 @@
 import os
 import pickle
 import sys
-import uuid
 from pathlib import Path
 
 from library.document.doc_lib import DocumentLib
@@ -9,6 +8,7 @@ from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
 from utils.exceptions.lib_errors import LibraryError, LibraryManagerException
 from utils.task_runner import TaskRunner
+from utils.tqdm_context import TqdmContext
 
 IS_WINDOWS = 'win32' in sys.platform or 'win64' in sys.platform
 UUID_EMPTY = '00000000-0000-0000-0000-000000000000'
@@ -170,12 +170,12 @@ class LibraryManager:
             if self.instanize_lib(uuid):
                 self.__save()
 
-    def create_library(self, new_lib: LibCreationObj, switch_to: bool = False) -> bool:
+    def create_library(self, new_lib: LibCreationObj, switch_to: bool = False):
         """Add a library to the manager, this only write the library info to config file unless the switch_to flag is set
         - Pre check to params must be done before calling this method
         """
         if new_lib.uuid in self.libraries or new_lib.path in self.get_library_path_list():
-            return True
+            raise LibraryManagerException('Library with same UUID or path already exists')
 
         self.libraries[new_lib.uuid] = new_lib
         if switch_to:
@@ -183,22 +183,21 @@ class LibraryManager:
                 self.__save()
         else:
             self.__save()
-        return True
 
-    def demolish_library(self, uuid: str):
-        """Demolish current library, a UUID must be provided to identify the library
+    def demolish_library(self):
+        """Demolish current library
         """
-        if not uuid or uuid not in self.libraries:
-            return
-        if not self.instance or self.instance.uuid != uuid:
-            raise LibraryManagerException('Current library is not matching the UUID')
+        if not self.instance:
+            raise LibraryManagerException('Only an active library can be deleted')
 
-        self.instance.demolish()
-        self.instance = None
-        self.libraries.pop(uuid)
-        self.favorite_list = set()
-        self.exclusion_list = set()
-        self.__save()
+        uuid: str = self.instance.uuid
+        with TqdmContext(f'Demolishing library: {self.libraries[uuid]}...', 'Done'):
+            self.instance.demolish()
+            self.instance = None
+            self.libraries.pop(uuid)
+            self.favorite_list = set()
+            self.exclusion_list = set()
+            self.__save()
 
     def change_name(self, new_name: str):
         if not self.instance or not new_name:

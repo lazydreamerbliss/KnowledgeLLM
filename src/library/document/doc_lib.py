@@ -1,4 +1,5 @@
 import os
+import shutil
 from typing import Callable, Generic, Type, TypeVar
 from uuid import uuid4
 
@@ -242,19 +243,13 @@ class DocumentLib(Generic[D], LibraryBase):
         1. Delete vector index folder
         2. Delete DB file
         3. Delete metadata file
+
+        Simply purge the library data folder
         """
         self.__embedder = None
         self.__doc_provider = None
         self.__vector_db = None
-
-        folder_path: str = os.path.join(self.path_lib_data, DocLibVectorDb.INDEX_FOLDER)
-        if os.path.isdir(folder_path):
-            os.rmdir(folder_path)
-
-        if os.path.isfile(self.path_db):
-            os.remove(self.path_db)
-        if os.path.isfile(self.path_metadata):
-            os.remove(self.path_metadata)
+        shutil.rmtree(self.path_lib_data)
 
     """
     Public methods

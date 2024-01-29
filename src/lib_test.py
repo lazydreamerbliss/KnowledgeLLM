@@ -13,6 +13,7 @@ from library.document.wechat.wechat_history_provider import \
     WechatHistoryProvider
 from library.image.image_lib import ImageLib
 from singleton import *
+from utils.exceptions.lib_errors import LibraryManagerException
 
 
 def test_doc_lib(doc_lib: DocumentLib):
@@ -47,7 +48,7 @@ def test_doc_lib(doc_lib: DocumentLib):
 
 def test_image_lib(img_lib: ImageLib):
     img_lib.set_embedder(ImageEmbedder())
-    task_id: str = task_runner.submit_task(img_lib.initialize, None, True, True, force_init=True)
+    task_id: str = task_runner.submit_task(img_lib.initialize, None, True, True, force_init=False)
     while True:
         print(task_runner.get_task_state([task_id]))
         if task_runner.is_task_done(task_id):
@@ -95,7 +96,7 @@ def test_llm():
     # )
 
 
-if __name__ == '__main__':
+def test_library_manager():
     TEST_DOC_LIB = '~/Documents/test_lib'
     TEST_IMG_LIB = '~/Pictures/test_lib'
     doc_lib_uuid = 'e8c0bd6f-2163-4294-92e6-4d225ab10b41'
@@ -111,15 +112,40 @@ if __name__ == '__main__':
     img_lib_creation.name = 'test_img_lib'
     img_lib_creation.uuid = img_lib_uuid
     img_lib_creation.path = TEST_IMG_LIB
+
+    # Test library creation
     lib_manager.create_library(doc_lib_creation)
     lib_manager.create_library(img_lib_creation)
 
+    # Test library switch
     lib_manager.use_library(doc_lib_uuid)
     doc_lib: DocumentLib = lib_manager.instance  # type: ignore
     test_doc_lib(doc_lib)
-
+    # Test library switch
     lib_manager.use_library(img_lib_uuid)
     img_lib: ImageLib = lib_manager.instance  # type: ignore
     test_image_lib(img_lib)
 
+    # Test library demolish
+    lib_manager.use_library(doc_lib_uuid)
+    lib_manager.demolish_library()
+    lib_manager.use_library(img_lib_uuid)
+    lib_manager.demolish_library()
+
+    # Test library creation again
+    lib_manager.create_library(doc_lib_creation)
+    lib_manager.create_library(img_lib_creation)
+
+    # Test library switch again
+    lib_manager.use_library(doc_lib_uuid)
+    doc_lib: DocumentLib = lib_manager.instance  # type: ignore
+    test_doc_lib(doc_lib)
+    # Test library switch again
+    lib_manager.use_library(img_lib_uuid)
+    img_lib: ImageLib = lib_manager.instance  # type: ignore
+    test_image_lib(img_lib)
+
+
+if __name__ == '__main__':
+    test_library_manager()
     test_llm()
