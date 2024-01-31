@@ -2,9 +2,9 @@ import binascii
 
 from flask import render_template
 
-from utils.constants.lib_constants import library_types_CN
 from server.file_utils.folder import is_valid_relative_path
 from singleton import lib_manager
+from utils.constants.lib_constants import library_types_CN
 
 
 def encode(x: str) -> str:
@@ -20,7 +20,7 @@ def render_error_page(error_code: int, error_text: str) -> str:
                            error_code=error_code,
                            error_text=error_text,
                            current_lib=lib_manager.get_lib_uuid(),
-                           favorite_list=lib_manager.favorite_list,
+                           favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
                            library_types=library_types_CN)
 

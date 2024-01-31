@@ -21,7 +21,7 @@ def homePage():
     lib_manager.use_library('')
     return render_template('home.html',
                            current_lib=lib_manager.get_lib_uuid(),
-                           favorite_list=lib_manager.favorite_list,
+                           favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
                            library_types=library_types_CN)
 
@@ -124,7 +124,7 @@ def list_library_content(relative_path: str = ''):
     return render_template(template_name,
                            current_lib=lib_manager.get_lib_uuid(),
                            current_path=relative_path,
-                           favorite_list=lib_manager.favorite_list,
+                           favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
                            library_types=library_types_CN,
                            grid_view_button_style=grid_view_button_style,
@@ -225,6 +225,6 @@ def uploadFile(relative_path: str = ''):
                            message=msg,
                            success_count=success_count,
                            failure_count=failure_count,
-                           favorite_list=lib_manager.favorite_list,
+                           favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
                            library_types=library_types_CN,)

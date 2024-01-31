@@ -44,7 +44,6 @@ class DocumentLib(Generic[D], LibraryBase):
         if not uuid or not lib_name:
             raise LibraryError('Invalid UUID or library name')
         super().__init__(lib_path)
-        super().__init__(lib_path)
 
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
@@ -62,7 +61,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
-        self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
+        self.path_db: str = os.path.join(self._path_lib_data, DB_NAME)
         self.__doc_provider: D | None = None
         self.__vector_db: DocLibVectorDb | None = None
         self.__embedder: DocEmbedder | None = None
@@ -86,7 +85,7 @@ class DocumentLib(Generic[D], LibraryBase):
             self.use_doc(relative_path, provider_type)
             return
 
-        doc_path: str = os.path.join(self.path_lib, relative_path)
+        doc_path: str = os.path.join(self._path_lib, relative_path)
         if not os.path.isfile(doc_path):
             raise LibraryError(f'Invalid doc path: {doc_path}')
 
@@ -136,7 +135,7 @@ class DocumentLib(Generic[D], LibraryBase):
         # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
         text_count: int = embeddings.shape[0]
         dimension: int = embeddings.shape[1]
-        self.__vector_db = DocLibVectorDb(self.path_lib_data, uuid)
+        self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
         with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
             self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
             self.__vector_db.persist()
@@ -222,7 +221,7 @@ class DocumentLib(Generic[D], LibraryBase):
                                                     uuid,
                                                     doc_path=None,
                                                     re_dump=False)  # type: ignore
-                self.__vector_db = DocLibVectorDb(self.path_lib_data, uuid)
+                self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
             return
 
         # Do initialization
@@ -249,7 +248,7 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__embedder = None
         self.__doc_provider = None
         self.__vector_db = None
-        shutil.rmtree(self.path_lib_data)
+        shutil.rmtree(self._path_lib_data)
 
     """
     Public methods
@@ -301,7 +300,7 @@ class DocumentLib(Generic[D], LibraryBase):
                                                               re_dump=False)  # type: ignore
                 tmp_provider.delete_table()
                 # Remove the document's vector index
-                tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self.path_lib_data, uuid)  # type: ignore
+                tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
                 tmp_vector_db.delete_db()
             else:
                 self.__doc_provider.delete_table()  # type: ignore

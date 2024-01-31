@@ -55,8 +55,6 @@ class ImageLib(LibraryBase):
         if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
-        self.path_db: str = os.path.join(self.path_lib_data, DB_NAME)
-        self.path_vector_db: str = os.path.join(self.path_lib_data, ImageLibVectorDb.IDX_FILENAME)
         self.local_mode: bool = local_mode
         self.__table: ImageLibTable | None = None
         self.__vector_db: ImageLibVectorDb | None = None
@@ -80,20 +78,20 @@ class ImageLib(LibraryBase):
 
     def __do_scan(self, progress_reporter: Callable[[int], None] | None) -> Generator[tuple[str, list[float]], None, None]:
         files: list[str] = list()
-        for root, _, filenames in os.walk(self.path_lib):
+        for root, _, filenames in os.walk(self._path_lib):
             for filename in filenames:
-                files.append(os.path.relpath(os.path.join(root, filename), self.path_lib))
+                files.append(os.path.relpath(os.path.join(root, filename), self._path_lib))
         total_files: int = len(files)
-        tqdm.write(f'Library scanned, found {total_files} files in {self.path_lib}')
+        tqdm.write(f'Library scanned, found {total_files} files in {self._path_lib}')
 
         previous_progress: int = -1
         for i, file in tqdm(enumerate(files), desc=f'Processing images', unit='item', ascii=' |'):
             try:
                 # Validate if the file is an image and insert it into the table
                 # - After verify() the file stream is closed, need to reopen it
-                img: Image.Image = Image.open(os.path.join(self.path_lib, file))
+                img: Image.Image = Image.open(os.path.join(self._path_lib, file))
                 img.verify()
-                img = Image.open(os.path.join(self.path_lib, file))
+                img = Image.open(os.path.join(self._path_lib, file))
             except:
                 tqdm.write(f'Invalid image: {file}, skip')
                 continue
@@ -195,10 +193,10 @@ class ImageLib(LibraryBase):
         # 1. The lib is a new lib
         # 2. The lib is an existing lib but not loaded
         if not ready:
-            self.__table = ImageLibTable(self.path_lib_data)
+            self.__table = ImageLibTable(self._path_lib_data)
             self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                                 lib_uuid=self._metadata['uuid'],
-                                                data_folder=self.path_lib_data)
+                                                data_folder=self._path_lib_data)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
         if not force_init and self.__table.row_count() > 0 and not self.__vector_db.db_is_empty():  # type: ignore
@@ -207,13 +205,13 @@ class ImageLib(LibraryBase):
         # Refresh ready status, initialize the library for force init or new lib cases
         ready = self.lib_is_ready()
         if ready:
-            with TqdmContext(f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...', 'Cleaned'):
+            with TqdmContext(f'Forcibly re-initializing library: {self._path_lib}, purging existing library data...', 'Cleaned'):
                 self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 self.save_metadata()
                 self.__vector_db.clean_all_data()  # type: ignore
                 self.__table.clean_all_data()  # type: ignore
         else:
-            tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
+            tqdm.write(f'Initialize library DB: {self._path_lib} for new library')
 
         # Do full scan and initialize the lib
         try:
@@ -239,7 +237,7 @@ class ImageLib(LibraryBase):
         self.__embedder = None
         self.__table = None
         self.__vector_db = None
-        shutil.rmtree(self.path_lib_data)
+        shutil.rmtree(self._path_lib_data)
 
     """
     Public methods

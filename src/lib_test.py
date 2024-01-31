@@ -22,8 +22,6 @@ IMG_LIB_UUID = '53821604-76a2-41b1-a655-e07a86096f93'
 
 def test_doc_lib(lib_manager: LibraryManager):
     lib_manager.use_library(DOC_LIB_UUID)
-    doc_lib: DocumentLib = lib_manager.instance  # type: ignore
-
     task_id: str | None = lib_manager.get_ready(relative_path='群聊_small.txt', provider_type=WechatHistoryProvider)
     while True:
         if not task_id or task_runner.is_task_done(task_id):
@@ -32,6 +30,7 @@ def test_doc_lib(lib_manager: LibraryManager):
             print(task_runner.get_task_state([task_id]))  # type: ignore
         time.sleep(1)
 
+    doc_lib: DocumentLib = lib_manager.get_lib_instance()  # type: ignore
     res = doc_lib.query('哪家运营商可以开通公网ip', 20, True)
     for i in res:
         print(i)
@@ -53,8 +52,6 @@ def test_doc_lib(lib_manager: LibraryManager):
 
 def test_image_lib(lib_manager: LibraryManager):
     lib_manager.use_library(IMG_LIB_UUID)
-    img_lib: ImageLib = lib_manager.instance  # type: ignore
-
     task_id: str | None = lib_manager.get_ready()
     while True:
         if not task_id or task_runner.is_task_done(task_id):
@@ -64,6 +61,7 @@ def test_image_lib(lib_manager: LibraryManager):
         time.sleep(1)
 
     test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
+    img_lib: ImageLib = lib_manager.get_lib_instance()  # type: ignore
     a = img_lib.image_for_image_search(test_img, 2)
     print(a)
     print("####################################")

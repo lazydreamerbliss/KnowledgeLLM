@@ -41,7 +41,7 @@ def ensure_lib_is_ready(func):
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
         if not self.lib_is_ready():
-            raise LibraryError(f'Library is not ready: {self.path_lib}')
+            raise LibraryError(f'Library is not ready: {self._path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -52,7 +52,7 @@ def ensure_metadata_ready(func):
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
         if not self._metadata:
-            raise LibraryError(f'Library is not ready: {self.path_lib}')
+            raise LibraryError(f'Library is not ready: {self._path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -67,19 +67,19 @@ class LibraryBase:
         if not os.path.isdir(lib_path):
             raise LibraryError(f'Invalid lib path: {lib_path}')
 
-        # Path to the library root folder
-        self.path_lib: str = lib_path
-        # Path to the library's data folder
-        self.path_lib_data: str = os.path.join(self.path_lib, LIB_DATA_FOLDER)
-        # Path to the library's metadata file
-        self.path_metadata: str = os.path.join(self.path_lib_data, LibraryBase.METADATA_FILE)
         # UUID of the library
         self.uuid: str = ''
+        # Path to the library root folder
+        self._path_lib: str = lib_path
+        # Path to the library's data folder
+        self._path_lib_data: str = os.path.join(self._path_lib, LIB_DATA_FOLDER)
         # In-memory metadata
         self._metadata: dict = dict()
-
-        if not os.path.isdir(self.path_lib_data):
-            os.makedirs(self.path_lib_data)
+        # Path to the library's metadata file
+        self.__path_metadata: str = os.path.join(self._path_lib_data, LibraryBase.METADATA_FILE)
+        # Ensure the library's data folder exists
+        if not os.path.isdir(self._path_lib_data):
+            os.makedirs(self._path_lib_data)
 
     """
     Interface methods
@@ -141,7 +141,7 @@ class LibraryBase:
     def metadata_file_exists(self) -> bool:
         """Check if the metadata file exists
         """
-        return os.path.isfile(self.path_metadata)
+        return os.path.isfile(self.__path_metadata)
 
     def initialize_metadata(self, initial_metadata: dict):
         """Initialize the metadata file for the library
@@ -151,30 +151,30 @@ class LibraryBase:
         if not initial_metadata:
             raise LibraryError('Initial metadata must be provided for a new library')
 
-        pickle.dump(initial_metadata,  open(self.path_metadata, 'wb'))
+        pickle.dump(initial_metadata,  open(self.__path_metadata, 'wb'))
         self._metadata = initial_metadata
         self.uuid = initial_metadata['uuid']
 
     def save_metadata(self):
         """Save the metadata file for any updates
         """
-        if not os.path.isfile(self.path_metadata):
-            raise LibraryError(f'metadata file missing: {self.path_metadata}')
+        if not os.path.isfile(self.__path_metadata):
+            raise LibraryError(f'metadata file missing: {self.__path_metadata}')
 
-        pickle.dump(self._metadata,  open(self.path_metadata, 'wb'))
+        pickle.dump(self._metadata,  open(self.__path_metadata, 'wb'))
 
     def load_metadata(self, given_uuid: str, given_name: str):
         """Load the metadata file of the library
         """
-        if not os.path.isfile(self.path_metadata):
-            raise LibraryError(f'metadata file missing: {self.path_metadata}')
+        if not os.path.isfile(self.__path_metadata):
+            raise LibraryError(f'metadata file missing: {self.__path_metadata}')
 
         try:
-            content: dict = pickle.load(open(self.path_metadata, 'rb'))
+            content: dict = pickle.load(open(self.__path_metadata, 'rb'))
         except:
             content: dict = dict()
         if not content or not content.get('uuid', None) or content['uuid'] != given_uuid:
-            raise LibraryError(f'Invalid metadata file: {self.path_metadata}')
+            raise LibraryError(f'Invalid metadata file: {self.__path_metadata}')
 
         self._metadata = content
         self.uuid = content['uuid']
@@ -186,8 +186,8 @@ class LibraryBase:
         """Delete the metadata file of the library
         - Can only call on the deletion of current library
         """
-        if os.path.isfile(self.path_metadata):
-            os.remove(self.path_metadata)
+        if os.path.isfile(self.__path_metadata):
+            os.remove(self.__path_metadata)
 
     """
     Public methods to read library metadata info
