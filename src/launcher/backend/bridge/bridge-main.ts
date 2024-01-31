@@ -1,6 +1,5 @@
 import { ipcMain } from "electron";
 import Api from "./api";
-import e from "express";
 
 export function loadApi() {
   console.log("Loading API...");

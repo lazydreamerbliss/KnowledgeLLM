@@ -1,10 +1,11 @@
 /*
  * Attention !!
- * Since the type of Api will be imported by UI,
+ * Since the type of Api will be used by UI,
  * and UI is run in browser and cannot recognize the type of electron and nodejs,
  * so we had better to convert to the simple type and mark the type before return.
  * So that UI can recognize the type.
  */
+import provideFsPromise from "./provideFsPromise";
 
 export default function Api() {
   return {
@@ -21,6 +22,7 @@ export default function Api() {
         filePaths: result.filePaths as string[],
       };
     },
+    ...provideFsPromise(),
   };
 }
 
