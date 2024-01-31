@@ -1,4 +1,4 @@
-import { TypeApi as OriginalApiType } from "../backend/bridge/api"; // here we just import the type, so we actually did not import anything after the code is compiled
+import { TypeApi as OriginalApiType } from "../../backend/bridge/bridgeTypes"; // here we just import the type, so we actually did not import anything after the code is compiled
 
 type Promisify<T> = {
   [K in keyof T]: T[K] extends (...args: infer A) => infer R

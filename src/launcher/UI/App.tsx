@@ -1,5 +1,7 @@
 import React from "react";
-import Bridge from "./bridge-render";
+import Bridge from "./utility/bridge-render";
+import environments from "./utility/environments";
+import { getProfile } from "./profiles/getProfile";
 
 export default function UX() {
   const [title, setTitle] = React.useState("UX");
@@ -13,8 +15,10 @@ export default function UX() {
         <div
           className=" bg-slate-100 rounded-xl md:p-8 dark:bg-slate-800 shadow-lg "
           onClick={async () => {
-            const res = await Bridge.pickFolder();
-            console.log(res);
+            // const res = await Bridge.pickFolder();
+            // console.log(res);
+            console.log(environments);
+            getProfile();
           }}
         >
           Open Folder
