@@ -62,7 +62,7 @@ class TaskRunner:
         self.tasks[task_id].error = error
         self.tasks[task_id].duration = int((now - self.tasks[task_id].submitted_on).total_seconds())
 
-    def __run_task_wrapper(self,
+    def __run_task_with_catch(self,
                            task_id: str,
                            task_func: Callable,
                            progress_reporter: Callable[[int], None] | None,
@@ -129,7 +129,7 @@ class TaskRunner:
                 task.cancel_event = Event()
 
             future: Future = self.thread_pool.submit(
-                self.__run_task_wrapper, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
+                self.__run_task_with_catch, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
             task.future = future
             self.tasks[task.id] = task
 

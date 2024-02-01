@@ -107,9 +107,15 @@ class DocumentLib(Generic[D], LibraryBase):
                                             re_dump=False)  # type: ignore
 
         # Do embedding, and create vector DB for this doc
-        embeddings_list: list[npt.ArrayLike] = list()
         total_records: int = self.__doc_provider.get_record_count()
+
+        # The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
+        use_IVF: bool = total_records > 7020
+        self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
+
+        embedding_list: list[npt.ArrayLike] = list()
         previous_progress: int = -1
+        first_round: bool = True
         for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
             if cancel_event and cancel_event.is_set():
                 tqdm.write('Embedding cancelled')
@@ -126,19 +132,33 @@ class DocumentLib(Generic[D], LibraryBase):
                 except:
                     pass
 
-            embeddings_list.append(self.__embedder.embed_text(self.__doc_provider.EMBED_LAMBDA(row)))  # type: ignore
-        embeddings: np.ndarray = np.asarray(embeddings_list)
+            embedding: np.ndarray = self.__embedder.embed_text(row[1])  # type: ignore
 
-        # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
-        # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
-        # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
-        # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
-        text_count: int = embeddings.shape[0]
-        dimension: int = embeddings.shape[1]
-        self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
-        with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
-            self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
-            self.__vector_db.persist()
+            # For IVF case, save all embeddings for further training
+            # For non-IVF case, add embedding to index directly
+            embedding_list.append(embedding)  # type: ignore
+            if not use_IVF:
+                if first_round:
+                    first_round = False
+                    dimension: int = embedding.size
+                    self.__vector_db.initialize_index(dimension, training_set=None)
+                self.__vector_db.add(None, embedding.tolist())
+
+        if use_IVF:
+            embeddings: np.ndarray = np.asarray(embedding_list)
+
+            # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
+            # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
+            # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
+            # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
+            text_count: int = embeddings.shape[0]
+            dimension: int = embeddings.shape[1]
+            with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
+                self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
+        else:
+            self.__vector_db.add(None, embedding_list)
+
+        self.__vector_db.persist()
 
         # Record info in metadata after finished embedding
         self._metadata['unfinished_docs'].pop(relative_path, None)
@@ -155,7 +175,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.__doc_provider or not self.__vector_db:
             raise LibraryError('No active document, please switch to a document first')
 
-        query_embedding: npt.ArrayLike = self.__embedder.embed_text(text)  # type: ignore
+        query_embedding: np.nd = self.__embedder.embed_text(text)  # type: ignore
         ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
         res: list[tuple] = list()
 
@@ -291,7 +311,8 @@ class DocumentLib(Generic[D], LibraryBase):
         if self.__doc_provider:
             is_current_doc = self.__doc_provider.table.table_name == uuid
 
-        with TqdmContext(f'Removing embedding data for {relative_path}...', 'Done'):
+        doc_info: str | None = relative_path if relative_path else uuid
+        with TqdmContext(f'Removing embedding data for {doc_info}...', 'Done'):
             if not is_current_doc:
                 # Remove the document's table from DB
                 tmp_provider: DocProviderBase = provider_type(self.path_db,

@@ -64,8 +64,8 @@ class ImageLib(LibraryBase):
     Private methods
     """
 
-    def __write_entry(self, file: str, embeddings: list[float], save_pipeline: BatchedPipeline | None = None):
-        """Write an image entry to both DB and vector DB
+    def __write_entry(self, file: str, embedding: list[float], save_pipeline: BatchedPipeline | None = None):
+        """Write an image entry (file info + embedding) to both DB and vector DB
         - An UUID is generated to identify the image globally
         """
         timestamp: datetime = datetime.now()
@@ -74,7 +74,7 @@ class ImageLib(LibraryBase):
         filename: str = os.path.basename(file)
         # (timestamp, uuid, path, filename)
         self.__table.insert_row((timestamp, uuid, relative_path, filename))  # type: ignore
-        self.__vector_db.add(uuid, embeddings, save_pipeline)  # type: ignore
+        self.__vector_db.add(uuid, embedding, save_pipeline)  # type: ignore
 
     def __do_scan(self, progress_reporter: Callable[[int], None] | None) -> Generator[tuple[str, list[float]], None, None]:
         files: list[str] = list()
@@ -108,11 +108,11 @@ class ImageLib(LibraryBase):
                     pass
 
             start_time: float = time.time()
-            embeddings: list[float] = self.__embedder.embed_image_as_list(img)  # type: ignore
+            embedding: list[float] = self.__embedder.embed_image_as_list(img)  # type: ignore
             time_taken: float = time.time() - start_time
-            tqdm.write(f'Image embedded: {file}, dimension: {len(embeddings)}, cost: {time_taken:.2f}s')
+            tqdm.write(f'Image embedded: {file}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
 
-            yield file, embeddings
+            yield file, embedding
 
     def __full_scan_and_initialize_lib(self,
                                        progress_reporter: Callable[[int], None] | None,
@@ -130,18 +130,18 @@ class ImageLib(LibraryBase):
         if save_pipeline:
             # Use batched pipeline when available
             with save_pipeline:
-                for file, embeddings in self.__do_scan(progress_reporter):
+                for file, embedding in self.__do_scan(progress_reporter):
                     if cancel_event is not None and cancel_event.is_set():
                         tqdm.write(f'Library initialization cancelled')
                         raise TaskCancellationException('Library initialization cancelled')
 
                     if not scan_only:
                         if dimension == -1:
-                            dimension = len(embeddings)
-                        self.__write_entry(file, embeddings, save_pipeline)
+                            dimension = len(embedding)
+                        self.__write_entry(file, embedding, save_pipeline)
         else:
-            # Otherwise, save the embeddings one by one
-            for file, embeddings in self.__do_scan(progress_reporter):
+            # Otherwise, save the embedding one by one
+            for file, embedding in self.__do_scan(progress_reporter):
                 if cancel_event is not None and cancel_event.is_set():
                     tqdm.write(f'Library initialization cancelled')
                     raise TaskCancellationException('Library initialization cancelled')
@@ -149,10 +149,10 @@ class ImageLib(LibraryBase):
                 # If this is the first embedding and in local mode, initialize the index first as memory vector DB needs to build index before adding data
                 if not scan_only:
                     if dimension == -1 and self.local_mode:
-                        dimension = len(embeddings)
+                        dimension = len(embedding)
                         with TqdmContext('Creating index...', 'Index created'):
                             self.__vector_db.initialize_index(dimension)  # type: ignore
-                    self.__write_entry(file, embeddings)
+                    self.__write_entry(file, embedding)
 
         if not scan_only:
             self.__vector_db.persist()  # type: ignore

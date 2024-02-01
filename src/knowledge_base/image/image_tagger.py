@@ -70,8 +70,10 @@ class ImageTagger:
         # - https://blog.csdn.net/caroline_wendy/article/details/132665807
         if not use_grad:
             with torch.no_grad():
-                return res['tags'].sigmoid().to(torch.float).cpu().numpy().astype(np.float32)
-        return res['tags'].sigmoid().to(torch.float).cpu().numpy().astype(np.float32)
+                feature: np.ndarray = res['tags'].sigmoid().to(torch.float).cpu().numpy()
+        else:
+            feature: np.ndarray = res['tags'].sigmoid().to(torch.float).cpu().numpy()
+        return feature.astype(np.float32)
 
     def get_tags(self, img: Image.Image, top_k: int = 10, en: bool = False) -> list[tuple[str, float]]:
         """Get top K tags for the given image

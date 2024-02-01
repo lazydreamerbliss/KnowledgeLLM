@@ -41,8 +41,8 @@ class InMemoryVectorDb:
         index_filename = index_filename or InMemoryVectorDb.IDX_FILENAME
         index_file_path: str = os.path.join(data_folder, index_filename)
         self.mem_index_path: str = index_file_path
-        self.id_mapping: dict[int, str] | None = None  # Maintain the mapping of ID to UUID
-        self.mem_index_flat: IndexIDMap2 | None = None
+        self.id_mapping: dict[int, str] = dict()  # Maintain the mapping of ID to UUID
+        self.mem_index_flat: IndexFlatL2 | IndexIDMap2 | None = None
         self.mem_index_ivf: IndexIVFFlat | None = None
         self.index_size_since_last_training: int = 0  # TODO: add a timer to retrain the index
 
@@ -55,18 +55,22 @@ class InMemoryVectorDb:
                 self.mem_index_ivf = obj['index_ivf']  # IndexIVFFlat
 
                 if not self.mem_index_flat and not self.mem_index_ivf:
-                    raise Exception()
-                index_size: int = self.mem_index_flat.ntotal if self.mem_index_flat else self.mem_index_ivf.ntotal
-                if self.id_mapping and len(self.id_mapping) != index_size:
-                    raise Exception()
+                    raise VectorDbError(f'Corrupted index file: index not loaded')
+                if self.id_mapping:
+                    index_size: int = self.mem_index_flat.ntotal if self.mem_index_flat else self.mem_index_ivf.ntotal
+                    if len(self.id_mapping) != index_size:
+                        raise VectorDbError(
+                            f'Corrupted index file: ID mapping size {len(self.id_mapping)} does not match index size {index_size}')
 
                 tqdm.write(f'Loaded index from {index_file_path}')
-            except:
-                raise VectorDbError('Corrupted index file')
+            except VectorDbError:
+                raise
+            except Exception as e:
+                raise VectorDbError(f'Corrupted index file: {e}')
         else:
             tqdm.write(f'Index file {index_file_path} not found, this is a new database')
 
-    def __get_index(self) -> IndexIDMap2 | IndexIVFFlat:
+    def __get_index(self) -> IndexFlatL2 | IndexIDMap2 | IndexIVFFlat:
         if self.mem_index_flat:
             return self.mem_index_flat
         if self.mem_index_ivf:
@@ -75,8 +79,9 @@ class InMemoryVectorDb:
 
     def initialize_index(self,
                          vector_dimension: int,
+                         track_id: bool = False,
                          training_set: np.ndarray | None = None,
-                         training_set_uuid: list[str] | None = None,
+                         training_set_uuid_list: list[str] | None = None,
                          expected_dataset_size: int = 0):
         """Initialize in-memory index
         - If no training set is given, use a flat index
@@ -85,22 +90,27 @@ class InMemoryVectorDb:
 
         Args:
             vector_dimension (int): _description_
-            training_set (list[np.ndarray] | None, optional): _description_. Defaults to None.
-            training_set_uuid (list[str] | None, optional): _description_. Defaults to None.
-            expected_dataset_size (int, optional): _description_. Defaults to 0.
+            track_id (int): Flat index param, whether to track ID. Defaults to False.
+            training_set (list[np.ndarray] | None, optional): IVF index param. Defaults to None.
+            training_set_uuid_list (list[str] | None, optional): IVF index param, whether to track ID. Defaults to None.
+            expected_dataset_size (int, optional): IVF index param. Defaults to 0.
         """
         # FLAT index case
-        # - If no training set is given, use flat index and no further action is needed
+        # - If no training set is given
         if training_set is None:
             index: IndexFlatL2 = IndexFlatL2(vector_dimension)
-            self.mem_index_flat = IndexIDMap2(index)
+            if track_id:
+                self.mem_index_flat = IndexIDMap2(index)
+            else:
+                self.mem_index_flat = index
             return
 
         # IVF index case
-        if training_set_uuid and len(training_set) != len(training_set_uuid):
+        if training_set_uuid_list and len(training_set) != len(training_set_uuid_list):
             raise VectorDbError('Training set and UUID list have different lengths')
 
-        if expected_dataset_size <= 100000:
+        # The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
+        if expected_dataset_size <= 7020:
             tqdm.write(f'Dataset size {expected_dataset_size} is too small for IVF, suggest using flat index instead')
 
         # Calculation of a fair number of clusters and training set size for IVF
@@ -120,26 +130,23 @@ class InMemoryVectorDb:
         self.index_size_since_last_training = len(training_set)
 
         # Track vector ID only when the embedding is added with a UUID
-        if training_set_uuid:
-            self.id_mapping = dict(zip(range(len(training_set_uuid)), training_set_uuid))
+        if training_set_uuid_list:
+            self.id_mapping = dict(zip(range(len(training_set_uuid_list)), training_set_uuid_list))
             self.mem_index_ivf.add_with_ids(training_set, np.asarray(range(len(training_set))))  # type: ignore
         else:
             self.mem_index_ivf.add(training_set)  # type: ignore
 
     @ensure_index
-    def add(self, uuid: str | None, embeddings: list[float]):
+    def add(self, uuid: str | None, embedding: list[float]):
         """Save given embedding to vector DB
         - If UUID is not given or empty, no ID track
         - If UUID is given, track the ID mapping for both flat and IVF index
 
         Args:
-            embeddings (list[float]): _description_
+            embedding (list[float]): _description_
             uuid (str | None, optional): _description_. Defaults to None.
         """
-        if self.id_mapping is None:
-            self.id_mapping = dict()
-
-        target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
+        target_index: IndexFlatL2 | IndexIDMap2 | IndexIVFFlat = self.__get_index()
 
         # Track vector ID only when the embedding is added with a UUID
         if uuid:
@@ -150,13 +157,13 @@ class InMemoryVectorDb:
                 while id in self.id_mapping:
                     id += np.random.randint(1, 10)
             self.id_mapping[id] = uuid
-            target_index.add_with_ids(np.asarray([embeddings]), np.asarray([id]))  # type: ignore
+            target_index.add_with_ids(np.asarray([embedding]), np.asarray([id]))  # type: ignore
         else:
-            target_index.add(np.asarray([embeddings]))  # type: ignore
+            target_index.add(np.asarray([embedding]))  # type: ignore
 
     @ensure_index
     def remove(self, uuids: list[str] | None, ids: list[int] | None):
-        """Remove given embeddings from vector DB by UUID or ID
+        """Remove embeddings from vector DB by UUIDs or IDs
         - If remove by UUID then ID tracking is required
         - If both UUID and ID are given, remove by ID
         """
@@ -175,10 +182,9 @@ class InMemoryVectorDb:
 
         if self.id_mapping:
             for id in to_be_removed_ids:
-                if id in self.id_mapping:
-                    del self.id_mapping[id]
+                self.id_mapping.pop(id)
 
-        target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
+        target_index: IndexFlatL2 | IndexIDMap2 | IndexIVFFlat = self.__get_index()
         target_index.remove_ids(np.asarray(to_be_removed_ids))  # type: ignore
 
     def clean_all_data(self):
@@ -218,14 +224,14 @@ class InMemoryVectorDb:
 
     @ensure_index
     def query(self,
-              embeddings: np.ndarray,
+              embedding: np.ndarray,
               top_k: int = 10,
               additional_neighbors: int = 5) -> list[str | int]:
-        """Query the given embeddings against the index for similar
+        """Query the given embedding against the index for similar
         - Return a list of UUIDs or IDs, depending on whether the ID is tracked
 
         Args:
-            embeddings (np.ndarray): _description_
+            embedding (np.ndarray): _description_
             top_k (int, optional): _description_. Defaults to 10.
             additional_neighbors (int, optional): The additional closest neighbors to be queried for IVF. Defaults to 2.
         """
@@ -235,8 +241,8 @@ class InMemoryVectorDb:
             prob_changed = True
 
         # Index search returns a tuple of two arrays: distances and IDs
-        target_index: IndexIDMap2 | IndexIVFFlat = self.__get_index()
-        D, I = target_index.search(embeddings, top_k)  # type: ignore
+        target_index: IndexFlatL2 | IndexIDMap2 | IndexIVFFlat = self.__get_index()
+        D, I = target_index.search(embedding, top_k)  # type: ignore
 
         # Reset the number of neighbors to be queried for IVF
         if prob_changed and self.mem_index_ivf:
@@ -244,4 +250,4 @@ class InMemoryVectorDb:
 
         if not self.id_mapping:
             return list(I[0])
-        return [self.id_mapping[id] for id in I[0] if id > -1] # faiss returns -1 if not enough neighbors are found
+        return [self.id_mapping[id] for id in I[0] if id > -1]  # faiss returns -1 if not enough neighbors are found

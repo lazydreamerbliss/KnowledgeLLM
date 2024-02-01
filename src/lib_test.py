@@ -31,23 +31,23 @@ def test_doc_lib(lib_manager: LibraryManager):
         time.sleep(1)
 
     doc_lib: DocumentLib = lib_manager.get_lib_instance()  # type: ignore
-    res = doc_lib.query('哪家运营商可以开通公网ip', 20, True)
+    res = doc_lib.query('对特斯拉车主的刻板印象', 20, False)
     for i in res:
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
-    task_id: str | None = lib_manager.get_ready(relative_path='哈利波特.txt', provider_type=DocProvider)
-    while True:
-        if not task_id or task_runner.is_task_done(task_id):
-            break
-        else:
-            print(task_runner.get_task_state([task_id]))  # type: ignore
-        time.sleep(1)
+    # task_id: str | None = lib_manager.get_ready(relative_path='哈利波特.txt', provider_type=DocProvider)
+    # while True:
+    #     if not task_id or task_runner.is_task_done(task_id):
+    #         break
+    #     else:
+    #         print(task_runner.get_task_state([task_id]))  # type: ignore
+    #     time.sleep(1)
 
-    res = doc_lib.query('伏地魔附着在谁身上？', 20)
-    for i in res:
-        print(i)
-    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    # res = doc_lib.query('伏地魔附着在谁身上？', 20)
+    # for i in res:
+    #     print(i)
+    # print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
 
 def test_image_lib(lib_manager: LibraryManager):
@@ -123,22 +123,21 @@ def test_library_manager():
     # Test library switch - image
     test_image_lib(lib_manager)
 
-    # Test library demolish
-    lib_manager.use_library(DOC_LIB_UUID)
-    lib_manager.demolish_library()
-    lib_manager.use_library(IMG_LIB_UUID)
-    lib_manager.demolish_library()
+    # # Test library demolish
+    # lib_manager.use_library(DOC_LIB_UUID)
+    # lib_manager.demolish_library()
+    # lib_manager.use_library(IMG_LIB_UUID)
+    # lib_manager.demolish_library()
 
-    # Test library creation again
-    lib_manager.create_library(doc_lib_creation)
-    lib_manager.create_library(img_lib_creation)
+    # # Test library creation again
+    # lib_manager.create_library(doc_lib_creation)
+    # lib_manager.create_library(img_lib_creation)
 
-    # Test library switch - doc again
-    test_doc_lib(lib_manager)
-    # Test library switch - image again
-    test_image_lib(lib_manager)
+    # # Test library switch - doc again
+    # test_doc_lib(lib_manager)
+    # # Test library switch - image again
+    # test_image_lib(lib_manager)
 
 
 if __name__ == '__main__':
     test_library_manager()
-    test_llm()

@@ -33,7 +33,7 @@ class RedisVectorDb:
                 "FLAT",
                 {
                     "TYPE": "FLOAT32",  # Sets the type of a vector component, in this case a 32-bit floating point number
-                    "DIM": vector_dimension,  # The length or dimension of the embeddings
+                    "DIM": vector_dimension,  # The length or dimension of the embedding
                     "DISTANCE_METRIC": "COSINE",  # Distance function used to compare vectors: https://en.wikipedia.org/wiki/Cosine_similarity
                 },
                 as_name="vector",
@@ -57,13 +57,13 @@ class RedisVectorDb:
         """
         return self.redis.batched_pipeline(batch_size)
 
-    def add(self, uuid: str, embeddings: list[float], pipeline: BatchedPipeline | None = None):
+    def add(self, uuid: str, embedding: list[float], pipeline: BatchedPipeline | None = None):
         """Save given embedding to vector DB
         """
         if pipeline:
-            pipeline.json_set(f'{self.namespace}:{uuid}', embeddings)
+            pipeline.json_set(f'{self.namespace}:{uuid}', embedding)
         else:
-            self.redis.json_set(f'{self.namespace}:{uuid}', embeddings)
+            self.redis.json_set(f'{self.namespace}:{uuid}', embedding)
 
     def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
         """Remove given embedding from vector DB
