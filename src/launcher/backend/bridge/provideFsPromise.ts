@@ -1,12 +1,19 @@
-import fs from "node:fs/promises";
+import fs from "fs/promises";
 
-async function fsAccess(path: string, mode?: number) {
-  const result = await fs.access(path, fs.constants.F_OK);
-  return result;
+function fsAccess(path: string, mode?: number) {
+  return fs.access(path, fs.constants.F_OK);
+}
+
+function fsMkdir(path: string, mode?: number) {
+  return fs.mkdir(path, {
+    recursive: true,
+    mode: mode ? mode : 0o777,
+  });
 }
 
 export default function provideFsPromise() {
   return {
     fsAccess,
+    fsMkdir,
   };
 }
