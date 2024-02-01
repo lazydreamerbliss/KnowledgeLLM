@@ -16,3 +16,18 @@ export enum FsAccessMode {
   W_OK = 1 << 1,
   R_OK = 1 << 2,
 }
+
+// for more information, check https://nodejs.org/api/fs.html#file-system-flags
+export enum FsOpenMode {
+  r = "r",
+  rPlus = "r+",
+  rsPlus = "rs+",
+  w = "w",
+  wx = "wx",
+  wPlus = "w+",
+  wxPlus = "wx+",
+  a = "a",
+  ax = "ax",
+  aPlus = "a+",
+  axPlus = "ax+",
+}

@@ -4,8 +4,9 @@
   "description": "The launcher for KnowledgeLLM.",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "watch": "webpack-dev-server -c UI/webpack.config.js",
-    "start": "tsc -p ./backend/ && electron ./backend/out/main"
+    "watchWeb": "webpack-dev-server -c UI/webpack.config.js",
+    "watchNode": "tsc -p ./backend/ -w",
+    "start": "electron ./backend/out/main"
   },
   "license": "ISC",
   "dependencies": {
@@ -15,10 +16,13 @@
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.10",
     "@types/react": "^18.0.25",
     "@types/react-dom": "^18.0.9",
+    "@types/uuid": "^9.0.8",
     "babel-loader": "^9.1.0",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "^11.0.0",
+    "crypto-browserify": "^3.12.0",
     "electron": "^28.2.0",
+    "node-polyfill-webpack-plugin": "^3.0.0",
     "path-browserify": "^1.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -26,7 +30,7 @@
     "ts-loader": "^9.4.2",
     "typescript": "^4.9.5",
     "url-loader": "^4.1.1",
-    "uuid": "^9.0.0",
+    "uuid": "^9.0.1",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.0",
     "webpack-dev-server": "^4.11.1"

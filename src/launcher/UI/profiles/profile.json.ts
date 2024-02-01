@@ -1,13 +1,18 @@
-export const DefaultUserProfile = {
-  foldersPath: "folders", // path to a dir that contains all profile of folders
-  folders: [] as string[], // file names in foldersPath, file content is folder profile
-};
+import { randomUUID } from "../utility/common";
 
-export type UserProfile = typeof DefaultUserProfile;
+export function GetDefaultUserProfile() {
+  return {
+    foldersPath: "folders", // path to a dir that contains all profile of folders
+    folders: [] as string[], // file names in foldersPath, file content is folder profile
+  };
+}
 
-export function GenerateFolderProfile(folderName: string, location: string) {
+export type UserProfile = ReturnType<typeof GetDefaultUserProfile>;
+
+export function GenerateFolderProfile(folderName: string) {
   return {
     name: folderName,
+    id: randomUUID(),
     location: "",
   };
 }
