@@ -15,9 +15,9 @@ export default function UX() {
         <div
           className=" bg-slate-100 rounded-xl md:p-8 dark:bg-slate-800 shadow-lg "
           onClick={async () => {
-            // const res = await Bridge.pickFolder();
-            // console.log(res);
-            console.log(environments);
+            // // const res = await Bridge.pickFolder();
+            // // console.log(res);
+            // console.log(environments);
             getProfile();
           }}
         >

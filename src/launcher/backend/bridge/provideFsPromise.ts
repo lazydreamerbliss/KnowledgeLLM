@@ -17,10 +17,15 @@ function fsWriteFile(path: string, data: string, flag?: FsOpenMode) {
   return fs.writeFile(path, data, { flag });
 }
 
+function fsReadFile(path: string) {
+  return fs.readFile(path, { encoding: "utf-8" });
+}
+
 export default function provideFsPromise() {
   return {
     fsAccess,
     fsMkdir,
     fsWriteFile,
+    fsReadFile,
   };
 }

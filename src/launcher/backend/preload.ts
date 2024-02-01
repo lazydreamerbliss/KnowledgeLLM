@@ -38,3 +38,5 @@ contextBridge.exposeInMainWorld(
     }
   })()
 );
+
+contextBridge.exposeInMainWorld("toggleDevTools", () => ipcRenderer.invoke("toggle-dev-tools"));

@@ -7,17 +7,15 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     minWidth: 800,
     minHeight: 600,
+    width: 1366,
+    height: 768,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
     },
+    backgroundColor: "#2e2c29",
   });
   mainWindow.setMenuBarVisibility(false);
-
-  mainWindow.webContents.openDevTools({
-    mode: "undocked",
-    activate: false,
-  }); // Open the developer tools, for debugging
   mainWindow.loadURL("http://localhost:5012");
   console.log(app.getLocale());
 };
