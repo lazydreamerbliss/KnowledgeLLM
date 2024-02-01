@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from knowledge_base.document.doc_provider import *
+from knowledge_base.document.doc_provider_base import *
 from library.document.wechat.wechat_history_table import WechatHistoryTable
 from utils.tqdm_context import TqdmContext
 
@@ -172,3 +172,8 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                 return list()
             return rows
         return list()
+
+    def get_key_text_from_record(self, row: tuple) -> str:
+        # The message & replied message column ['message', 'TEXT'] and ['replied_message', 'TEXT'] are 4th and 6th columns of chat history table
+        # - So row[3] + row[5] is the key information for a row of chat
+        return f'{row[3]} {row[5]}'

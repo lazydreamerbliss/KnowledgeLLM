@@ -31,7 +31,7 @@ def test_doc_lib(lib_manager: LibraryManager):
         time.sleep(1)
 
     doc_lib: DocumentLib = lib_manager.get_lib_instance()  # type: ignore
-    res = doc_lib.query('对特斯拉车主的刻板印象', 20, False)
+    res = doc_lib.query('特斯拉车主的刻板印象', 20, False)
     for i in res:
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")

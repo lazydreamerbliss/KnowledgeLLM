@@ -8,7 +8,7 @@ import numpy.typing as npt
 from tqdm import tqdm
 
 from knowledge_base.document.doc_embedder import DocEmbedder
-from knowledge_base.document.doc_provider import DocProviderBase
+from knowledge_base.document.doc_provider_base import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
 from library.lib_base import *
@@ -94,11 +94,11 @@ class DocumentLib(Generic[D], LibraryBase):
             old_uuid: str = self._metadata['unfinished_docs'][relative_path]
             self.remove_doc_embedding(None, old_uuid, provider_type)
             self._metadata['unfinished_docs'].pop(relative_path, None)
-            self.save_metadata()
+            self._save_metadata()
 
         # Record info in metadata before embedding
         self._metadata['unfinished_docs'][relative_path] = uuid
-        self.save_metadata()
+        self._save_metadata()
 
         # Create doc provider for this doc
         self.__doc_provider = provider_type(self.path_db,
@@ -132,17 +132,20 @@ class DocumentLib(Generic[D], LibraryBase):
                 except:
                     pass
 
-            embedding: np.ndarray = self.__embedder.embed_text(row[1])  # type: ignore
+            key_text: str = self.__doc_provider.get_key_text_from_record(row)
+            embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
 
             # For IVF case, save all embeddings for further training
             # For non-IVF case, add embedding to index directly
-            embedding_list.append(embedding)  # type: ignore
-            if not use_IVF:
-                if first_round:
-                    first_round = False
-                    dimension: int = embedding.size
-                    self.__vector_db.initialize_index(dimension, training_set=None)
-                self.__vector_db.add(None, embedding.tolist())
+            if use_IVF:
+                embedding_list.append(embedding)  # type: ignore
+                continue
+
+            if first_round:
+                first_round = False
+                dimension: int = embedding.size
+                self.__vector_db.initialize_index(dimension, training_set=None)
+            self.__vector_db.add(None, embedding.tolist())
 
         if use_IVF:
             embeddings: np.ndarray = np.asarray(embedding_list)
@@ -155,15 +158,15 @@ class DocumentLib(Generic[D], LibraryBase):
             dimension: int = embeddings.shape[1]
             with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
                 self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
-        else:
-            self.__vector_db.add(None, embedding_list)
+        # else:
+        #     self.__vector_db.add(None, embedding_list)
 
         self.__vector_db.persist()
 
         # Record info in metadata after finished embedding
         self._metadata['unfinished_docs'].pop(relative_path, None)
         self._metadata['embedded_docs'][relative_path] = uuid
-        self.save_metadata()
+        self._save_metadata()
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)
@@ -175,7 +178,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.__doc_provider or not self.__vector_db:
             raise LibraryError('No active document, please switch to a document first')
 
-        query_embedding: np.nd = self.__embedder.embed_text(text)  # type: ignore
+        query_embedding: np.ndarray = self.__embedder.embed_text(text)  # type: ignore
         ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
         res: list[tuple] = list()
 
@@ -255,7 +258,7 @@ class DocumentLib(Generic[D], LibraryBase):
             # On cancel, clean this doc's leftover
             self.remove_doc_embedding(None, uuid, provider_type)
             self._metadata['unfinished_docs'].pop(relative_path, None)
-            self.save_metadata()
+            self._save_metadata()
 
     def demolish(self):
         """Delete the doc library, it purges all library data
@@ -331,7 +334,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
         # Record info in metadata after finished deletion
         self._metadata['embedded_docs'].pop(relative_path, None)
-        self.save_metadata()
+        self._save_metadata()
 
     @ensure_lib_is_ready
     def query(self, query_text: str, top_k: int = 10, rerank: bool = False) -> list[tuple]:

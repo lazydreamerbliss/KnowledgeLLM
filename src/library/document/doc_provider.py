@@ -3,7 +3,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from knowledge_base.document.doc_provider import *
+from knowledge_base.document.doc_provider_base import *
 from library.document.doc_lib_table import DocLibTable
 from utils.tqdm_context import TqdmContext
 
@@ -45,3 +45,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
             if not line:
                 continue
             self.table.insert_row((timestamp, line))
+
+    def get_key_text_from_record(self, row: tuple) -> str:
+        # The text column ['text', 'TEXT'] is the 3rd column of document table, so row[2] is the key info
+        return row[2]

@@ -206,12 +206,13 @@ class ImageLib(LibraryBase):
         ready = self.lib_is_ready()
         if ready:
             with TqdmContext(f'Forcibly re-initializing library: {self._path_lib}, purging existing library data...', 'Cleaned'):
-                self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self.save_metadata()
                 self.__vector_db.clean_all_data()  # type: ignore
                 self.__table.clean_all_data()  # type: ignore
         else:
             tqdm.write(f'Initialize library DB: {self._path_lib} for new library')
+
+        self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self._save_metadata()
 
         # Do full scan and initialize the lib
         try:

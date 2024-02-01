@@ -138,6 +138,13 @@ class LibraryBase:
     Metadata file methods
     """
 
+    def _save_metadata(self):
+        """Save the metadata file for any updates
+        """
+        if not os.path.isfile(self.__path_metadata):
+            raise LibraryError(f'metadata file missing: {self.__path_metadata}')
+        pickle.dump(self._metadata,  open(self.__path_metadata, 'wb'))
+
     def metadata_file_exists(self) -> bool:
         """Check if the metadata file exists
         """
@@ -154,14 +161,6 @@ class LibraryBase:
         pickle.dump(initial_metadata,  open(self.__path_metadata, 'wb'))
         self._metadata = initial_metadata
         self.uuid = initial_metadata['uuid']
-
-    def save_metadata(self):
-        """Save the metadata file for any updates
-        """
-        if not os.path.isfile(self.__path_metadata):
-            raise LibraryError(f'metadata file missing: {self.__path_metadata}')
-
-        pickle.dump(self._metadata,  open(self.__path_metadata, 'wb'))
 
     def load_metadata(self, given_uuid: str, given_name: str):
         """Load the metadata file of the library
@@ -222,28 +221,28 @@ class LibraryBase:
         if not new_name or new_name == self._metadata['name']:
             return
         self._metadata['name'] = new_name
-        self.save_metadata()
+        self._save_metadata()
 
     @ensure_metadata_ready
     def change_view_style(self, new_style: str):
         if not new_style or new_style not in view_styles:
             return
         self._metadata['view_style'] = new_style
-        self.save_metadata()
+        self._save_metadata()
 
     @ensure_metadata_ready
     def change_sorted_by(self, new_sorted_by: str):
         if not new_sorted_by or new_sorted_by not in sorted_by_labels:
             return
         self._metadata['sorted_by'] = new_sorted_by
-        self.save_metadata()
+        self._save_metadata()
 
     @ensure_metadata_ready
     def change_favorite_list(self, new_list: set[str]):
         self._metadata['favorite_list'] = new_list
-        self.save_metadata()
+        self._save_metadata()
 
     @ensure_metadata_ready
     def change_exclusion_list(self, new_list: set[str]):
         self._metadata['exclusion_list'] = new_list
-        self.save_metadata()
+        self._save_metadata()

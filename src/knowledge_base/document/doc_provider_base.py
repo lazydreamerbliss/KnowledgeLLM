@@ -41,14 +41,19 @@ class DocProviderBase(Generic[T]):
         """
         raise NotImplementedError()
 
+    def get_record_count(self) -> int:
+        """Get the number of lines/segments of the document
+        """
+        return self.table.row_count()
+
     def get_record_by_id(self, id: int) -> tuple | None:
-        """Get one line/segment of a document by ID
+        """Get one line/segment of a document by ID, in table row format
         """
         row: tuple | None = self.table.select_row(id)
         return row
 
     def get_all_records(self) -> list[tuple]:
-        """Get all lines/segments
+        """Get all lines/segments, in table row format
         """
         cursor: Cursor = self.table.select_many()
         rows: list[tuple] | None = cursor.fetchall()
@@ -56,13 +61,13 @@ class DocProviderBase(Generic[T]):
             return list()
         return rows
 
-    def get_record_count(self) -> int:
-        """Get the number of lines/segments of the document
-        """
-        return self.table.row_count()
-
     def get_records_by_column(self, **kwargs) -> list[tuple]:
-        """Get lines/segments by specific columns defined in the table
+        """Get lines/segments by specific columns defined in the table, in table row format
+        """
+        raise NotImplementedError()
+
+    def get_key_text_from_record(self, row: tuple) -> str:
+        """Extract current table row's key information (e.g., original sentence) from table row tuple
         """
         raise NotImplementedError()
 
