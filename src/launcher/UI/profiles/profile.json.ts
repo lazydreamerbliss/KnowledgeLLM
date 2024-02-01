@@ -2,7 +2,8 @@ import { randomUUID } from "../utility/common";
 
 export function GetDefaultUserProfile() {
   return {
-    foldersPath: "folders", // path to a dir that contains all profile of folders
+    id: randomUUID(),
+    folderProfilesLocation: "folderProfiles", // path to a dir that contains all profile of folders
     folders: [] as string[], // file names in foldersPath, file content is folder profile
   };
 }
