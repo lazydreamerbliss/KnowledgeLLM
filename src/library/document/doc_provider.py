@@ -14,21 +14,17 @@ class DocProvider(DocProviderBase[DocLibTable]):
 
     # Type for the table for this type of document provider
     TABLE_TYPE: type = DocLibTable
-    # Lambda function to extract the text to be embedded from a tuple of a row
-    EMBED_LAMBDA: Callable[['DocProvider', tuple], str] = lambda self, x: x[2]
-    # Lambda function to extract the text to be re-ranked from a tuple of a row
-    RERANK_LAMBDA: Callable[['DocProvider', tuple], str] = lambda self, x: x[2]
 
     def __init__(self, db_path: str, uuid: str, doc_path: str | None = None, re_dump: bool = False):
         super().__init__(db_path, uuid, doc_path, re_dump, table_type=DocProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path
-        if not self.table.row_count() or re_dump:
+        if not self._table.row_count() or re_dump:
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
 
             with TqdmContext(f'Initializing doc table for {doc_path}, table name: {uuid}...', 'Loaded'):
-                self.table.clean_all_data()
+                self._table.clean_all_data()
                 self.initialize(doc_path)
 
     def initialize(self, doc_path: str) -> None:
@@ -44,7 +40,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
             line = line.strip()
             if not line:
                 continue
-            self.table.insert_row((timestamp, line))
+            self._table.insert_row((timestamp, line))
 
     def get_key_text_from_record(self, row: tuple) -> str:
         # The text column ['text', 'TEXT'] is the 3rd column of document table, so row[2] is the key info

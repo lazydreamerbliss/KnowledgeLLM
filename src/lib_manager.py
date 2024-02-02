@@ -3,6 +3,9 @@ import pickle
 import sys
 from pathlib import Path
 
+import torch
+
+from env import CONFIG_FOLDER
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.image.image_embedder import ImageEmbedder
 from library.document.doc_lib import DocumentLib
@@ -12,9 +15,7 @@ from utils.exceptions.lib_errors import LibraryError, LibraryManagerException
 from utils.task_runner import TaskRunner
 from utils.tqdm_context import TqdmContext
 
-IS_WINDOWS = 'win32' in sys.platform or 'win64' in sys.platform
-UUID_EMPTY = '00000000-0000-0000-0000-000000000000'
-CONFIG_FOLDER = f'{Path(__file__).parent.parent.parent}/samples'
+UUID_EMPTY: str = '00000000-0000-0000-0000-000000000000'
 
 
 class LibCreationObj:
@@ -300,7 +301,9 @@ class LibraryManager:
                 raise LibraryError('Invalid parameters for DocumentLib')
             if self.__instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
                 return UUID_EMPTY
-            self.__instance.set_embedder(DocEmbedder())
+
+            lite_mode: bool = kwargs.get('lite_mode', False)
+            self.__instance.set_embedder(DocEmbedder(lite_mode=lite_mode))
             task_id: str = self.task_runner.submit_task(self.__instance.use_doc, None, True, True,
                                                         relative_path=kwargs['relative_path'],
                                                         provider_type=kwargs['provider_type'],

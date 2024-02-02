@@ -16,10 +16,6 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
     # Type for the table for this type of document provider
     TABLE_TYPE: type = WechatHistoryTable
-    # Lambda function to extract the text to be embedded from a tuple of a row
-    EMBED_LAMBDA: Callable[['WechatHistoryProvider', tuple], str] = lambda self, x: f"{x[3]}-{x[5]}" if x[5] else x[3]
-    # Lambda function to extract the text to be re-ranked from a tuple of a row
-    RERANK_LAMBDA: Callable[['WechatHistoryProvider', tuple], str] = lambda self, x: f"{x[3]}-{x[5]}" if x[5] else x[3]
 
     msg_pattern: re.Pattern = re.compile(
         r"(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)")
@@ -34,12 +30,12 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         super().__init__(db_path, uuid, doc_path, re_dump, table_type=WechatHistoryProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path (chat history)
-        if not self.table.row_count() or re_dump:
+        if not self._table.row_count() or re_dump:
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
 
             with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
-                self.table.clean_all_data()
+                self._table.clean_all_data()
                 self.initialize(doc_path)
 
     def __process_reply(self, reply: str) -> tuple[str, str, str]:
@@ -107,7 +103,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                     if r_message:
                         # (timestamp, sender, message, reply_to, replied_message)
                         # - Sender is missed in reply message, use empty string instead
-                        self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
+                        self._table.insert_row((reply_time, "", r_message, reply_to, replied_message))
 
                 time, username, message = self.__process_message(message_match)
                 if not time:
@@ -115,7 +111,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
                 reply_time = time + timedelta(seconds=1)
                 # (timestamp, sender, message, reply_to, replied_message)
-                self.table.insert_row((time, username, message, "", ""))
+                self._table.insert_row((time, username, message, "", ""))
                 continue
 
             # Reply message case
@@ -142,7 +138,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                 reply_to, replied_message, r_message = self.__process_reply(cached_reply)
                 cached_reply = ""
                 if r_message:
-                    self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
+                    self._table.insert_row((reply_time, "", r_message, reply_to, replied_message))
 
             cached_reply += line
             continue
@@ -154,7 +150,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
             if message:
                 # (timestamp, sender, message, reply_to, replied_message)
                 # - Sender is missed in reply message, use empty string instead
-                self.table.insert_row((reply_time, "", message, reply_to, replied_message))
+                self._table.insert_row((reply_time, "", message, reply_to, replied_message))
 
     """
     Basic operations
@@ -166,7 +162,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
         if 'sender' in kwargs:
             sender: str = kwargs['sender']
-            cursor: Cursor = self.table.select_rows_by_sender(sender)
+            cursor: Cursor = self._table.select_rows_by_sender(sender)
             rows: list[tuple] | None = cursor.fetchmany()
             if not rows:
                 return list()
@@ -176,4 +172,6 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
     def get_key_text_from_record(self, row: tuple) -> str:
         # The message & replied message column ['message', 'TEXT'] and ['replied_message', 'TEXT'] are 4th and 6th columns of chat history table
         # - So row[3] + row[5] is the key information for a row of chat
+        if not row[5]:
+            return row[3]
         return f'{row[3]} {row[5]}'

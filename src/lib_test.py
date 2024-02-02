@@ -22,16 +22,25 @@ IMG_LIB_UUID = '53821604-76a2-41b1-a655-e07a86096f93'
 
 def test_doc_lib(lib_manager: LibraryManager):
     lib_manager.use_library(DOC_LIB_UUID)
-    task_id: str | None = lib_manager.get_ready(relative_path='群聊_small.txt', provider_type=WechatHistoryProvider)
+    task_id: str | None = lib_manager.get_ready(relative_path='群聊_small.txt', provider_type=WechatHistoryProvider, lite_mode=False)
     while True:
         if not task_id or task_runner.is_task_done(task_id):
+            print(task_runner.get_task_state([task_id]))  # type: ignore
             break
         else:
             print(task_runner.get_task_state([task_id]))  # type: ignore
         time.sleep(1)
 
+    if task_id and not task_runner.is_task_successful(task_id):
+        # Failed to load the document
+        return
+
     doc_lib: DocumentLib = lib_manager.get_lib_instance()  # type: ignore
-    res = doc_lib.query('特斯拉车主的刻板印象', 20, False)
+    res = doc_lib.query('女士健身房', 20, False)
+    for i in res:
+        print(i)
+    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    res = doc_lib.query('女士健身房', 20, True)
     for i in res:
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
@@ -121,7 +130,7 @@ def test_library_manager():
     # Test library switch - doc
     test_doc_lib(lib_manager)
     # Test library switch - image
-    test_image_lib(lib_manager)
+    # test_image_lib(lib_manager)
 
     # # Test library demolish
     # lib_manager.use_library(DOC_LIB_UUID)

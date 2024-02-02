@@ -105,11 +105,10 @@ class DocumentLib(Generic[D], LibraryBase):
                                             uuid,
                                             doc_path=doc_path,
                                             re_dump=False)  # type: ignore
-
-        # Do embedding, and create vector DB for this doc
         total_records: int = self.__doc_provider.get_record_count()
 
-        # The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
+        # Do embedding, and create vector DB for this doc
+        # - The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
         use_IVF: bool = total_records > 7020
         self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
 
@@ -136,11 +135,11 @@ class DocumentLib(Generic[D], LibraryBase):
             embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
 
             # For IVF case, save all embeddings for further training
-            # For non-IVF case, add embedding to index directly
             if use_IVF:
                 embedding_list.append(embedding)  # type: ignore
                 continue
 
+            # For non-IVF (Flat) case, add embedding to index directly
             if first_round:
                 first_round = False
                 dimension: int = embedding.size
@@ -158,8 +157,6 @@ class DocumentLib(Generic[D], LibraryBase):
             dimension: int = embeddings.shape[1]
             with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
                 self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
-        # else:
-        #     self.__vector_db.add(None, embedding_list)
 
         self.__vector_db.persist()
 
@@ -194,21 +191,23 @@ class DocumentLib(Generic[D], LibraryBase):
                 res.append(record)
         return res
 
-    def __rerank(self, text: str, candidates: list[tuple]) -> list[tuple]:
+    def __rerank(self, text: str, candidate_rows: list[tuple]) -> list[tuple]:
         if not self.__doc_provider:
             raise LibraryError('No active document, please switch to a document first')
 
-        tqdm.write(f'Reranking {len(candidates)} candidates...')
-        candidates_str: list[str] = [self.__doc_provider.RERANK_LAMBDA(c) for c in candidates]  # type: ignore
+        tqdm.write(f'Reranking {len(candidate_rows)} candidates...')
+        candidates_str: list[str] = [
+            self.__doc_provider.get_key_text_from_record(c) for c in candidate_rows
+        ]  # type: ignore
         scores: npt.ArrayLike = self.__embedder.predict_similarity_batch(text, candidates_str)  # type: ignore
 
         # Re-sort the ranking result
-        # - np.argsort() returns the indices in ascending order, so here we use [::-1] to reverse it
+        # - np.argsort() returns the indices (ID) based on it's corresponding score in ascending order, use [::-1] to reverse it
         # - https://blog.csdn.net/maoersong/article/details/21875705
         sorted_ids: np.ndarray = np.argsort(scores)[::-1]
 
         # Reorder the candidates list by the ranking
-        return [candidates[i] for i in sorted_ids]
+        return [candidate_rows[i] for i in sorted_ids]
 
     """
     Overridden public methods from LibraryBase
@@ -287,7 +286,7 @@ class DocumentLib(Generic[D], LibraryBase):
         relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self._metadata['embedded_docs']:
             return False
-        return self.__doc_provider.table.table_name == self._metadata['embedded_docs'][relative_path]  # type: ignore
+        return self.__doc_provider.get_table_name() == self._metadata['embedded_docs'][relative_path]  # type: ignore
 
     def set_embedder(self, embedder: DocEmbedder):
         self.__embedder = embedder
@@ -312,7 +311,7 @@ class DocumentLib(Generic[D], LibraryBase):
         # The UUID after current code line will be either the provided UUID or the one in metadata here
         is_current_doc: bool = False
         if self.__doc_provider:
-            is_current_doc = self.__doc_provider.table.table_name == uuid
+            is_current_doc = self.__doc_provider.get_table_name() == uuid
 
         doc_info: str | None = relative_path if relative_path else uuid
         with TqdmContext(f'Removing embedding data for {doc_info}...', 'Done'):

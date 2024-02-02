@@ -63,12 +63,12 @@ class TaskRunner:
         self.tasks[task_id].duration = int((now - self.tasks[task_id].submitted_on).total_seconds())
 
     def __run_task_with_catch(self,
-                           task_id: str,
-                           task_func: Callable,
-                           progress_reporter: Callable[[int], None] | None,
-                           cancel_event: Event | None,
-                           args: tuple,
-                           kwargs: dict):
+                              task_id: str,
+                              task_func: Callable,
+                              progress_reporter: Callable[[int], None] | None,
+                              cancel_event: Event | None,
+                              args: tuple,
+                              kwargs: dict):
         """Run given task
         """
         try:
@@ -169,8 +169,15 @@ class TaskRunner:
         return res
 
     def is_task_done(self, task_id: str) -> bool:
-        """Check if a task is done
+        """Check if a task is done, this includes all termination states like cancel, failure, etc.
         """
         if task_id in self.tasks:
             return self.tasks[task_id].state != TaskState.IN_PROGRESS
-        return False
+        return True
+
+    def is_task_successful(self, task_id: str) -> bool:
+        """Check if a task is done and successful
+        """
+        if task_id in self.tasks:
+            return self.tasks[task_id].state == TaskState.FINISHED and not self.tasks[task_id].error
+        return True
