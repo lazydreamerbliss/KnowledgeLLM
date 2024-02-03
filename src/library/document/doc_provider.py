@@ -1,11 +1,18 @@
+import os
 from datetime import datetime
-from typing import Callable
 
+import docx
+from docx.document import Document
+from pypdf import PdfReader
 from tqdm import tqdm
 
 from knowledge_base.document.doc_provider_base import *
 from library.document.doc_lib_table import DocLibTable
 from utils.tqdm_context import TqdmContext
+
+PDF_EXTENSION: str = 'pdf'
+DOC_EXTENSION: str = 'doc'
+DOCX_EXTENSION: str = 'docx'
 
 
 class DocProvider(DocProviderBase[DocLibTable]):
@@ -31,16 +38,52 @@ class DocProvider(DocProviderBase[DocLibTable]):
         if not doc_path:
             raise DocProviderError('doc_path is None')
 
-        with open(doc_path, 'r', encoding='utf-8') as f:
-            # 'ascii' param needs an extra space, try to remove it to see what happens
-            all_lines: list[str] = f.readlines()
-
+        _, extension = os.path.splitext(doc_path)
+        if not extension:
+            raise DocProviderError(f'Unknown document type: {doc_path}')
+        extension = extension.lower()[1:]
         timestamp: datetime = datetime.now()
-        for i, line in tqdm(enumerate(all_lines), desc=f'Loading document content to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
-            line = line.strip()
-            if not line:
-                continue
-            self._table.insert_row((timestamp, line))
+
+        # Read from PDF file
+        if extension == PDF_EXTENSION:
+            try:
+                reader: PdfReader = PdfReader(doc_path)
+                for page in tqdm(reader.pages, desc=f'Loading PDF content to DB...', unit='page', ascii=' |'):
+                    page_text: str = page.extract_text()
+                    for line in page_text:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        self._table.insert_row((timestamp, line))
+                return
+            except Exception as e:
+                raise DocProviderError(f'Failed to read PDF content: {doc_path}, error: {e}')
+
+        # Read from Doc/Docx file
+        if extension == DOC_EXTENSION or extension == DOCX_EXTENSION:
+            try:
+                doc: Document = docx.Document(doc_path)
+                for paragraph in tqdm(doc.paragraphs, desc=f'Loading DOC/DOCX content to DB...', unit='paragraph', ascii=' |'):
+                    for line in paragraph.text:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        self._table.insert_row((timestamp, line))
+                return
+            except Exception as e:
+                raise DocProviderError(f'Failed to read DOC/DOCX content: {doc_path}, error: {e}')
+
+        # Treat all other types of files are as plain text
+        try:
+            with open(doc_path, 'r', encoding='utf-8') as F:
+                # 'ascii' param needs an extra space, try to remove it to see what happens
+                for line in tqdm(F, desc=f'Loading plain text content to DB...', unit='line', ascii=' |'):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    self._table.insert_row((timestamp, line))
+        except Exception as e:
+            raise DocProviderError(f'Failed to read plain text content: {doc_path}, error: {e}')
 
     def get_key_text_from_record(self, row: tuple) -> str:
         # The text column ['text', 'TEXT'] is the 3rd column of document table, so row[2] is the key info

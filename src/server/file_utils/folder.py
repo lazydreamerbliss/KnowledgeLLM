@@ -154,7 +154,7 @@ def list_folder_content(relative_path: str, sort_by: str = 'Name') -> tuple[list
             continue
 
         f_icon: str = ''
-        extension: str = os.path.splitext(name)[1]
+        _, extension = os.path.splitext(name)
         if extension:
             extension = extension[1:].lower()
             for icon in ICON_MAPPING:

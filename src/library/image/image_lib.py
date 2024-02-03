@@ -15,7 +15,6 @@ from db.vector.redis_client import BatchedPipeline
 from knowledge_base.image.image_embedder import ImageEmbedder
 from library.image.image_lib_table import ImageLibTable
 from library.image.image_lib_vector_db import ImageLibVectorDb
-from library.image.sql import DB_NAME
 from library.lib_base import *
 from utils.exceptions.task_errors import TaskCancellationException
 from utils.tqdm_context import TqdmContext
