@@ -202,9 +202,9 @@ class DocumentLib(Generic[D], LibraryBase):
         scores: npt.ArrayLike = self.__embedder.predict_similarity_batch(text, candidates_str)  # type: ignore
 
         # Re-sort the ranking result
-        # - np.argsort() returns the indices (ID) based on it's corresponding score in ascending order, use [::-1] to reverse it
+        # - np.argsort() returns the ID from original array (`scores`) based on it's corresponding score in ascending order, use [::-1] to reverse it
         # - https://blog.csdn.net/maoersong/article/details/21875705
-        sorted_ids: np.ndarray = np.argsort(scores)[::-1]
+        sorted_ids: list[int] = np.argsort(scores)[::-1].tolist()
 
         # Reorder the candidates list by the ranking
         return [candidate_rows[i] for i in sorted_ids]

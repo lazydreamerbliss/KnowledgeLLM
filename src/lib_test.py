@@ -36,10 +36,10 @@ def test_doc_lib(lib_manager: LibraryManager):
         return
 
     doc_lib: DocumentLib = lib_manager.get_lib_instance()  # type: ignore
-    res = doc_lib.query('女士健身房', 20, False)
-    for i in res:
-        print(i)
-    print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+    # res = doc_lib.query('女士健身房', 20, False)
+    # for i in res:
+    #     print(i)
+    # print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
     res = doc_lib.query('女士健身房', 20, True)
     for i in res:
         print(i)
@@ -149,4 +149,15 @@ def test_library_manager():
 
 
 if __name__ == '__main__':
-    test_library_manager()
+    #test_library_manager()
+    
+    bb = DocEmbedder()
+    print(bb.predict_similarity('女士健身房', '女士健身房'))
+    print(bb.predict_similarity('女士健身房', '这是女士健身房吗'))
+    print(bb.predict_similarity('女士健身房', '这是女士健身房吗？'))
+    print(bb.predict_similarity('女士健身房', '不是的，男生在后面没有拍到 这是女士健身房吗？'))
+    print(bb.predict_similarity('女士健身房', '好的'))
+    print(bb.predict_similarity('女士健身房', '我用过类似方案，省硬盘钱。后来想了想没必要公网，集团撤了，稳的问题，可以用域名负载来解决问题'))
+    print(bb.predict_similarity('The president is arriving to east coast', 'Obama is giving speech in Florida'))
+    print(bb.predict_similarity('总统先生即将到达东海岸', '奥巴马总统正在佛罗里达演讲'))
+    print(bb.predict_similarity('今天天气不错', '今天心情不错'))

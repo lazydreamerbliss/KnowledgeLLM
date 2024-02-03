@@ -30,46 +30,19 @@ class DocEmbedder:
             feature: np.ndarray = self.transformer.encode(text)  # type: ignore
         return feature.astype(np.float32)
 
-    def predict_similarity(self, goal: str, candidate: str, use_grad: bool = False) -> npt.ArrayLike:
-        # Lite mode - use transformer for all purposes and calculate cosine similarity between two embeddings directly
-        if not self.cross_encoder:
-            if not use_grad:
-                with torch.no_grad():
-                    g_feature: Tensor = self.transformer.encode(goal, convert_to_tensor=True)  # type: ignore
-                    c_feature: Tensor = self.transformer.encode(candidate, convert_to_tensor=True)  # type: ignore
-            else:
-                g_feature: Tensor = self.transformer.encode(goal, convert_to_tensor=True)  # type: ignore
-                c_feature: Tensor = self.transformer.encode(candidate, convert_to_tensor=True)  # type: ignore
+    def predict_similarity(self, goal: str, candidate: str) -> npt.ArrayLike:
+        if not goal or not candidate or not self.cross_encoder:
+            return 0
 
-            res: Tensor = util.pytorch_cos_sim(g_feature, c_feature)
-            return res.numpy().item()
-
-        # CrossEncoder mode
-        #
         # CrossEncoder.predict() accepts a 2D matrix as input for similarity analysis
         # - Each row of the matrix is a sample to be predicted, the first element of each row is the query text (source text), the second element is the document retrieved (target text)
         # - It returns a 1D matrix, each element is the prediction score (percentage) for the current text + doc (higher score is more relevant in semantics)
         # - https://aistudio.baidu.com/projectdetail/4951278
-        if not goal or not candidate:
-            return 0
         return self.cross_encoder.predict([[goal, candidate]])
 
-    def predict_similarity_batch(self, goal: str, candidates: list[str], use_grad: bool = False) -> npt.ArrayLike:
-        if not goal or not candidates:
+    def predict_similarity_batch(self, goal: str, candidates: list[str]) -> npt.ArrayLike:
+        if not goal or not candidates or not self.cross_encoder:
             return list()
 
-        # Lite mode
-        if not self.cross_encoder:
-            if not use_grad:
-                with torch.no_grad():
-                    g_feature: Tensor = self.transformer.encode(goal, convert_to_tensor=True)  # type: ignore
-                    c_features: list[Tensor] = self.transformer.encode(
-                        candidates, convert_to_tensor=True)  # type: ignore
-            else:
-                g_feature: Tensor = self.transformer.encode(goal, convert_to_tensor=True)  # type: ignore
-                c_features: list[Tensor] = self.transformer.encode(candidates, convert_to_tensor=True)  # type: ignore
-            return [util.pytorch_cos_sim(g_feature, c_feature).numpy().item() for c_feature in c_features]
-
-        # CrossEncoder mode
         merged: list[list[str]] = [[goal, candidate] for candidate in candidates]
         return self.cross_encoder.predict(merged)
