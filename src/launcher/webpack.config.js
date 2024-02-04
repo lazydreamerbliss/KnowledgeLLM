@@ -1,6 +1,7 @@
 const path = require("path");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const ReactRefreshPlugin = require("@pmmmwh/react-refresh-webpack-plugin");
+const nodeExternals = require("webpack-node-externals");
 
 const configForWeb = {
   name: "web",
@@ -32,7 +33,14 @@ const configForWeb = {
       {
         test: /\.tsx?$/,
         exclude: /node_modules/,
-        loader: "ts-loader",
+        use: [
+          {
+            loader: "ts-loader",
+            options: {
+              onlyCompileBundledFiles: true,
+            },
+          },
+        ],
       },
       {
         test: /\.(png|jpg|gif|ttf|eot|woff|woff2)$/i,
@@ -57,8 +65,26 @@ const configForServer = {
     filename: "server.js",
     path: path.resolve(__dirname, "dist"),
   },
+  target: "node",
+  externals: [nodeExternals()],
   node: {
     __dirname: false,
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts/,
+        use: [
+          {
+            loader: "ts-loader",
+            options: {
+              onlyCompileBundledFiles: true,
+            },
+          },
+        ],
+        exclude: /node_modules/,
+      },
+    ],
   },
   resolve: {
     extensions: [".ts", ".js"],

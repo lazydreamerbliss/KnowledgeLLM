@@ -31,10 +31,11 @@ const lazyStartServer = lazy(1000, () => {
   server = fork("./dist/server.js", [serverGeneration.toString()], {
     stdio: "pipe",
   });
-  serverGeneration++;
   server.on("exit", (code) => {
-    console.log(`server exited with code ${code}`);
+    console.log(`server gen ${serverGeneration} exited with code ${code}`);
   });
+
+  serverGeneration++;
 });
 
 export function startServer() {
