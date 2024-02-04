@@ -1,7 +1,9 @@
 import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
-import { loadApi } from "./bridge/bridge-main";
+import { fork } from "node:child_process";
+
+fork(path.join(__dirname, "server.js"));
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -36,5 +38,8 @@ app.whenReady().then(() => {
     if (win === null) return;
     win.setTitle(title);
   });
-  loadApi();
+  ipcMain.handle("toggle-dev-tools", (event) => {
+    const webContents = event.sender;
+    webContents.toggleDevTools();
+  });
 });

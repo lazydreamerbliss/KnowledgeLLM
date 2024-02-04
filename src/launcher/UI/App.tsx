@@ -1,26 +1,17 @@
 import React from "react";
-import Bridge from "./utility/bridge-render";
-import environments from "./utility/environments";
-import { getProfile } from "./profiles/getProfile";
+import { jsonStringify } from "./utility/common";
 
 export default function UX() {
   const [title, setTitle] = React.useState("UX");
   React.useEffect(() => {
     document.title = title;
+    jsonStringify({ title });
   }, [title]);
 
   return (
     <div className="w-full h-full bg-slate-400">
       <div className="w-full h-full grid place-items-center">
-        <div
-          className=" bg-slate-100 rounded-xl md:p-8 dark:bg-slate-800 shadow-lg "
-          onClick={async () => {
-            // // const res = await Bridge.pickFolder();
-            // // console.log(res);
-            // console.log(environments);
-            getProfile();
-          }}
-        >
+        <div className=" bg-slate-100 rounded-xl md:p-8 dark:bg-slate-800 shadow-lg " onClick={async () => {}}>
           Open Folder
         </div>
         <input

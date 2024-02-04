@@ -2,7 +2,6 @@ const path = require("path");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const ReactRefreshPlugin = require("@pmmmwh/react-refresh-webpack-plugin");
 const { CleanWebpackPlugin } = require("clean-webpack-plugin");
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
 
 module.exports = function (env, args) {
   let config = {
@@ -11,14 +10,9 @@ module.exports = function (env, args) {
     },
     output: {
       filename: "bundle.js",
-      path: path.resolve(__dirname, "build"),
+      path: path.resolve(__dirname, "dist"),
     },
-    plugins: [
-      new CleanWebpackPlugin(),
-      new CopyWebpackPlugin({ patterns: ["UI/static"] }),
-      new ReactRefreshPlugin(),
-      new NodePolyfillPlugin(),
-    ],
+    plugins: [new CleanWebpackPlugin(), new CopyWebpackPlugin({ patterns: ["UI/static"] }), new ReactRefreshPlugin()],
     devServer: {
       port: 5012,
     },

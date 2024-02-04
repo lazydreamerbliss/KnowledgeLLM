@@ -6,9 +6,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "watchWeb": "webpack-dev-server -c UI/webpack.config.js",
     "watchNode": "tsc -p ./backend/ -w",
-    "start": "electron ./backend/out/main"
+    "start": "electron ./backend/dist/main"
   },
-  "license": "ISC",
   "dependencies": {
     "@babel/core": "^7.20.5",
     "@babel/preset-env": "^7.20.2",
@@ -18,12 +17,8 @@
     "@types/react-dom": "^18.0.9",
     "@types/uuid": "^9.0.8",
     "babel-loader": "^9.1.0",
-    "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "^11.0.0",
-    "crypto-browserify": "^3.12.0",
     "electron": "^28.2.0",
-    "node-polyfill-webpack-plugin": "^3.0.0",
-    "path-browserify": "^1.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-refresh": "^0.14.0",
@@ -33,6 +28,7 @@
     "uuid": "^9.0.1",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.0",
-    "webpack-dev-server": "^4.11.1"
+    "webpack-dev-server": "^4.11.1",
+    "webpack-node-externals": "^3.0.0"
   }
 }
