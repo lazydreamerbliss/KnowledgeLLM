@@ -15,7 +15,6 @@ const createWindow = () => {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
     },
-    backgroundColor: "#2e2c29",
   });
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadURL("http://localhost:5012");
