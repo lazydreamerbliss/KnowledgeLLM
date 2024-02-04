@@ -1,9 +1,9 @@
 import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
-import { fork } from "node:child_process";
+import { startServer } from "./serverDaemon";
 
-fork("./dist/server.js");
+startServer();
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({

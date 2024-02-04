@@ -1,3 +1,3 @@
 setInterval(() => {
-  console.log("server is running");
+  console.log(process.argv[2], " server is running!");
 }, 1000);
