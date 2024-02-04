@@ -4,9 +4,12 @@
   "description": "The launcher for KnowledgeLLM.",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "watchWeb": "webpack-dev-server -c UI/webpack.config.js",
-    "watchNode": "tsc -p ./backend/ -w",
-    "start": "electron ./backend/dist/main"
+    "watchWeb": "webpack-dev-server --config-name web --mode development",
+    "watchServer": "webpack --config-name server --watch --mode development",
+    "watchElection": "tsc -p ./electron/ -w",
+    "start": "electron ./electron/dist/main",
+    "dev": "concurrently \"npm run watchWeb\" \"npm run watchServer\" \"npm run watchElection\"",
+    "build": "webpack --config-name web --mode production && webpack --config-name server --mode production && tsc -p ./backend/"
   },
   "dependencies": {
     "@babel/core": "^7.20.5",
@@ -17,6 +20,7 @@
     "@types/react-dom": "^18.0.9",
     "@types/uuid": "^9.0.8",
     "babel-loader": "^9.1.0",
+    "concurrently": "^8.2.2",
     "copy-webpack-plugin": "^11.0.0",
     "electron": "^28.2.0",
     "react": "^18.2.0",

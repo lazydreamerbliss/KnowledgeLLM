@@ -3,7 +3,7 @@ import path from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import { fork } from "node:child_process";
 
-fork(path.join(__dirname, "server.js"));
+fork("./dist/server.js");
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
