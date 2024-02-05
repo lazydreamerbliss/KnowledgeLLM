@@ -1,5 +1,6 @@
 import os
 import pickle
+import shutil
 from datetime import datetime
 from functools import wraps
 from threading import Event
@@ -111,7 +112,10 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def initialize(self, force_init: bool = False, progress_reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
+    def initialize(self,
+                   force_init: bool = False,
+                   progress_reporter: Callable[[int], None] | None = None,
+                   cancel_event: Event | None = None):
         """Initialize the library
 
         Args:
@@ -119,13 +123,15 @@ class LibraryBase:
             reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
             It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
             cancel_event (Event | None, optional): The event object to check if the initialization is cancelled. Defaults to None.
-
-        Raises:
-            NotImplementedError: _description_
         """
         raise NotImplementedError()
 
-    def use_doc(self, relative_path: str, provider_type: Any, force_init: bool = False, progress_reporter: Callable[[int], None] | None = None, cancel_event: Event | None = None):
+    def use_doc(self,
+                relative_path: str,
+                provider_type: Any,
+                force_init: bool = False,
+                progress_reporter: Callable[[int], None] | None = None,
+                cancel_event: Event | None = None):
         """Initialize or switch to a document under current library
         - If target document is not in metadata, then this is an uninitialized document, call __initialize_doc()
         - Otherwise load the document provider and vector DB for the target document directly
@@ -138,9 +144,6 @@ class LibraryBase:
             reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
             It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
             cancel_event (Event | None, optional): The event object to check if the initialization is cancelled. Defaults to None.
-
-        Raises:
-            NotImplementedError: _description_
         """
         raise NotImplementedError()
 
@@ -152,7 +155,30 @@ class LibraryBase:
     def move_file(self, relative_path: str, new_relative_path: str):
         """Move the given file under current library and retain the existing embedding information
         """
-        raise NotImplementedError()
+        if relative_path == new_relative_path:
+            return
+        if not relative_path or not new_relative_path:
+            raise LibraryError('Invalid relative path')
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        doc_path: str = os.path.join(self._path_lib, relative_path)
+        if not os.path.isfile(doc_path):
+            raise LibraryError('Invalid doc path')
+
+        new_relative_path = new_relative_path.lstrip(os.path.sep)
+        new_doc_path: str = os.path.join(self._path_lib, new_relative_path)
+        if os.path.isfile(new_doc_path):
+            raise LibraryError('Filename already exists')
+
+        # Move the file
+        os.makedirs(os.path.dirname(new_doc_path), exist_ok=True)
+        shutil.move(doc_path, new_doc_path)
+
+        # Adjust the embedding info in metadata if this image has been embedded
+        uuid: str | None = self.get_embedded_files().pop(relative_path, None)
+        if uuid:
+            self.get_embedded_files()[new_relative_path] = uuid
+            self._save_scan_profile()
 
     def rename_file(self, relative_path: str, new_name: str):
         """Rename the given file under current library and retain the existing embedding information
@@ -321,9 +347,9 @@ class LibraryBase:
     @ensure_lib_is_ready
     def change_embedded_files(self, new_files: dict[str, str]):
         self._scan_profile['embedded_files'] = new_files
-        self._save_metadata(scan_profile=True)
+        self._save_scan_profile()
 
     @ensure_lib_is_ready
     def change_unfinished_files(self, new_files: dict[str, str]):
         self._scan_profile['unfinished_files'] = new_files
-        self._save_metadata(scan_profile=True)
+        self._save_scan_profile()

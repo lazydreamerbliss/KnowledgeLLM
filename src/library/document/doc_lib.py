@@ -273,6 +273,23 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__vector_db = None
         shutil.rmtree(self._path_lib_data)
 
+    def add_file(self, folder_relative_path: str, source_file: str):
+        pass
+
+    def delete_file(self, relative_path: str, **kwargs):
+        if not relative_path:
+            raise LibraryError('Invalid relative path')
+
+        provider_type: Type[D] = kwargs.get('provider_type', None)
+        if not provider_type:
+            raise LibraryError('Provider type not provided')
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        doc_path: str = os.path.join(self._path_lib, relative_path)
+        if os.path.isfile(doc_path):
+            os.remove(doc_path)
+        self.remove_doc_embedding(relative_path, provider_type)
+
     """
     Public methods
     """
@@ -342,46 +359,9 @@ class DocumentLib(Generic[D], LibraryBase):
         unfinished_files.pop(relative_path, None)
         self._save_scan_profile()
 
-    def move_file(self, relative_path: str, new_relative_path: str):
-        if not relative_path or not new_relative_path:
-            raise LibraryError('Invalid relative path')
-
-        if relative_path == new_relative_path:
-            return
-
-        relative_path = relative_path.lstrip(os.path.sep)
-        doc_path: str = os.path.join(self._path_lib, relative_path)
-        if not os.path.isfile(doc_path):
-            raise LibraryError('Invalid doc path')
-
-        new_relative_path = new_relative_path.lstrip(os.path.sep)
-        new_doc_path: str = os.path.join(self._path_lib, new_relative_path)
-        if os.path.isfile(new_doc_path):
-            raise LibraryError('Filename already exists')
-
-        # Move the file to the new library
-        os.makedirs(os.path.dirname(new_doc_path), exist_ok=True)
-        shutil.move(doc_path, new_doc_path)
-
-        # Adjust the embedding info in metadata if this document has been embedded
-        uuid: str | None = self.get_embedded_files().pop(relative_path, None)
-        if uuid:
-            self.get_embedded_files()[new_relative_path] = uuid
-            self._save_scan_profile()
-
-    def delete_file(self, relative_path: str, **kwargs):
-        if not relative_path:
-            raise LibraryError('Invalid relative path')
-
-        provider_type: Type[D] = kwargs.get('provider_type', None)
-        if not provider_type:
-            raise LibraryError('Provider type not provided')
-
-        relative_path = relative_path.lstrip(os.path.sep)
-        doc_path: str = os.path.join(self._path_lib, relative_path)
-        if os.path.isfile(doc_path):
-            os.remove(doc_path)
-        self.remove_doc_embedding(relative_path, provider_type)
+    """
+    Query methods
+    """
 
     @ensure_lib_is_ready
     def query(self, query_text: str, top_k: int = 10, rerank: bool = False) -> list[tuple]:

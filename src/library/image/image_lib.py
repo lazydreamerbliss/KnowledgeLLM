@@ -64,17 +64,20 @@ class ImageLib(LibraryBase):
     Private methods
     """
 
-    def __write_entry(self, file: str, embedding: list[float], save_pipeline: BatchedPipeline | None = None):
+    def __write_embedding_entry(self, relative_path: str, embedding: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry (file info + embedding) to both DB and vector DB
         - An UUID is generated to identify the image globally
         """
         timestamp: datetime = datetime.now()
         uuid: str = str(uuid4())
-        relative_path: str = os.path.dirname(file)
-        filename: str = os.path.basename(file)
+        parent_folder: str = os.path.dirname(relative_path)
+        filename: str = os.path.basename(relative_path)
         # (timestamp, uuid, path, filename)
-        self.__table.insert_row((timestamp, uuid, relative_path, filename))  # type: ignore
+        self.__table.insert_row((timestamp, uuid, parent_folder, filename))  # type: ignore
         self.__vector_db.add(uuid, embedding, save_pipeline)  # type: ignore
+
+        # Record scan history on saving the embedding to the DB
+        self.get_embedded_files()[relative_path] = uuid
 
     def __do_scan(self,
                   progress_reporter: Callable[[int], None] | None,
@@ -96,15 +99,15 @@ class ImageLib(LibraryBase):
         tqdm.write(f'Library scanned, found {total_files} files in {self._path_lib}')
 
         previous_progress: int = -1
-        for i, file in tqdm(enumerate(files), desc=f'Processing images', unit='item', ascii=' |'):
+        for i, relative_path in tqdm(enumerate(files), desc=f'Processing images', unit='item', ascii=' |'):
             try:
                 # Validate if the file is an image and insert it into the table
                 # - After verify() the file stream is closed, need to reopen it
-                img: Image.Image = Image.open(os.path.join(self._path_lib, file))
+                img: Image.Image = Image.open(os.path.join(self._path_lib, relative_path))
                 img.verify()
-                img = Image.open(os.path.join(self._path_lib, file))
+                img = Image.open(os.path.join(self._path_lib, relative_path))
             except:
-                tqdm.write(f'Invalid image: {file}, skip')
+                tqdm.write(f'Invalid image: {relative_path}, skip')
                 continue
 
             # If reporter is given, report progress to task manager
@@ -122,10 +125,10 @@ class ImageLib(LibraryBase):
                 start_time: float = time.time()
                 embedding: list[float] = self.__embedder.embed_image_as_list(img)  # type: ignore
                 time_taken: float = time.time() - start_time
-                tqdm.write(f'Image embedded: {file}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
-                yield file, embedding
+                tqdm.write(f'Image embedded: {relative_path}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
+                yield relative_path, embedding
             else:
-                yield file, None
+                yield relative_path, None
 
     def __full_scan_and_initialize_lib(self,
                                        progress_reporter: Callable[[int], None] | None,
@@ -143,7 +146,7 @@ class ImageLib(LibraryBase):
         if save_pipeline:
             # Use batched pipeline when available
             with save_pipeline:
-                for file, embedding in self.__do_scan(progress_reporter):
+                for relative_path, embedding in self.__do_scan(progress_reporter):
                     if not embedding:
                         raise LibraryError('Embedding not found')
                     if cancel_event is not None and cancel_event.is_set():
@@ -153,10 +156,10 @@ class ImageLib(LibraryBase):
                     if not scan_only:
                         if dimension == -1:
                             dimension = len(embedding)
-                        self.__write_entry(file, embedding, save_pipeline)
+                        self.__write_embedding_entry(relative_path, embedding, save_pipeline)
         else:
             # Otherwise, save the embedding one by one
-            for file, embedding in self.__do_scan(progress_reporter):
+            for relative_path, embedding in self.__do_scan(progress_reporter):
                 if not embedding:
                     raise LibraryError('Embedding not found')
                 if cancel_event is not None and cancel_event.is_set():
@@ -169,10 +172,11 @@ class ImageLib(LibraryBase):
                         dimension = len(embedding)
                         with TqdmContext('Creating index...', 'Index created'):
                             self.__vector_db.initialize_index(dimension)  # type: ignore
-                    self.__write_entry(file, embedding)
+                    self.__write_embedding_entry(relative_path, embedding)
 
         if not scan_only:
             self.__vector_db.persist()  # type: ignore
+            self._save_scan_profile()
             if not self.local_mode:
                 with TqdmContext('Creating index...', 'Index created'):
                     self.__vector_db.initialize_index(dimension)  # type: ignore
@@ -257,6 +261,19 @@ class ImageLib(LibraryBase):
         self.__vector_db = None
         shutil.rmtree(self._path_lib_data)
 
+    def add_file(self, folder_relative_path: str, source_file: str):
+        pass
+
+    def delete_file(self, relative_path: str, **kwargs):
+        if not relative_path:
+            raise LibraryError('Invalid relative path')
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        image_path: str = os.path.join(self._path_lib, relative_path)
+        if os.path.isfile(image_path):
+            os.remove(image_path)
+        self.remove_embedding(relative_path)
+
     """
     Public methods
     """
@@ -265,15 +282,60 @@ class ImageLib(LibraryBase):
         self.__embedder = embedder
 
     @ensure_lib_is_ready
-    def remove_item_from_lib(self, uuid: str):
-        self.__vector_db.remove(uuid)  # type: ignore
-        self.__table.delete_row_by_uuid(uuid)  # type: ignore
+    def remove_embedding(self, relative_path: str):
+        """Remove the embedding of an image from the DB
+        """
+        relative_path = relative_path.lstrip(os.path.sep)
+        if relative_path in self.get_embedded_files():
+            uuid: str = self.get_embedded_files()[relative_path]
+            self.__vector_db.remove(uuid)  # type: ignore
+            self.__table.delete_row_by_uuid(uuid)  # type: ignore
 
     def get_scan_gap(self) -> int:
         """Get the time gap from last scan in days
         """
         last_scanned: datetime = datetime.strptime(self._metadata['last_scanned'], '%Y-%m-%d %H:%M:%S')
         return (datetime.now() - last_scanned).days
+
+    def incremental_initialization(self,
+                                   progress_reporter: Callable[[int], None] | None = None,
+                                   cancel_event: Event | None = None):
+        """Incrementally initialize the library
+        - Only embed the new images that are not embedded yet and add them to the DB
+        """
+        # If there is no single embedded image, do full scan directly
+        if not self.get_embedded_files():
+            self.initialize(True, progress_reporter, cancel_event)
+            return
+
+        ready: bool = self.lib_is_ready()
+        if not self.__embedder:
+            raise LibraryError('Embedder not set')
+
+        # Load SQL DB and vector DB, and "not ready" has two cases:
+        # 1. The lib is a new lib
+        # 2. The lib is an existing lib but not loaded
+        if not ready:
+            self.__table = ImageLibTable(self._path_lib_data)
+            self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
+                                                lib_uuid=self._metadata['uuid'],
+                                                data_folder=self._path_lib_data)
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+    """
+    Query methods
+    """
 
     @ensure_lib_is_ready
     def image_for_image_search(self, img: Image.Image, top_k: int = 10, extra_params: dict | None = None) -> list[tuple]:
