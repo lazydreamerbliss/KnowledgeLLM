@@ -22,16 +22,21 @@ DEFAULT_EXCLUSION_LIST: set[str] = {
     LIB_DATA_FOLDER,
 }
 
-BASIC_METADATA: dict = {
+BASIC_metadata: dict = {
     'type': '',
-    'uuid': '',
+    'uuid': '',  # UUID of the library
     'name': '',
     'created_on': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-    'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     'view_style': 'grid',
     'sorted_by': 'name',
     'favorite_list': set(),
     'exclusion_list': DEFAULT_EXCLUSION_LIST,
+}
+
+BASIC_profile: dict = {
+    'uuid': '',  # UUID of the library
+    'embedded_files': dict(),  # List of embedded files under the library
+    'unfinished_files': dict(),  # List of files that are not finished embedding yet
 }
 
 
@@ -59,7 +64,10 @@ def ensure_metadata_ready(func):
 
 class LibraryBase:
 
+    # Metadata for the library
     METADATA_FILE: str = 'metadata.bin'
+    # Metadata for library file's scan profile
+    SCAN_PROFILE_FILE: str = 'scan_profile.bin'
 
     def __init__(self, lib_path: str):
         # Expand the lib path to absolute path
@@ -75,8 +83,10 @@ class LibraryBase:
         self._path_lib_data: str = os.path.join(self._path_lib, LIB_DATA_FOLDER)
         # In-memory metadata
         self._metadata: dict = dict()
-        # Path to the library's metadata file
         self.__path_metadata: str = os.path.join(self._path_lib_data, LibraryBase.METADATA_FILE)
+        # In-memory scan profile, for tracking the embedded files
+        self._scan_profile: dict = dict()
+        self.__path_scan_profile: str = os.path.join(self._path_lib_data, LibraryBase.SCAN_PROFILE_FILE)
         # Ensure the library's data folder exists
         if not os.path.isdir(self._path_lib_data):
             os.makedirs(self._path_lib_data)
@@ -134,62 +144,115 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
+    def add_file(self, folder_relative_path: str, source_file: str):
+        """Add given source file to the library under the given folder
+        """
+        raise NotImplementedError()
+
+    def move_file(self, relative_path: str, new_relative_path: str):
+        """Move the given file under current library and retain the existing embedding information
+        """
+        raise NotImplementedError()
+
+    def rename_file(self, relative_path: str, new_name: str):
+        """Rename the given file under current library and retain the existing embedding information
+        """
+        if not relative_path or not new_name:
+            raise LibraryError('Invalid relative path')
+
+        filename: str = os.path.basename(relative_path)
+        if filename == new_name:
+            return
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        new_name = new_name.strip()
+        new_relative_path = os.path.join(os.path.dirname(relative_path), new_name)
+        self.move_file(relative_path, new_relative_path)
+
+    def delete_file(self, relative_path: str, **kwargs):
+        """Delete the given file from the library, remove from both file system and embedding
+        """
+        raise NotImplementedError()
+
     """
-    Metadata file methods
+    Metadata file & scan profile methods
     """
 
     def _save_metadata(self):
         """Save the metadata file for any updates
         """
         if not os.path.isfile(self.__path_metadata):
-            raise LibraryError(f'metadata file missing: {self.__path_metadata}')
-        pickle.dump(self._metadata,  open(self.__path_metadata, 'wb'))
+            raise LibraryError(f'Metadata file missing: {self.__path_metadata}')
+        pickle.dump(self._metadata, open(self.__path_metadata, 'wb'))
 
-    def metadata_file_exists(self) -> bool:
-        """Check if the metadata file exists
+    def _save_scan_profile(self):
+        """Save the scan profile file for any updates
         """
-        return os.path.isfile(self.__path_metadata)
+        if not os.path.isfile(self.__path_scan_profile):
+            raise LibraryError(f'Metadata file missing: {self.__path_scan_profile}')
+        pickle.dump(self._scan_profile, open(self.__path_scan_profile, 'wb'))
 
-    def initialize_metadata(self, initial_metadata: dict):
-        """Initialize the metadata file for the library
+    def metadata_exists(self) -> bool:
+        """Check if the metadata & scan profile file exists
+        """
+        return os.path.isfile(self.__path_metadata) and os.path.isfile(self.__path_scan_profile)
+
+    def initialize_metadata(self, initial: dict, scan_profile: bool = False):
+        """Initialize the metadata & scan profile file for the library
         - Only called when the library is under a fresh initialization (metadata file not exists), the UUID should not be changed after this
         - File missing or modify the UUID manually will cause the library's index missing
         """
-        if not initial_metadata:
-            raise LibraryError('Initial metadata must be provided for a new library')
+        if not initial:
+            raise LibraryError('Initial data must be provided for a new library')
 
-        pickle.dump(initial_metadata,  open(self.__path_metadata, 'wb'))
-        self._metadata = initial_metadata
-        self.uuid = initial_metadata['uuid']
+        path: str = self.__path_metadata if not scan_profile else self.__path_scan_profile
+        pickle.dump(initial,  open(path, 'wb'))
+
+        if not scan_profile:
+            self._metadata = initial
+            self.uuid = initial['uuid']
+        else:
+            if self.uuid != initial['uuid']:
+                raise LibraryError('Scan profile UUID mismatched with metadata UUID')
+            self._scan_profile = initial
 
     def load_metadata(self, given_uuid: str, given_name: str):
-        """Load the metadata file of the library
+        """Load the metadata & scan profile file of the library
         """
-        if not os.path.isfile(self.__path_metadata):
-            raise LibraryError(f'metadata file missing: {self.__path_metadata}')
-
         try:
             content: dict = pickle.load(open(self.__path_metadata, 'rb'))
         except:
-            content: dict = dict()
-        if not content or not content.get('uuid', None) or content['uuid'] != given_uuid:
             raise LibraryError(f'Invalid metadata file: {self.__path_metadata}')
-
+        if not content:
+            raise LibraryError(f'Invalid metadata file: {self.__path_metadata}')
+        if not content.get('uuid', None) or content['uuid'] != given_uuid:
+            raise LibraryError(f'Metadata UUID mismatched: {self.__path_metadata}')
         self._metadata = content
         self.uuid = content['uuid']
-
         if content['name'] != given_name:
             self.change_lib_name(given_name)
 
+        try:
+            content: dict = pickle.load(open(self.__path_scan_profile, 'rb'))
+        except:
+            raise LibraryError(f'Invalid scan profile: {self.__path_scan_profile}')
+        if not content:
+            raise LibraryError(f'Invalid scan profile: {self.__path_scan_profile}')
+        if not content.get('uuid', None) or content['uuid'] != self.uuid:
+            raise LibraryError(f'Scan profile UUID mismatched with metadata UUID: {self.__path_scan_profile}')
+        self._scan_profile = content
+
     def delete_metadata(self):
-        """Delete the metadata file of the library
+        """Delete the metadata & scan profile file of the library
         - Can only call on the deletion of current library
         """
         if os.path.isfile(self.__path_metadata):
             os.remove(self.__path_metadata)
+        if os.path.isfile(self.__path_scan_profile):
+            os.remove(self.__path_scan_profile)
 
     """
-    Public methods to read library metadata info
+    Public methods to read library metadata & scan profile info
     """
 
     @ensure_metadata_ready
@@ -212,8 +275,16 @@ class LibraryBase:
     def get_exclusion_list(self) -> set[str]:
         return self._metadata['exclusion_list']
 
+    @ensure_lib_is_ready
+    def get_embedded_files(self) -> dict[str, str]:
+        return self._scan_profile['embedded_files']
+
+    @ensure_lib_is_ready
+    def get_unfinished_files(self) -> dict[str, str]:
+        return self._scan_profile['unfinished_files']
+
     """
-    Public methods to change library metadata
+    Public methods to change library metadata & scan profile info
     """
 
     @ensure_metadata_ready
@@ -246,3 +317,13 @@ class LibraryBase:
     def change_exclusion_list(self, new_list: set[str]):
         self._metadata['exclusion_list'] = new_list
         self._save_metadata()
+
+    @ensure_lib_is_ready
+    def change_embedded_files(self, new_files: dict[str, str]):
+        self._scan_profile['embedded_files'] = new_files
+        self._save_metadata(scan_profile=True)
+
+    @ensure_lib_is_ready
+    def change_unfinished_files(self, new_files: dict[str, str]):
+        self._scan_profile['unfinished_files'] = new_files
+        self._save_metadata(scan_profile=True)

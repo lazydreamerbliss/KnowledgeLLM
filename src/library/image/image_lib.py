@@ -42,11 +42,12 @@ class ImageLib(LibraryBase):
 
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
-            if not self.metadata_file_exists():
-                initial_metadata: dict = BASIC_METADATA | {
+            if not self.metadata_exists():
+                initial_metadata: dict = BASIC_metadata | {
                     'type': 'image',
                     'uuid': uuid,
                     'name': lib_name,
+                    'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 }
                 self.initialize_metadata(initial_metadata)
             else:
@@ -75,7 +76,18 @@ class ImageLib(LibraryBase):
         self.__table.insert_row((timestamp, uuid, relative_path, filename))  # type: ignore
         self.__vector_db.add(uuid, embedding, save_pipeline)  # type: ignore
 
-    def __do_scan(self, progress_reporter: Callable[[int], None] | None) -> Generator[tuple[str, list[float]], None, None]:
+    def __do_scan(self,
+                  progress_reporter: Callable[[int], None] | None,
+                  scan_only: bool = False) -> Generator[tuple[str, list[float] | None], None, None]:
+        """Scan the library and embed the images on the fly
+
+        Args:
+            progress_reporter (Callable[[int], None] | None): The progress reporter function to report the progress to task manager
+            scan_only (bool, optional): If do file scan only (without embeddinga). Defaults to False.
+
+        Yields:
+            Generator[tuple[str, list[float] | None], None, None]: _description_
+        """
         files: list[str] = list()
         for root, _, filenames in os.walk(self._path_lib):
             for filename in filenames:
@@ -106,12 +118,14 @@ class ImageLib(LibraryBase):
                 except:
                     pass
 
-            start_time: float = time.time()
-            embedding: list[float] = self.__embedder.embed_image_as_list(img)  # type: ignore
-            time_taken: float = time.time() - start_time
-            tqdm.write(f'Image embedded: {file}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
-
-            yield file, embedding
+            if not scan_only:
+                start_time: float = time.time()
+                embedding: list[float] = self.__embedder.embed_image_as_list(img)  # type: ignore
+                time_taken: float = time.time() - start_time
+                tqdm.write(f'Image embedded: {file}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
+                yield file, embedding
+            else:
+                yield file, None
 
     def __full_scan_and_initialize_lib(self,
                                        progress_reporter: Callable[[int], None] | None,
@@ -130,6 +144,8 @@ class ImageLib(LibraryBase):
             # Use batched pipeline when available
             with save_pipeline:
                 for file, embedding in self.__do_scan(progress_reporter):
+                    if not embedding:
+                        raise LibraryError('Embedding not found')
                     if cancel_event is not None and cancel_event.is_set():
                         tqdm.write(f'Library initialization cancelled')
                         raise TaskCancellationException('Library initialization cancelled')
@@ -141,6 +157,8 @@ class ImageLib(LibraryBase):
         else:
             # Otherwise, save the embedding one by one
             for file, embedding in self.__do_scan(progress_reporter):
+                if not embedding:
+                    raise LibraryError('Embedding not found')
                 if cancel_event is not None and cancel_event.is_set():
                     tqdm.write(f'Library initialization cancelled')
                     raise TaskCancellationException('Library initialization cancelled')
@@ -167,7 +185,7 @@ class ImageLib(LibraryBase):
     """
 
     def lib_is_ready(self) -> bool:
-        if not self.metadata_file_exists():
+        if not self.metadata_exists():
             return False
         if not self.__table:
             return False

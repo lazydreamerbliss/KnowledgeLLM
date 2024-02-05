@@ -47,15 +47,17 @@ class DocumentLib(Generic[D], LibraryBase):
 
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
-            if not self.metadata_file_exists():
-                initial_metadata: dict = BASIC_METADATA | {
+            if not self.metadata_exists():
+                initial_metadata: dict = BASIC_metadata | {
                     'type': 'document',
                     'uuid': uuid,
                     'name': lib_name,
-                    'embedded_docs': dict(),  # List of embedded documents under the library
-                    'unfinished_docs': dict(),  # List of documents that are not finished embedding yet
                 }
                 self.initialize_metadata(initial_metadata)
+                initial_scan_profile: dict = BASIC_profile | {
+                    'uuid': uuid,
+                }
+                self.initialize_metadata(initial_scan_profile, scan_profile=True)
             else:
                 self.load_metadata(uuid, lib_name)
         if not self._metadata or not self.uuid:
@@ -81,7 +83,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not relative_path:
             raise LibraryError('Invalid relative path')
 
-        if relative_path in self._metadata['embedded_docs']:
+        if relative_path in self.get_embedded_files():
             self.use_doc(relative_path, provider_type)
             return
 
@@ -90,15 +92,12 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError(f'Invalid doc path: {doc_path}')
 
         # Pre-check if given doc is in unfinished list, clean up leftover if any
-        if relative_path in self._metadata['unfinished_docs']:
-            old_uuid: str = self._metadata['unfinished_docs'][relative_path]
-            self.remove_doc_embedding(None, old_uuid, provider_type)
-            self._metadata['unfinished_docs'].pop(relative_path, None)
-            self._save_metadata()
+        if relative_path in self.get_unfinished_files():
+            self.remove_doc_embedding(relative_path, provider_type)
 
         # Record info in metadata before embedding
-        self._metadata['unfinished_docs'][relative_path] = uuid
-        self._save_metadata()
+        self.get_unfinished_files()[relative_path] = uuid
+        self._save_scan_profile()
 
         # Create doc provider for this doc
         self.__doc_provider = provider_type(self.path_db,
@@ -161,9 +160,9 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__vector_db.persist()
 
         # Record info in metadata after finished embedding
-        self._metadata['unfinished_docs'].pop(relative_path, None)
-        self._metadata['embedded_docs'][relative_path] = uuid
-        self._save_metadata()
+        self.get_unfinished_files().pop(relative_path, None)
+        self.get_embedded_files()[relative_path] = uuid
+        self._save_scan_profile()
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)
@@ -214,7 +213,7 @@ class DocumentLib(Generic[D], LibraryBase):
     """
 
     def lib_is_ready(self) -> bool:
-        if not self.metadata_file_exists():
+        if not self.metadata_exists():
             return False
         if not self.__embedder:
             return False
@@ -234,11 +233,12 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        need_initialization: bool = force_init or relative_path not in self._metadata['embedded_docs']
+        embedded_files: dict[str, str] = self.get_embedded_files()
+        need_initialization: bool = force_init or relative_path not in embedded_files
         # If no need to initialize, just switch to the doc and return
         if not need_initialization:
             with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-                uuid: str = self._metadata['embedded_docs'][relative_path]
+                uuid: str = embedded_files[relative_path]
                 self.__doc_provider = provider_type(self.path_db,
                                                     uuid,
                                                     doc_path=None,
@@ -247,17 +247,18 @@ class DocumentLib(Generic[D], LibraryBase):
             return
 
         # Do initialization
-        if force_init and relative_path in self._metadata['embedded_docs']:
-            self.remove_doc_embedding(relative_path, None, provider_type)
+        # - Clean up leftover for force_init
+        if force_init and relative_path in embedded_files:
+            self.remove_doc_embedding(relative_path, provider_type)
 
-        uuid: str = str(uuid4())
         try:
+            uuid: str = str(uuid4())
             self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
         except TaskCancellationException:
-            # On cancel, clean this doc's leftover
-            self.remove_doc_embedding(None, uuid, provider_type)
-            self._metadata['unfinished_docs'].pop(relative_path, None)
-            self._save_metadata()
+            # On cancel, clean this doc's leftover and remove from embedding history
+            self.remove_doc_embedding(relative_path, provider_type)
+            self.get_unfinished_files().pop(relative_path, None)
+            self._save_scan_profile()
 
     def demolish(self):
         """Delete the doc library, it purges all library data
@@ -283,46 +284,51 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.lib_is_ready() or not relative_path:
             return False
 
+        embedded_files: dict[str, str] = self.get_embedded_files()
         relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path not in self._metadata['embedded_docs']:
+        if relative_path not in embedded_files:
             return False
-        return self.__doc_provider.get_table_name() == self._metadata['embedded_docs'][relative_path]  # type: ignore
+        return self.__doc_provider.get_table_name() == embedded_files[relative_path]  # type: ignore
 
     def set_embedder(self, embedder: DocEmbedder):
         self.__embedder = embedder
 
-    def remove_doc_embedding(self, relative_path: str | None, uuid: str | None, provider_type: Type[D]):
+    def remove_doc_embedding(self, relative_path: str, provider_type: Type[D]):
         """Remove the embedding of a document under the library
         1. Delete the document's table from DB
         2. Delete the document's vector index
 
-        If relative_path is None, then UUID must be provided, and vice versa
-        If both are provided, only relative_path will be used
+        - Relative path is mandatory, with optional UUID
+        - Optional UUID is used to remove existing embedding if the relative path is not in scan profile, this can happen when the embedding is cancelled in half way
+        - Provided relative path does not need to be exists in file system, as the file might be deleted already but the leftover still exists
         """
-        if not relative_path and not uuid:
-            raise LibraryError('Invalid relative path and UUID')
+        if not relative_path:
+            raise LibraryError('Invalid relative path')
 
-        if relative_path:
-            relative_path = relative_path.lstrip(os.path.sep)
-            if relative_path not in self._metadata['embedded_docs']:
-                return
-            uuid = self._metadata['embedded_docs'][relative_path]
+        relative_path = relative_path.lstrip(os.path.sep)
 
-        # The UUID after current code line will be either the provided UUID or the one in metadata here
-        is_current_doc: bool = False
+        # UUID is mandatory for data cleanup, retrieve UUID from scan profile
+        embedded_files: dict[str, str] = self.get_embedded_files()
+        unfinished_files: dict[str, str] = self.get_unfinished_files()
+        if relative_path in embedded_files:
+            uuid = embedded_files[relative_path]
+        elif relative_path in unfinished_files:
+            uuid = unfinished_files[relative_path]
+        else:
+            raise LibraryError(f'Provided relative path cannot be found in scan profile: {relative_path}')
+
+        is_active_doc: bool = False
         if self.__doc_provider:
-            is_current_doc = self.__doc_provider.get_table_name() == uuid
+            is_active_doc = self.__doc_provider.get_table_name() == uuid
 
-        doc_info: str | None = relative_path if relative_path else uuid
-        with TqdmContext(f'Removing embedding data for {doc_info}...', 'Done'):
-            if not is_current_doc:
-                # Remove the document's table from DB
+        with TqdmContext(f'Removing embedding data for {uuid}...', 'Done'):
+            if not is_active_doc:
+                # For non-active doc, create temp provider and temp vector DB to delete leftover
                 tmp_provider: DocProviderBase = provider_type(self.path_db,
                                                               uuid,
                                                               doc_path=None,
                                                               re_dump=False)  # type: ignore
                 tmp_provider.delete_table()
-                # Remove the document's vector index
                 tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
                 tmp_vector_db.delete_db()
             else:
@@ -331,9 +337,51 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.__vector_db.delete_db()  # type: ignore
                 self.__vector_db = None
 
-        # Record info in metadata after finished deletion
-        self._metadata['embedded_docs'].pop(relative_path, None)
-        self._save_metadata()
+        # Remove doc from embedding history after deletion
+        embedded_files.pop(relative_path, None)
+        unfinished_files.pop(relative_path, None)
+        self._save_scan_profile()
+
+    def move_file(self, relative_path: str, new_relative_path: str):
+        if not relative_path or not new_relative_path:
+            raise LibraryError('Invalid relative path')
+
+        if relative_path == new_relative_path:
+            return
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        doc_path: str = os.path.join(self._path_lib, relative_path)
+        if not os.path.isfile(doc_path):
+            raise LibraryError('Invalid doc path')
+
+        new_relative_path = new_relative_path.lstrip(os.path.sep)
+        new_doc_path: str = os.path.join(self._path_lib, new_relative_path)
+        if os.path.isfile(new_doc_path):
+            raise LibraryError('Filename already exists')
+
+        # Move the file to the new library
+        os.makedirs(os.path.dirname(new_doc_path), exist_ok=True)
+        shutil.move(doc_path, new_doc_path)
+
+        # Adjust the embedding info in metadata if this document has been embedded
+        uuid: str | None = self.get_embedded_files().pop(relative_path, None)
+        if uuid:
+            self.get_embedded_files()[new_relative_path] = uuid
+            self._save_scan_profile()
+
+    def delete_file(self, relative_path: str, **kwargs):
+        if not relative_path:
+            raise LibraryError('Invalid relative path')
+
+        provider_type: Type[D] = kwargs.get('provider_type', None)
+        if not provider_type:
+            raise LibraryError('Provider type not provided')
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        doc_path: str = os.path.join(self._path_lib, relative_path)
+        if os.path.isfile(doc_path):
+            os.remove(doc_path)
+        self.remove_doc_embedding(relative_path, provider_type)
 
     @ensure_lib_is_ready
     def query(self, query_text: str, top_k: int = 10, rerank: bool = False) -> list[tuple]:
