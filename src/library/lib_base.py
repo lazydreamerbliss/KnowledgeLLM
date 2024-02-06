@@ -276,13 +276,14 @@ class LibraryBase:
         if content['name'] != given_name:
             self.change_lib_name(given_name)
 
+    def load_scan_profile(self, given_uuid: str):
         try:
             content: dict = pickle.load(open(self.__path_scan_profile, 'rb'))
         except:
             raise LibraryError(f'Invalid scan profile: {self.__path_scan_profile}')
         if not content:
             raise LibraryError(f'Invalid scan profile: {self.__path_scan_profile}')
-        if not content.get('uuid', None) or content['uuid'] != self.uuid:
+        if not content.get('uuid', None) or content['uuid'] != given_uuid:
             raise LibraryError(f'Scan profile UUID mismatched with metadata UUID: {self.__path_scan_profile}')
         self._scan_profile = content
 
@@ -361,13 +362,3 @@ class LibraryBase:
     def change_exclusion_list(self, new_list: set[str]):
         self._metadata['exclusion_list'] = new_list
         self._save_metadata()
-
-    @ensure_lib_is_ready
-    def change_embedded_files(self, new_files: dict[str, str]):
-        self._scan_profile['embedded_files'] = new_files
-        self._save_scan_profile()
-
-    @ensure_lib_is_ready
-    def change_unfinished_files(self, new_files: dict[str, str]):
-        self._scan_profile['unfinished_files'] = new_files
-        self._save_scan_profile()

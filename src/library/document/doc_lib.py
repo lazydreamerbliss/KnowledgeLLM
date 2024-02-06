@@ -60,6 +60,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.initialize_metadata(initial_scan_profile, scan_profile=True)
             else:
                 self.load_metadata(uuid, lib_name)
+                self.load_scan_profile(uuid)
         if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
