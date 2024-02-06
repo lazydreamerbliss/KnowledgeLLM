@@ -195,10 +195,28 @@ class LibraryBase:
         new_relative_path = os.path.join(os.path.dirname(relative_path), new_name)
         self.move_file(relative_path, new_relative_path)
 
-    def delete_file(self, relative_path: str, **kwargs):
+    def delete_files(self, relative_path: str, **kwargs):
         """Delete the given file from the library, remove from both file system and embedding
         """
         raise NotImplementedError()
+
+    """
+    Task manager methods
+    """
+
+    def report_progress(self,
+                        progress_reporter: Callable[[int], None] | None,
+                        current_progress: int):
+        """Report the progress of current task
+        """
+        if not progress_reporter:
+            return
+        if current_progress is None or current_progress < 0 or current_progress > 100:
+            return
+        try:
+            progress_reporter(current_progress)
+        except:
+            pass
 
     """
     Metadata file & scan profile methods

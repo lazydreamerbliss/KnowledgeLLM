@@ -104,11 +104,11 @@ class DocumentLib(Generic[D], LibraryBase):
                                             uuid,
                                             doc_path=doc_path,
                                             re_dump=False)  # type: ignore
-        total_records: int = self.__doc_provider.get_record_count()
+        total: int = self.__doc_provider.get_record_count()
 
         # Do embedding, and create vector DB for this doc
         # - The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
-        use_IVF: bool = total_records > 7020
+        use_IVF: bool = total > 7020
         self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
 
         embedding_list: list[npt.ArrayLike] = list()
@@ -121,14 +121,10 @@ class DocumentLib(Generic[D], LibraryBase):
 
             # If reporter is given, report progress to task manager
             # - Reduce report frequency, only report when progress changes
-            if progress_reporter:
-                try:
-                    current_progress: int = int(i / total_records * 100)
-                    if current_progress > previous_progress:
-                        previous_progress = current_progress
-                        progress_reporter(current_progress)
-                except:
-                    pass
+            current_progress: int = int(i / total * 100)
+            if current_progress > previous_progress:
+                previous_progress = current_progress
+                self.report_progress(progress_reporter, current_progress)
 
             key_text: str = self.__doc_provider.get_key_text_from_record(row)
             embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
@@ -276,7 +272,7 @@ class DocumentLib(Generic[D], LibraryBase):
     def add_file(self, folder_relative_path: str, source_file: str):
         pass
 
-    def delete_file(self, relative_path: str, **kwargs):
+    def delete_files(self, relative_path: str, **kwargs):
         if not relative_path:
             raise LibraryError('Invalid relative path')
 
@@ -301,11 +297,10 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.lib_is_ready() or not relative_path:
             return False
 
-        embedded_files: dict[str, str] = self.get_embedded_files()
         relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path not in embedded_files:
+        if relative_path not in self.get_embedded_files():
             return False
-        return self.__doc_provider.get_table_name() == embedded_files[relative_path]  # type: ignore
+        return self.__doc_provider.get_table_name() == self.get_embedded_files()[relative_path]  # type: ignore
 
     def set_embedder(self, embedder: DocEmbedder):
         self.__embedder = embedder
