@@ -1,11 +1,10 @@
 import re
 from datetime import datetime, timedelta
 from sqlite3 import Cursor
-from typing import Callable
 
 from tqdm import tqdm
 
-from knowledge_base.document.doc_provider import *
+from knowledge_base.document.doc_provider_base import *
 from library.document.wechat.wechat_history_table import WechatHistoryTable
 from utils.tqdm_context import TqdmContext
 
@@ -16,65 +15,85 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
     # Type for the table for this type of document provider
     TABLE_TYPE: type = WechatHistoryTable
-    # Lambda function to extract the text to be embedded from a tuple of a row
-    EMBED_LAMBDA: Callable[['WechatHistoryProvider', tuple], str] = lambda self, x: f"{x[3]}-{x[5]}" if x[5] else x[3]
-    # Lambda function to extract the text to be re-ranked from a tuple of a row
-    RERANK_LAMBDA: Callable[['WechatHistoryProvider', tuple], str] = lambda self, x: f"{x[3]}-{x[5]}" if x[5] else x[3]
 
     msg_pattern: re.Pattern = re.compile(
-        r"(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)")
+        r'(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)')
     reply_pattern: re.Pattern = re.compile(
-        r"「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>.+?)」[\n\r]*(?P<spliter>[ -]+)[\n\r]*(?P<message>.+)")
+        r'「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>.+?)」[\n\r]*(?P<spliter>[ -]+)[\n\r]*(?P<message>.+)')
     test_reply: re.Pattern = re.compile(
-        r"「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>(.|\n|\r)*?)」")
+        r'「(?P<reply_to>.+?)：[\n\r]*(?P<replied_message>(.|\n|\r)*?)」')
     ignore_pattern: re.Pattern = re.compile(
-        r"^\[.+\]$")
+        r'^\[.+\]$')
 
     def __init__(self, db_path: str, uuid: str, doc_path: str | None = None, re_dump: bool = False):
         super().__init__(db_path, uuid, doc_path, re_dump, table_type=WechatHistoryProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path (chat history)
-        if not self.table.row_count() or re_dump:
+        if not self._table.row_count() or re_dump:
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
 
             with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
-                self.table.clean_all_data()
+                self._table.clean_all_data()
                 self.initialize(doc_path)
 
-    def __process_reply(self, reply: str) -> tuple[str, str, str]:
-        """Process a reply message, return the replied user, replied message and the message itself
+    def __msg_clean_up(self, msg: str) -> str:
+        """Unify punctuations and clean up ignore patterns from given message
         """
+        if not msg:
+            return msg
+
+        msg = msg.replace('，', ',')\
+            .replace('、', ',')\
+            .replace('？', '?')\
+            .replace('。', '.')\
+            .replace('：', ':')\
+            .replace('；', ';')\
+            .replace('“', '"')\
+            .replace('”', '"')\
+            .replace('‘', "'")\
+            .replace('’', "'")\
+            .replace('（', '(')\
+            .replace('）', ')')
+
+        if len(msg) < 8:
+            # If message is very short, try to remove ignored patterns as it could be [photo], [破涕为笑], etc.
+            msg = WechatHistoryProvider.ignore_pattern.sub('', msg)
+        return msg
+
+    def __process_reply(self, reply: str) -> tuple[str, str, str]:
+        '''Process a reply message, return the replied user, replied message and the message itself
+        '''
         if not reply:
-            return ("", "", "")
+            return ('', '', '')
 
         match: re.Match | None = WechatHistoryProvider.reply_pattern.match(reply)
         if not match:
-            return ("", "", "")
+            return ('', '', '')
 
-        message = match.group('message')
-        # If message is very short, try to remove ignored patterns as it could be [photo], [破涕为笑], etc.
-        if len(message) < 8:
-            message = WechatHistoryProvider.ignore_pattern.sub("", message)
+        message: str = match.group('message')
+        message = self.__msg_clean_up(message)
         if not message:
-            return "", "", ""
+            return '', '', ''
 
-        reply_to = match.group('reply_to')
-        replied_message = match.group('replied_message')
+        reply_to: str = match.group('reply_to')
+        replied_message: str = match.group('replied_message')
+        replied_message = self.__msg_clean_up(replied_message)
+        if not replied_message:
+            return '', '', ''
+
         return reply_to, replied_message, message
 
     def __process_message(self, match: re.Match) -> tuple[datetime | None, str, str]:
         """Process a message body, return the timestamp, sender and the message itself
         """
         if not match:
-            return None, "", ""
+            return None, '', ''
 
         message: str = match.group('message')
-        # If message is very short, try to remove ignored patterns as it could be [photo], [破涕为笑], etc.
-        if len(message) < 8:
-            message = WechatHistoryProvider.ignore_pattern.sub("", message)
+        message = self.__msg_clean_up(message)
         if not message:
-            return None, "", ""
+            return None, '', ''
 
         time: datetime = datetime.strptime(match.group('timestamp'), '%Y-%m-%d %H:%M:%S')
         username: str = match.group('username')
@@ -84,7 +103,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         if not chat_filepath:
             raise DocProviderError('chat_filepath is None')
 
-        cached_reply: str = ""
+        cached_reply: str = ''
         reply_time: datetime | None = None  # Reply message has no timestamp, use previous message's timestamp instead
         with open(chat_filepath, 'r', encoding='utf-8') as f:
             # 'ascii' param needs an extra space, try to remove it to see what happens
@@ -103,11 +122,11 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
             if message_match:
                 if cached_reply:
                     reply_to, replied_message, r_message = self.__process_reply(cached_reply)
-                    cached_reply = ""
+                    cached_reply = ''
                     if r_message:
                         # (timestamp, sender, message, reply_to, replied_message)
                         # - Sender is missed in reply message, use empty string instead
-                        self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
+                        self._table.insert_row((reply_time, '', r_message, reply_to, replied_message))
 
                 time, username, message = self.__process_message(message_match)
                 if not time:
@@ -115,7 +134,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
                 reply_time = time + timedelta(seconds=1)
                 # (timestamp, sender, message, reply_to, replied_message)
-                self.table.insert_row((time, username, message, "", ""))
+                self._table.insert_row((time, username, message, '', ''))
                 continue
 
             # Reply message case
@@ -140,9 +159,9 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
             if is_new_reply and cached_reply:
                 reply_to, replied_message, r_message = self.__process_reply(cached_reply)
-                cached_reply = ""
+                cached_reply = ''
                 if r_message:
-                    self.table.insert_row((reply_time, "", r_message, reply_to, replied_message))
+                    self._table.insert_row((reply_time, '', r_message, reply_to, replied_message))
 
             cached_reply += line
             continue
@@ -150,11 +169,10 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         # Process the last reply message if exists
         if cached_reply:
             reply_to, replied_message, message = self.__process_reply(cached_reply)
-            message = WechatHistoryProvider.ignore_pattern.sub("", message)
             if message:
                 # (timestamp, sender, message, reply_to, replied_message)
                 # - Sender is missed in reply message, use empty string instead
-                self.table.insert_row((reply_time, "", message, reply_to, replied_message))
+                self._table.insert_row((reply_time, '', message, reply_to, replied_message))
 
     """
     Basic operations
@@ -166,9 +184,16 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
         if 'sender' in kwargs:
             sender: str = kwargs['sender']
-            cursor: Cursor = self.table.select_rows_by_sender(sender)
+            cursor: Cursor = self._table.select_rows_by_sender(sender)
             rows: list[tuple] | None = cursor.fetchmany()
             if not rows:
                 return list()
             return rows
         return list()
+
+    def get_key_text_from_record(self, row: tuple) -> str:
+        # The message & replied message column ['message', 'TEXT'] and ['replied_message', 'TEXT'] are 4th and 6th columns of chat history table
+        # - So row[3] + row[5] is the key information for a row of chat
+        if not row[5]:
+            return row[3]
+        return f'{row[3]} {row[5]}'

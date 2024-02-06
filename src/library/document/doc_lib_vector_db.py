@@ -34,24 +34,22 @@ class DocLibVectorDb:
         self.mem_vector_db: InMemoryVectorDb = InMemoryVectorDb(idx_path, idx_file)
 
     @ensure_vector_db_connected
-    def initialize_index(self, vector_dimension: int, training_set: np.ndarray, dataset_size: int):
-        if training_set is None:
-            raise VectorDbError('training_set is None')
-
-        # Use IVF index for in-memory vector DB
-        self.mem_vector_db.initialize_index(vector_dimension, training_set=training_set,
-                                            training_set_uuid=None, expected_dataset_size=dataset_size)
+    def initialize_index(self, vector_dimension: int, training_set: np.ndarray | None, dataset_size: int = -1):
+        self.mem_vector_db.initialize_index(vector_dimension,
+                                            training_set=training_set,
+                                            training_set_uuid_list=None,  # No need to track ID for document library
+                                            expected_dataset_size=dataset_size)
 
     @ensure_vector_db_connected
     def get_save_pipeline(self, batch_size: int = 1000) -> BatchedPipeline:
         raise NotImplementedError('In-memory vector DB does not support batched pipeline')
 
     @ensure_vector_db_connected
-    def add(self, uuid: str, embeddings: list[float], pipeline: BatchedPipeline | None = None):
-        self.mem_vector_db.add(uuid, embeddings)
+    def add(self, uuid: str | None, embedding: list[float]):
+        self.mem_vector_db.add(uuid, embedding)
 
     @ensure_vector_db_connected
-    def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
+    def remove(self, uuid: str):
         self.mem_vector_db.remove([uuid], ids=None)
 
     @ensure_vector_db_connected
@@ -71,13 +69,13 @@ class DocLibVectorDb:
         self.mem_vector_db.persist()
 
     @ensure_vector_db_connected
-    def query(self, embeddings: np.ndarray, top_k: int = 10, extra_params: dict | None = None) -> list:
-        """Query the given embeddings against the index for similar images
+    def query(self, embedding: np.ndarray, top_k: int = 10, extra_params: dict | None = None) -> list:
+        """Query the given embedding against the index for similar images
         """
-        if embeddings is None or not top_k or top_k <= 0:
+        if embedding is None or not top_k or top_k <= 0:
             return list()
 
-        return self.mem_vector_db.query(embeddings, top_k)
+        return self.mem_vector_db.query(embedding, top_k)
 
     @ensure_vector_db_connected
     def db_is_empty(self) -> bool:

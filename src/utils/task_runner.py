@@ -1,11 +1,10 @@
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
-from threading import Event, Lock
+from threading import Event
 from typing import Callable
 
-from utils.exceptions.task_errors import (TaskCancelFailureException,
-                                          TaskCreationFailureException)
+from utils.exceptions.task_errors import *
 
 EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these seconds
 
@@ -48,8 +47,7 @@ class TaskRunner:
     def __init__(self, max_parallel_tasks: int = 5):
         self.tasks: dict[str, TaskObj] = dict()
         self.max_parallel_tasks: int = max_parallel_tasks
-        self.thread_pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_parallel_tasks)
-        self.lock = Lock()
+        self.__thread_pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_parallel_tasks)
 
     def __mark_task_completed(self, task_id: str, termination_state: str, error: str | None = None):
         """Mark a task as completed with given state
@@ -62,13 +60,13 @@ class TaskRunner:
         self.tasks[task_id].error = error
         self.tasks[task_id].duration = int((now - self.tasks[task_id].submitted_on).total_seconds())
 
-    def __run_task_wrapper(self,
-                           task_id: str,
-                           task_func: Callable,
-                           progress_reporter: Callable[[int], None] | None,
-                           cancel_event: Event | None,
-                           args: tuple,
-                           kwargs: dict):
+    def __run_task_with_catch(self,
+                              task_id: str,
+                              task_func: Callable,
+                              progress_reporter: Callable[[int], None] | None,
+                              cancel_event: Event | None,
+                              args: tuple,
+                              kwargs: dict):
         """Run given task
         """
         try:
@@ -82,22 +80,21 @@ class TaskRunner:
     def __get_active_task_count(self) -> int:
         """Get active task count also cleanup expired tasks
         """
-        with self.lock:
-            expired: list[str] = list()
-            res: int = 0
-            for id in self.tasks:
-                if self.tasks[id].state == TaskState.IN_PROGRESS:
-                    res += 1
-                else:
-                    completed_on: datetime | None = self.tasks[id].completed_on
-                    if completed_on:
-                        if (datetime.now() - completed_on).total_seconds() > EXPIRATION_DURATION:
-                            expired.append(id)
-                    else:
+        expired: list[str] = list()
+        res: int = 0
+        for id in self.tasks:
+            if self.tasks[id].state == TaskState.IN_PROGRESS:
+                res += 1
+            else:
+                completed_on: datetime | None = self.tasks[id].completed_on
+                if completed_on:
+                    if (datetime.now() - completed_on).total_seconds() > EXPIRATION_DURATION:
                         expired.append(id)
+                else:
+                    expired.append(id)
 
-            for id in expired:
-                self.tasks.pop(id)
+        for id in expired:
+            self.tasks.pop(id)
         return res
 
     def submit_task(self, task_func: Callable,
@@ -119,19 +116,18 @@ class TaskRunner:
         if self.__get_active_task_count() >= self.max_parallel_tasks:
             raise TaskCreationFailureException('Maximum number of parallel tasks exceeded')
 
-        with self.lock:
-            task: TaskObj = TaskObj(str(uuid.uuid4()))
-            # The reporter lambda is used to report the progress of this task object
-            progress_reporter: Callable[[int], None] | None = None
-            if support_reporter:
-                progress_reporter = lambda x: setattr(self.tasks[task.id], 'progress', x)
-            if support_cancel:
-                task.cancel_event = Event()
+        task: TaskObj = TaskObj(str(uuid.uuid4()))
+        # The reporter lambda is used to report the progress of this task object
+        progress_reporter: Callable[[int], None] | None = None
+        if support_reporter:
+            progress_reporter = lambda x: setattr(self.tasks[task.id], 'progress', x)
+        if support_cancel:
+            task.cancel_event = Event()
 
-            future: Future = self.thread_pool.submit(
-                self.__run_task_wrapper, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
-            task.future = future
-            self.tasks[task.id] = task
+        future: Future = self.__thread_pool.submit(
+            self.__run_task_with_catch, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
+        task.future = future
+        self.tasks[task.id] = task
 
         if callback_lambda:
             future.add_done_callback(callback_lambda)
@@ -169,8 +165,15 @@ class TaskRunner:
         return res
 
     def is_task_done(self, task_id: str) -> bool:
-        """Check if a task is done
+        """Check if a task is done, this includes all termination states like cancel, failure, etc.
         """
         if task_id in self.tasks:
             return self.tasks[task_id].state != TaskState.IN_PROGRESS
-        return False
+        return True
+
+    def is_task_successful(self, task_id: str) -> bool:
+        """Check if a task is done and successful
+        """
+        if task_id in self.tasks:
+            return self.tasks[task_id].state == TaskState.FINISHED and not self.tasks[task_id].error
+        return True

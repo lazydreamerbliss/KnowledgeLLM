@@ -76,9 +76,10 @@ class SqliteTable:
         return cur.fetchone()
 
     @ensure_db
-    def select_many(self, k: int = -1) -> Cursor:
+    def select_many(self, k: int = -1, order_by: str | None = None, asc: bool = True) -> Cursor:
         cur: Cursor = self.db.cursor()
-        cmd: str = select_all_sql(self.table_name) if k < 0 else select_many_sql(self.table_name, k)
+        cmd: str = select_all_sql(self.table_name, order_by, asc) if k < 0 else select_many_sql(
+            self.table_name, k, order_by, asc)
         cur.execute(cmd)
         return cur
 

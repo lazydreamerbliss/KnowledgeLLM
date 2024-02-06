@@ -24,11 +24,11 @@ def select_by_ids_sql(table_name: str) -> str:
         raise SqlTableError('table_name is None')
 
     return f"""
-    SELECT * FROM "{table_name}" WHERE id IN (?);
+    SELECT * FROM "{table_name}" WHERE id IN (?)
     """
 
 
-def select_many_sql(table_name: str, top_k: int, order_by: str | None = None, asc: bool = True) -> str:
+def select_many_sql(table_name: str, top_k: int, order_by: str | None, asc: bool) -> str:
     if not table_name:
         raise SqlTableError('table_name is None')
     if not order_by:
@@ -36,11 +36,11 @@ def select_many_sql(table_name: str, top_k: int, order_by: str | None = None, as
 
     order: str = 'ASC' if asc else 'DESC'
     return f"""
-    SELECT * FROM "{table_name}" ORDER BY {order_by} {order} LIMIT {top_k};
+    SELECT * FROM "{table_name}" ORDER BY {order_by} {order} LIMIT {top_k}
     """
 
 
-def select_all_sql(table_name: str, order_by: str | None = None, asc: bool = True) -> str:
+def select_all_sql(table_name: str, order_by: str | None, asc: bool) -> str:
     if not table_name:
         raise SqlTableError('table_name is None')
     if not order_by:
@@ -48,7 +48,7 @@ def select_all_sql(table_name: str, order_by: str | None = None, asc: bool = Tru
 
     order: str = 'ASC' if asc else 'DESC'
     return f"""
-    SELECT * FROM "{table_name}" ORDER BY {order_by} {order};
+    SELECT * FROM "{table_name}" ORDER BY {order_by} {order}
     """
 
 

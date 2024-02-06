@@ -59,11 +59,11 @@ class ImageLibVectorDb:
         raise NotImplementedError('In-memory vector DB does not support batched pipeline')
 
     @ensure_vector_db_connected
-    def add(self, uuid: str, embeddings: list[float], pipeline: BatchedPipeline | None = None):
+    def add(self, uuid: str, embedding: list[float], pipeline: BatchedPipeline | None = None):
         if self.redis_vector_db:
-            self.redis_vector_db.add(uuid, embeddings, pipeline)
+            self.redis_vector_db.add(uuid, embedding, pipeline)
         elif self.mem_vector_db:
-            self.mem_vector_db.add(uuid, embeddings)
+            self.mem_vector_db.add(uuid, embedding)
 
     @ensure_vector_db_connected
     def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
@@ -108,22 +108,22 @@ class ImageLibVectorDb:
             self.mem_vector_db.persist()
 
     @ensure_vector_db_connected
-    def query(self, embeddings: np.ndarray, top_k: int = 10, extra_params: dict | None = None) -> list:
-        """Query the given embeddings against the index for similar images
+    def query(self, embedding: np.ndarray, top_k: int = 10, extra_params: dict | None = None) -> list:
+        """Query the given embedding against the index for similar images
         """
-        if embeddings is None or not top_k or top_k <= 0:
+        if embedding is None or not top_k or top_k <= 0:
             return list()
 
         if self.redis_vector_db:
-            embeddings_as_bytes: bytes = embeddings.tobytes()
-            param: dict = {"query_vector": embeddings_as_bytes} if not extra_params else \
-                {"query_vector": embeddings_as_bytes} | extra_params
+            embedding_as_bytes: bytes = embedding.tobytes()
+            param: dict = {"query_vector": embedding_as_bytes} if not extra_params else \
+                {"query_vector": embedding_as_bytes} | extra_params
             query: Query = Query(f'(*)=>[KNN {top_k} @vector $query_vector AS vector_score]')\
                 .sort_by("vector_score").return_fields("$").dialect(2)
             search_result: Result = self.redis_vector_db.get_search().search(query, param)  # type: ignore
             return search_result.docs
         elif self.mem_vector_db:
-            return self.mem_vector_db.query(embeddings, top_k)
+            return self.mem_vector_db.query(embedding, top_k)
         raise VectorDbError('Vector DB not connected')
 
     @ensure_vector_db_connected

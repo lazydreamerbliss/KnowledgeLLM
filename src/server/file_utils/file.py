@@ -46,7 +46,7 @@ def get_file_category(file_path: str) -> tuple[str, str]:
     if not extension:
         return category, extension
 
-    extension: str = extension.lower()[1:]
+    extension = extension.lower()[1:]
     if extension in image_types:
         category = F_CATEGORY_IMAGE
     elif extension in video_types:

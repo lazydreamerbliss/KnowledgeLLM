@@ -8,7 +8,7 @@ import numpy.typing as npt
 from tqdm import tqdm
 
 from knowledge_base.document.doc_embedder import DocEmbedder
-from knowledge_base.document.doc_provider import DocProviderBase
+from knowledge_base.document.doc_provider_base import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
 from library.lib_base import *
@@ -47,17 +47,20 @@ class DocumentLib(Generic[D], LibraryBase):
 
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
-            if not self.metadata_file_exists():
-                initial_metadata: dict = BASIC_METADATA | {
+            if not self.metadata_exists():
+                initial_metadata: dict = BASIC_metadata | {
                     'type': 'document',
                     'uuid': uuid,
                     'name': lib_name,
-                    'embedded_docs': dict(),  # List of embedded documents under the library
-                    'unfinished_docs': dict(),  # List of documents that are not finished embedding yet
                 }
                 self.initialize_metadata(initial_metadata)
+                initial_scan_profile: dict = BASIC_profile | {
+                    'uuid': uuid,
+                }
+                self.initialize_metadata(initial_scan_profile, scan_profile=True)
             else:
                 self.load_metadata(uuid, lib_name)
+                self.load_scan_profile(uuid)
         if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
@@ -81,7 +84,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not relative_path:
             raise LibraryError('Invalid relative path')
 
-        if relative_path in self._metadata['embedded_docs']:
+        if relative_path in self.get_embedded_files():
             self.use_doc(relative_path, provider_type)
             return
 
@@ -90,26 +93,28 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError(f'Invalid doc path: {doc_path}')
 
         # Pre-check if given doc is in unfinished list, clean up leftover if any
-        if relative_path in self._metadata['unfinished_docs']:
-            old_uuid: str = self._metadata['unfinished_docs'][relative_path]
-            self.remove_doc_embedding(None, old_uuid, provider_type)
-            self._metadata['unfinished_docs'].pop(relative_path, None)
-            self.save_metadata()
+        if relative_path in self.get_unfinished_files():
+            self.remove_doc_embedding(relative_path, provider_type)
 
         # Record info in metadata before embedding
-        self._metadata['unfinished_docs'][relative_path] = uuid
-        self.save_metadata()
+        self.get_unfinished_files()[relative_path] = uuid
+        self._save_scan_profile()
 
         # Create doc provider for this doc
         self.__doc_provider = provider_type(self.path_db,
                                             uuid,
                                             doc_path=doc_path,
                                             re_dump=False)  # type: ignore
+        total: int = self.__doc_provider.get_record_count()
 
         # Do embedding, and create vector DB for this doc
-        embeddings_list: list[npt.ArrayLike] = list()
-        total_records: int = self.__doc_provider.get_record_count()
+        # - The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
+        use_IVF: bool = total > 7020
+        self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
+
+        embedding_list: list[npt.ArrayLike] = list()
         previous_progress: int = -1
+        first_round: bool = True
         for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
             if cancel_event and cancel_event.is_set():
                 tqdm.write('Embedding cancelled')
@@ -117,33 +122,44 @@ class DocumentLib(Generic[D], LibraryBase):
 
             # If reporter is given, report progress to task manager
             # - Reduce report frequency, only report when progress changes
-            if progress_reporter:
-                try:
-                    current_progress: int = int(i / total_records * 100)
-                    if current_progress > previous_progress:
-                        previous_progress = current_progress
-                        progress_reporter(current_progress)
-                except:
-                    pass
+            current_progress: int = int(i / total * 100)
+            if current_progress > previous_progress:
+                previous_progress = current_progress
+                self.report_progress(progress_reporter, current_progress)
 
-            embeddings_list.append(self.__embedder.embed_text(self.__doc_provider.EMBED_LAMBDA(row)))  # type: ignore
-        embeddings: np.ndarray = np.asarray(embeddings_list)
+            key_text: str = self.__doc_provider.get_key_text_from_record(row)
+            embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
 
-        # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
-        # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
-        # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
-        # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
-        text_count: int = embeddings.shape[0]
-        dimension: int = embeddings.shape[1]
-        self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
-        with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
-            self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
-            self.__vector_db.persist()
+            # For IVF case, save all embeddings for further training
+            if use_IVF:
+                embedding_list.append(embedding)  # type: ignore
+                continue
+
+            # For non-IVF (Flat) case, add embedding to index directly
+            if first_round:
+                first_round = False
+                dimension: int = embedding.size
+                self.__vector_db.initialize_index(dimension, training_set=None)
+            self.__vector_db.add(None, embedding.tolist())
+
+        if use_IVF:
+            embeddings: np.ndarray = np.asarray(embedding_list)
+
+            # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
+            # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
+            # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
+            # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
+            text_count: int = embeddings.shape[0]
+            dimension: int = embeddings.shape[1]
+            with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
+                self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
+
+        self.__vector_db.persist()
 
         # Record info in metadata after finished embedding
-        self._metadata['unfinished_docs'].pop(relative_path, None)
-        self._metadata['embedded_docs'][relative_path] = uuid
-        self.save_metadata()
+        self.get_unfinished_files().pop(relative_path, None)
+        self.get_embedded_files()[relative_path] = uuid
+        self._save_scan_profile()
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)
@@ -155,7 +171,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.__doc_provider or not self.__vector_db:
             raise LibraryError('No active document, please switch to a document first')
 
-        query_embedding: npt.ArrayLike = self.__embedder.embed_text(text)  # type: ignore
+        query_embedding: np.ndarray = self.__embedder.embed_text(text)  # type: ignore
         ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
         res: list[tuple] = list()
 
@@ -171,28 +187,30 @@ class DocumentLib(Generic[D], LibraryBase):
                 res.append(record)
         return res
 
-    def __rerank(self, text: str, candidates: list[tuple]) -> list[tuple]:
+    def __rerank(self, text: str, candidate_rows: list[tuple]) -> list[tuple]:
         if not self.__doc_provider:
             raise LibraryError('No active document, please switch to a document first')
 
-        tqdm.write(f'Reranking {len(candidates)} candidates...')
-        candidates_str: list[str] = [self.__doc_provider.RERANK_LAMBDA(c) for c in candidates]  # type: ignore
+        tqdm.write(f'Reranking {len(candidate_rows)} candidates...')
+        candidates_str: list[str] = [
+            self.__doc_provider.get_key_text_from_record(c) for c in candidate_rows
+        ]  # type: ignore
         scores: npt.ArrayLike = self.__embedder.predict_similarity_batch(text, candidates_str)  # type: ignore
 
         # Re-sort the ranking result
-        # - np.argsort() returns the indices in ascending order, so here we use [::-1] to reverse it
+        # - np.argsort() returns the ID from original array (`scores`) based on it's corresponding score in ascending order, use [::-1] to reverse it
         # - https://blog.csdn.net/maoersong/article/details/21875705
-        sorted_ids: np.ndarray = np.argsort(scores)[::-1]
+        sorted_ids: list[int] = np.argsort(scores)[::-1].tolist()
 
         # Reorder the candidates list by the ranking
-        return [candidates[i] for i in sorted_ids]
+        return [candidate_rows[i] for i in sorted_ids]
 
     """
     Overridden public methods from LibraryBase
     """
 
     def lib_is_ready(self) -> bool:
-        if not self.metadata_file_exists():
+        if not self.metadata_exists():
             return False
         if not self.__embedder:
             return False
@@ -212,11 +230,12 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        need_initialization: bool = force_init or relative_path not in self._metadata['embedded_docs']
+        embedded_files: dict[str, str] = self.get_embedded_files()
+        need_initialization: bool = force_init or relative_path not in embedded_files
         # If no need to initialize, just switch to the doc and return
         if not need_initialization:
             with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-                uuid: str = self._metadata['embedded_docs'][relative_path]
+                uuid: str = embedded_files[relative_path]
                 self.__doc_provider = provider_type(self.path_db,
                                                     uuid,
                                                     doc_path=None,
@@ -225,17 +244,18 @@ class DocumentLib(Generic[D], LibraryBase):
             return
 
         # Do initialization
-        if force_init and relative_path in self._metadata['embedded_docs']:
-            self.remove_doc_embedding(relative_path, None, provider_type)
+        # - Clean up leftover for force_init
+        if force_init and relative_path in embedded_files:
+            self.remove_doc_embedding(relative_path, provider_type)
 
-        uuid: str = str(uuid4())
         try:
+            uuid: str = str(uuid4())
             self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
         except TaskCancellationException:
-            # On cancel, clean this doc's leftover
-            self.remove_doc_embedding(None, uuid, provider_type)
-            self._metadata['unfinished_docs'].pop(relative_path, None)
-            self.save_metadata()
+            # On cancel, clean this doc's leftover and remove from embedding history
+            self.remove_doc_embedding(relative_path, provider_type)
+            self.get_unfinished_files().pop(relative_path, None)
+            self._save_scan_profile()
 
     def demolish(self):
         """Delete the doc library, it purges all library data
@@ -250,6 +270,23 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__vector_db = None
         shutil.rmtree(self._path_lib_data)
 
+    def add_file(self, folder_relative_path: str, source_file: str):
+        pass
+
+    def delete_files(self, relative_path: str, **kwargs):
+        if not relative_path:
+            raise LibraryError('Invalid relative path')
+
+        provider_type: Type[D] = kwargs.get('provider_type', None)
+        if not provider_type:
+            raise LibraryError('Provider type not provided')
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        doc_path: str = os.path.join(self._path_lib, relative_path)
+        if os.path.isfile(doc_path):
+            os.remove(doc_path)
+        self.remove_doc_embedding(relative_path, provider_type)
+
     """
     Public methods
     """
@@ -262,44 +299,49 @@ class DocumentLib(Generic[D], LibraryBase):
             return False
 
         relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path not in self._metadata['embedded_docs']:
+        if relative_path not in self.get_embedded_files():
             return False
-        return self.__doc_provider.table.table_name == self._metadata['embedded_docs'][relative_path]  # type: ignore
+        return self.__doc_provider.get_table_name() == self.get_embedded_files()[relative_path]  # type: ignore
 
     def set_embedder(self, embedder: DocEmbedder):
         self.__embedder = embedder
 
-    def remove_doc_embedding(self, relative_path: str | None, uuid: str | None, provider_type: Type[D]):
+    def remove_doc_embedding(self, relative_path: str, provider_type: Type[D]):
         """Remove the embedding of a document under the library
         1. Delete the document's table from DB
         2. Delete the document's vector index
 
-        If relative_path is None, then UUID must be provided, and vice versa
-        If both are provided, only relative_path will be used
+        - Relative path is mandatory, with optional UUID
+        - Optional UUID is used to remove existing embedding if the relative path is not in scan profile, this can happen when the embedding is cancelled in half way
+        - Provided relative path does not need to be exists in file system, as the file might be deleted already but the leftover still exists
         """
-        if not relative_path and not uuid:
-            raise LibraryError('Invalid relative path and UUID')
+        if not relative_path:
+            raise LibraryError('Invalid relative path')
 
-        if relative_path:
-            relative_path = relative_path.lstrip(os.path.sep)
-            if relative_path not in self._metadata['embedded_docs']:
-                return
-            uuid = self._metadata['embedded_docs'][relative_path]
+        relative_path = relative_path.lstrip(os.path.sep)
 
-        # The UUID after current code line will be either the provided UUID or the one in metadata here
-        is_current_doc: bool = False
+        # UUID is mandatory for data cleanup, retrieve UUID from scan profile
+        embedded_files: dict[str, str] = self.get_embedded_files()
+        unfinished_files: dict[str, str] = self.get_unfinished_files()
+        if relative_path in embedded_files:
+            uuid = embedded_files[relative_path]
+        elif relative_path in unfinished_files:
+            uuid = unfinished_files[relative_path]
+        else:
+            raise LibraryError(f'Provided relative path cannot be found in scan profile: {relative_path}')
+
+        is_active_doc: bool = False
         if self.__doc_provider:
-            is_current_doc = self.__doc_provider.table.table_name == uuid
+            is_active_doc = self.__doc_provider.get_table_name() == uuid
 
-        with TqdmContext(f'Removing embedding data for {relative_path}...', 'Done'):
-            if not is_current_doc:
-                # Remove the document's table from DB
+        with TqdmContext(f'Removing embedding data for {uuid}...', 'Done'):
+            if not is_active_doc:
+                # For non-active doc, create temp provider and temp vector DB to delete leftover
                 tmp_provider: DocProviderBase = provider_type(self.path_db,
                                                               uuid,
                                                               doc_path=None,
                                                               re_dump=False)  # type: ignore
                 tmp_provider.delete_table()
-                # Remove the document's vector index
                 tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
                 tmp_vector_db.delete_db()
             else:
@@ -308,9 +350,14 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.__vector_db.delete_db()  # type: ignore
                 self.__vector_db = None
 
-        # Record info in metadata after finished deletion
-        self._metadata['embedded_docs'].pop(relative_path, None)
-        self.save_metadata()
+        # Remove doc from embedding history after deletion
+        embedded_files.pop(relative_path, None)
+        unfinished_files.pop(relative_path, None)
+        self._save_scan_profile()
+
+    """
+    Query methods
+    """
 
     @ensure_lib_is_ready
     def query(self, query_text: str, top_k: int = 10, rerank: bool = False) -> list[tuple]:
