@@ -97,10 +97,6 @@ def test_doc_lib(lib_manager: LibraryManager):
         # Failed to load the document
         return
 
-    if task_id and not task_runner.is_task_successful(task_id):
-        # Failed to load the document
-        return
-
     res = doc_lib.query('伏地魔附着在谁身上？', 20)
     for i in res:
         print(i)

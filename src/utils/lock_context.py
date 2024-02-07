@@ -1,7 +1,5 @@
 from threading import Lock
 
-from utils.exceptions.task_errors import LockAcquisitionFailure
-
 
 class LockContext:
     def __init__(self, lock: Lock):
