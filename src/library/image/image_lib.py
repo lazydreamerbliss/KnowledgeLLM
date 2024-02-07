@@ -2,7 +2,7 @@ import os
 import shutil
 import time
 from datetime import datetime
-from threading import Lock, RLock
+from threading import Lock
 from typing import Generator
 from uuid import uuid4
 
@@ -53,10 +53,14 @@ class ImageLib(LibraryBase):
                     'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 }
                 self.initialize_metadata(initial_metadata)
+                initial_scan_profile: dict = BASIC_profile | {
+                    'uuid': uuid,
+                }
+                self.initialize_scan_profile(initial_scan_profile)
             else:
                 self.load_metadata(uuid, lib_name)
                 self.load_scan_profile(uuid)
-        if not self._metadata or not self.uuid:
+        if not self._metadata or not self.uuid or not self._scan_profile:
             raise LibraryError('Library metadata not initialized')
 
         self.local_mode: bool = local_mode
@@ -71,15 +75,19 @@ class ImageLib(LibraryBase):
     Private methods
     """
 
-    def __instanize_db(self):
+    def __instanize_db(self, force_init: bool = False):
         """Instanize the DBs
+
+        If force init is provided, the index error (if any encountered during loading) will be ignored as the index data
+        will be purged afterwards, and for force init case index error are allowed
         """
         if not self.__table:
             self.__table = ImageLibTable(self._path_lib_data)
         if not self.__vector_db:
             self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                                 lib_uuid=self._metadata['uuid'],
-                                                data_folder=self._path_lib_data)
+                                                data_folder=self._path_lib_data,
+                                                ignore_index_error=force_init)
 
     def __write_embedding_entry(self, relative_path: str, embedding: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry (file info + embedding) to both DB and vector DB
@@ -113,10 +121,14 @@ class ImageLib(LibraryBase):
         to_be_embedded: set[str] = set()
 
         # Get all files under current library
+        lib_data_folder_abs_path: str = os.path.join(self._path_lib, LIB_DATA_FOLDER)
         for root, _, filenames in os.walk(self._path_lib):
+            if root == lib_data_folder_abs_path:
+                continue
             for filename in filenames:
                 # Relative path built from os.path.relpath does not start with os.path.sep, no need to strip
-                file_relative_path: str = os.path.relpath(os.path.join(root, filename), self._path_lib)
+                file_abs_path: str = os.path.join(root, filename)
+                file_relative_path: str = os.path.relpath(file_abs_path, self._path_lib)
                 all_files.add(file_relative_path)
                 if incremental:
                     if file_relative_path in self.get_embedded_files():
@@ -127,14 +139,19 @@ class ImageLib(LibraryBase):
         # - This can happen when user deletes files from file system directly and library is not aware of these operation
         if self.get_embedded_files():
             to_be_deleted: set[str] = set(self.get_embedded_files().keys()) - all_files
-            self.remove_embeddings(list(to_be_deleted))
+            if to_be_deleted:
+                tqdm.write(f'Incremental scan, found {len(to_be_deleted)} leftover items')
+                self.remove_embeddings(list(to_be_deleted))
 
         if incremental:
             all_files.clear()
-            tqdm.write(f'Incremental scan, found {len(to_be_embedded)} new files in {self._path_lib}')
+            if len(to_be_embedded):
+                tqdm.write(f'Incremental scan, found {len(to_be_embedded)} new files')
+            else:
+                tqdm.write(f'Incremental scan, no new file found')
         else:
             to_be_embedded = all_files
-            tqdm.write(f'Library scanned, found {len(all_files)} files in {self._path_lib}')
+            tqdm.write(f'Library scanned, found {len(all_files)} files')
 
         # Start to process each image
         total: int = len(to_be_embedded)
@@ -202,6 +219,7 @@ class ImageLib(LibraryBase):
                     if first_run:
                         with TqdmContext('Creating index...', 'Index created'):
                             self.__vector_db.initialize_index(dimension)  # type: ignore
+                            first_run = False
                 self.__write_embedding_entry(relative_path, embedding, save_pipeline)
 
     def __scan(self,
@@ -257,7 +275,10 @@ class ImageLib(LibraryBase):
                     # On scan finished, persist index and save scan history
                     self.__vector_db.persist()  # type: ignore
                     self._save_scan_profile()
-                tqdm.write(f'Image library scanned')
+                if not incremental:
+                    tqdm.write(f'Image library scanned')
+                else:
+                    tqdm.write(f'Image library incrementally scanned')
 
             except Exception as e:
                 # On cancel or failure, persist current progress
@@ -265,6 +286,8 @@ class ImageLib(LibraryBase):
                 self._save_scan_profile()
                 if isinstance(e, TaskCancellationException):
                     tqdm.write('Library scan cancelled, progress saved')
+                else:
+                    raise LibraryError(f'Library scan failed: {e}')
 
     """
     Overridden public methods from LibraryBase
@@ -289,7 +312,7 @@ class ImageLib(LibraryBase):
         if not ready:
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
-            self.__instanize_db()
+            self.__instanize_db(force_init)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
         if not force_init and self.__table.row_count() > 0 and not self.__vector_db.db_is_empty():  # type: ignore
@@ -335,7 +358,7 @@ class ImageLib(LibraryBase):
         if not relative_paths:
             return
 
-        for relative_path in relative_paths:
+        for relative_path in tqdm(relative_paths, desc=f'Deleting images', unit='item', ascii=' |'):
             if not relative_path:
                 continue
 
@@ -359,7 +382,7 @@ class ImageLib(LibraryBase):
         if not relative_paths:
             return
 
-        for relative_path in relative_paths:
+        for relative_path in tqdm(relative_paths, desc=f'Deleting embeddings', unit='item', ascii=' |'):
             if not relative_path:
                 continue
 

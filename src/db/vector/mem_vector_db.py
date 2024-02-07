@@ -28,7 +28,7 @@ class InMemoryVectorDb:
     IDX_FILENAME: str = 'mem_db.idx'  # Default index file name, if file name is not given
     DEFAULT_NEIGHBOR_COUNT: int = 5  # Default number of nearest neighbors to be queried for IVF
 
-    def __init__(self, data_folder, index_filename: str | None = None):
+    def __init__(self, data_folder, index_filename: str | None = None, ignore_index_error: bool = False):
         if not data_folder:
             raise VectorDbError(
                 'A folder path is mandatory for using in-memory vector DB, index file will be created in the folder')
@@ -58,7 +58,8 @@ class InMemoryVectorDb:
                     raise VectorDbError(f'Corrupted index file: index not loaded')
                 if self.id_mapping:
                     index_size: int = self.mem_index_flat.ntotal if self.mem_index_flat else self.mem_index_ivf.ntotal
-                    if len(self.id_mapping) != index_size:
+                    # If we are not ignoring index error, raise exception on length mismatch
+                    if not ignore_index_error and len(self.id_mapping) != index_size:
                         raise VectorDbError(
                             f'Corrupted index file: ID mapping size {len(self.id_mapping)} does not match index size {index_size}')
 

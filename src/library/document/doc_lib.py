@@ -57,11 +57,11 @@ class DocumentLib(Generic[D], LibraryBase):
                 initial_scan_profile: dict = BASIC_profile | {
                     'uuid': uuid,
                 }
-                self.initialize_metadata(initial_scan_profile, scan_profile=True)
+                self.initialize_scan_profile(initial_scan_profile)
             else:
                 self.load_metadata(uuid, lib_name)
                 self.load_scan_profile(uuid)
-        if not self._metadata or not self.uuid:
+        if not self._metadata or not self.uuid or not self._scan_profile:
             raise LibraryError('Library metadata not initialized')
 
         self.path_db: str = os.path.join(self._path_lib_data, DB_NAME)

@@ -29,7 +29,8 @@ class ImageLibVectorDb:
 
     def __init__(self, use_redis: bool = False,
                  lib_uuid: str | None = None,
-                 data_folder: str | None = None):
+                 data_folder: str | None = None,
+                 ignore_index_error: bool = False):
         # If use redis, UUID and namespace are mandatory
         if use_redis and not lib_uuid:
             raise VectorDbError('Library UUID is mandatory for using redis as vector DB')
@@ -42,7 +43,9 @@ class ImageLibVectorDb:
         if use_redis:
             self.redis_vector_db = RedisVectorDb(namespace=lib_uuid, index_name=f'v_idx:{lib_uuid}')  # type: ignore
         else:
-            self.mem_vector_db = InMemoryVectorDb(data_folder=data_folder, index_filename=ImageLibVectorDb.IDX_FILENAME)
+            self.mem_vector_db = InMemoryVectorDb(data_folder=data_folder,
+                                                  index_filename=ImageLibVectorDb.IDX_FILENAME,
+                                                  ignore_index_error=ignore_index_error)
 
     @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int):
@@ -50,7 +53,7 @@ class ImageLibVectorDb:
             self.redis_vector_db.initialize_index(vector_dimension)
         elif self.mem_vector_db:
             # Use flat index for in-memory vector DB, no training data provided
-            self.mem_vector_db.initialize_index(vector_dimension)
+            self.mem_vector_db.initialize_index(vector_dimension, track_id=True)
 
     @ensure_vector_db_connected
     def get_save_pipeline(self, batch_size: int = 1000) -> BatchedPipeline:

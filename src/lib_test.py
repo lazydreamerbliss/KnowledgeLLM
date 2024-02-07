@@ -13,7 +13,7 @@ from library.image.image_lib import ImageLib
 from singleton import *
 
 TEST_DOC_LIB = '~/Documents/test_lib'
-TEST_IMG_LIB = '~/Pictures/test_lib'
+TEST_IMG_LIB = '~/Pictures/test_lib_small'
 SAMPLE_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
 
 DOC_LIB_UUID = 'e8c0bd6f-2163-4294-92e6-4d225ab10b41'
@@ -97,30 +97,47 @@ def test_doc_lib(lib_manager: LibraryManager):
         # Failed to load the document
         return
 
+    if task_id and not task_runner.is_task_successful(task_id):
+        # Failed to load the document
+        return
+
     res = doc_lib.query('伏地魔附着在谁身上？', 20)
     for i in res:
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
 
-def test_image_lib(lib_manager: LibraryManager):
+def test_image_lib(lib_manager: LibraryManager, test_lib_manager: bool):
     lib_manager.use_library(IMG_LIB_UUID)
-    task_id: str | None = lib_manager.get_ready()
-    while True:
-        if not task_id or task_runner.is_task_done(task_id):
-            break
-        else:
-            print(task_runner.get_task_state([task_id]))  # type: ignore
-        time.sleep(1)
-
-    test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
     img_lib: ImageLib = lib_manager.get_lib_instance()  # type: ignore
-    a = img_lib.image_for_image_search(test_img, 2)
-    print(a)
-    print("####################################")
-    b = img_lib.text_for_image_search('astronaut', 2)
-    print(b)
-    print("####################################")
+    if test_lib_manager:
+        task_id: str | None = lib_manager.get_ready()
+        while True:
+            if not task_id or task_runner.is_task_done(task_id):
+                print(task_runner.get_task_state([task_id]))  # type: ignore
+                break
+            else:
+                print(task_runner.get_task_state([task_id]))  # type: ignore
+            time.sleep(1)
+
+        if task_id and not task_runner.is_task_successful(task_id):
+            # Failed to load the documenta
+            return
+    else:
+        img_lib.set_embedder(ImageEmbedder())
+        img_lib.initialize()
+        img_lib.incremental_initialization()
+
+    for i in img_lib.get_embedded_files().keys():
+        print(i)
+
+    # test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
+    # a = img_lib.image_for_image_search(test_img, 2)
+    # print(a)
+    # print("####################################")
+    # b = img_lib.text_for_image_search('astronaut', 2)
+    # print(b)
+    # print("####################################")
 
     # sample_tagger = ImageTagger()
     # c = sample_tagger.get_tags(test_img, 10)
@@ -172,9 +189,9 @@ def test_library_manager():
     lib_manager.create_library(img_lib_creation)
 
     # Test library switch - doc
-    test_doc_lib(lib_manager)
+    #test_doc_lib(lib_manager)
     # Test library switch - image
-    # test_image_lib(lib_manager)
+    test_image_lib(lib_manager, False)
 
     # # Test library demolish
     # lib_manager.use_library(DOC_LIB_UUID)

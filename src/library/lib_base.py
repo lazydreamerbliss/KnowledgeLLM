@@ -241,24 +241,31 @@ class LibraryBase:
         """
         return os.path.isfile(self.__path_metadata) and os.path.isfile(self.__path_scan_profile)
 
-    def initialize_metadata(self, initial: dict, scan_profile: bool = False):
+    def initialize_metadata(self, initial: dict):
         """Initialize the metadata & scan profile file for the library
         - Only called when the library is under a fresh initialization (metadata file not exists), the UUID should not be changed after this
         - File missing or modify the UUID manually will cause the library's index missing
         """
+        if not initial or not initial.get('uuid'):
+            raise LibraryError('Invalid initial data')
+
+        self._metadata = initial
+        self.uuid = initial['uuid']
+        pickle.dump(initial, open(self.__path_metadata, 'wb'))
+
+    def initialize_scan_profile(self, initial: dict):
+        """Initialize the profile file for the library
+        - Scan profile can only be initialized after metadata, as the UUID will be used to verify initial data
+        """
+        if not self._metadata:
+            raise LibraryError('Must initialize metadata before initialize scan profile')
         if not initial:
             raise LibraryError('Initial data must be provided for a new library')
 
-        path: str = self.__path_metadata if not scan_profile else self.__path_scan_profile
-        pickle.dump(initial,  open(path, 'wb'))
-
-        if not scan_profile:
-            self._metadata = initial
-            self.uuid = initial['uuid']
-        else:
-            if self.uuid != initial['uuid']:
-                raise LibraryError('Scan profile UUID mismatched with metadata UUID')
-            self._scan_profile = initial
+        if self.uuid != initial['uuid']:
+            raise LibraryError('Scan profile UUID mismatched with metadata UUID')
+        pickle.dump(initial, open(self.__path_scan_profile, 'wb'))
+        self._scan_profile = initial
 
     def load_metadata(self, given_uuid: str, given_name: str):
         """Load the metadata & scan profile file of the library
