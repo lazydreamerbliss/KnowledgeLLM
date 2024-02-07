@@ -195,7 +195,7 @@ class LibraryBase:
         new_relative_path = os.path.join(os.path.dirname(relative_path), new_name)
         self.move_file(relative_path, new_relative_path)
 
-    def delete_files(self, relative_path: str, **kwargs):
+    def delete_files(self, relative_paths: list[str], **kwargs):
         """Delete the given file from the library, remove from both file system and embedding
         """
         raise NotImplementedError()

@@ -71,6 +71,16 @@ class ImageLib(LibraryBase):
     Private methods
     """
 
+    def __instanize_db(self):
+        """Instanize the DBs
+        """
+        if not self.__table:
+            self.__table = ImageLibTable(self._path_lib_data)
+        if not self.__vector_db:
+            self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
+                                                lib_uuid=self._metadata['uuid'],
+                                                data_folder=self._path_lib_data)
+
     def __write_embedding_entry(self, relative_path: str, embedding: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry (file info + embedding) to both DB and vector DB
         - An UUID is generated to identify the image globally
@@ -210,49 +220,58 @@ class ImageLib(LibraryBase):
             incremental (bool): If this is an incremental run
             scan_only (bool): If this is a scan only action, no embedding will be created
         """
-        if incremental and first_run or scan_only and first_run:
+        if (incremental and first_run) or (scan_only and first_run):
             raise LibraryError('Invalid scan param')
 
-        save_pipeline: BatchedPipeline | None = None
-        try:
-            save_pipeline = self.__vector_db.get_save_pipeline(batch_size=200)  # type: ignore
-        except NotImplementedError:
-            pass
+        with LockContext(self.__scan_lock) as lock:
+            if not lock.acquired:
+                raise LockAcquisitionFailure('There is already a scan task running')
 
-        if save_pipeline:
-            with save_pipeline:
-                self.__do_scan(save_pipeline,
-                               progress_reporter,
-                               cancel_event,
-                               first_run=first_run,
-                               incremental=incremental,
-                               scan_only=scan_only)
-        else:
-            self.__do_scan(None,
-                           progress_reporter,
-                           cancel_event,
-                           first_run=first_run,
-                           incremental=incremental,
-                           scan_only=scan_only)
+            try:
+                self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                self._save_metadata()
 
-        if not scan_only:
-            # On scan finished, persist index and save scan history
-            self.__vector_db.persist()  # type: ignore
-            self._save_scan_profile()
-        tqdm.write(f'Image library scanned')
+                save_pipeline: BatchedPipeline | None = None
+                try:
+                    save_pipeline = self.__vector_db.get_save_pipeline(batch_size=200)  # type: ignore
+                except NotImplementedError:
+                    pass
+
+                if save_pipeline:
+                    with save_pipeline:
+                        self.__do_scan(save_pipeline,
+                                       progress_reporter,
+                                       cancel_event,
+                                       first_run=first_run,
+                                       incremental=incremental,
+                                       scan_only=scan_only)
+                else:
+                    self.__do_scan(None,
+                                   progress_reporter,
+                                   cancel_event,
+                                   first_run=first_run,
+                                   incremental=incremental,
+                                   scan_only=scan_only)
+
+                if not scan_only:
+                    # On scan finished, persist index and save scan history
+                    self.__vector_db.persist()  # type: ignore
+                    self._save_scan_profile()
+                tqdm.write(f'Image library scanned')
+
+            except Exception as e:
+                # On cancel or failure, persist current progress
+                self.__vector_db.persist()  # type: ignore
+                self._save_scan_profile()
+                if isinstance(e, TaskCancellationException):
+                    tqdm.write('Library scan cancelled, progress saved')
 
     """
     Overridden public methods from LibraryBase
     """
 
     def lib_is_ready(self) -> bool:
-        if not self.metadata_exists():
-            return False
-        if not self.__table:
-            return False
-        if not self.__vector_db:
-            return False
-        if not self.__embedder:
+        if not self.metadata_exists() or not self.__table or not self.__vector_db or not self.__embedder:
             return False
         return True
 
@@ -270,17 +289,14 @@ class ImageLib(LibraryBase):
         if not ready:
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
-            self.__table = ImageLibTable(self._path_lib_data)
-            self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
-                                                lib_uuid=self._metadata['uuid'],
-                                                data_folder=self._path_lib_data)
+            self.__instanize_db()
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
         if not force_init and self.__table.row_count() > 0 and not self.__vector_db.db_is_empty():  # type: ignore
             return
 
         # Refresh ready status, initialize the library for force init or new lib cases
-        ready = self.lib_is_ready()
+        ready: bool = self.lib_is_ready()
         if ready:
             with TqdmContext(f'Forcibly re-initializing library: {self._path_lib}, purging existing library data...', 'Cleaned'):
                 self.__vector_db.clean_all_data()  # type: ignore
@@ -288,21 +304,7 @@ class ImageLib(LibraryBase):
         else:
             tqdm.write(f'Initialize library DB: {self._path_lib} for new library')
 
-        # Do full scan and initialize the lib
-        with LockContext(self.__scan_lock) as lock:
-            if not lock.acquired:
-                raise LockAcquisitionFailure('There is already a scan task running')
-
-            try:
-                self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self._save_metadata()
-                self.__scan(progress_reporter, cancel_event, first_run=True)
-            except Exception as e:
-                # On cancel or failure, persist current progress
-                self.__vector_db.persist()  # type: ignore
-                self._save_scan_profile()
-                if isinstance(e, TaskCancellationException):
-                    tqdm.write('Library scan cancelled, progress saved')
+        self.__scan(progress_reporter, cancel_event, first_run=True, incremental=False)
 
     def demolish(self):
         """Delete the image library, it purges all library data
@@ -396,29 +398,16 @@ class ImageLib(LibraryBase):
         if not ready:
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
-            self.__table = ImageLibTable(self._path_lib_data)
-            self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
-                                                lib_uuid=self._metadata['uuid'],
-                                                data_folder=self._path_lib_data)
+            self.__instanize_db()
 
-        if not self.__vector_db.db_is_empty():  # type: ignore
-            raise LibraryError('Library is uninitialized, use initialize() instead')
+        first_run: bool = False
+        incremental: bool = True
+        if self.__vector_db.db_is_empty():  # type: ignore
+            # If DB is empty, do full scan directly
+            first_run = True
+            incremental = False
 
-        # Do incremental scan to update library embeddings
-        with LockContext(self.__scan_lock) as lock:
-            if not lock.acquired:
-                raise LockAcquisitionFailure('There is already a scan task running')
-
-            try:
-                self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                self._save_metadata()
-                self.__scan(progress_reporter, cancel_event, first_run=False, incremental=True)
-            except Exception as e:
-                # On cancel or failure, persist current progress
-                self.__vector_db.persist()  # type: ignore
-                self._save_scan_profile()
-                if isinstance(e, TaskCancellationException):
-                    tqdm.write('Library scan cancelled, progress saved')
+        self.__scan(progress_reporter, cancel_event, first_run=first_run, incremental=incremental)
 
     """
     Query methods
