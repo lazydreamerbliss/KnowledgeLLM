@@ -1,5 +1,5 @@
 from sqlite3 import Cursor
-from typing import Callable, Generic, Type, TypeVar
+from typing import Generic, Type, TypeVar
 
 from db.sqlite.table import SqliteTable
 from utils.exceptions.lib_errors import *

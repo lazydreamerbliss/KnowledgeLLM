@@ -3,8 +3,7 @@ import os
 import numpy as np
 import numpy.typing as npt
 import torch
-from sentence_transformers import CrossEncoder, SentenceTransformer, util
-from torch import Tensor
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from env import CROSS_ENCODER_MODEL, MODEL_FOLDER, TRANSFORMER_MODEL
 from utils.tqdm_context import TqdmContext

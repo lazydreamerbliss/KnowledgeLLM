@@ -46,14 +46,14 @@ class ImageLib(LibraryBase):
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
             if not self.metadata_exists():
-                initial_metadata: dict = BASIC_metadata | {
+                initial_metadata: dict = BASIC_METADATA | {
                     'type': 'image',
                     'uuid': uuid,
                     'name': lib_name,
                     'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 }
                 self.initialize_metadata(initial_metadata)
-                initial_scan_profile: dict = BASIC_profile | {
+                initial_scan_profile: dict = BASIC_SCAN_PROFILE | {
                     'uuid': uuid,
                 }
                 self.initialize_scan_profile(initial_scan_profile)
@@ -214,7 +214,8 @@ class ImageLib(LibraryBase):
                 if dimension == -1:
                     dimension = len(embedding)
 
-                # If this is the very first embedding and in local mode, initialize the index as memory vector DB needs to build index before adding data
+                # If this is the very first embedding and in local mode, initialize the index as memory vector DB's FLAT index
+                # needs to build an index before adding data
                 if self.local_mode:
                     if first_run:
                         with TqdmContext('Creating index...', 'Index created'):
@@ -315,7 +316,7 @@ class ImageLib(LibraryBase):
             self.__instanize_db(force_init)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
-        if not force_init and self.__table.row_count() > 0 and not self.__vector_db.db_is_empty():  # type: ignore
+        if not force_init and self.__table.row_count() > 0 and self.__vector_db.db_is_ready():  # type: ignore
             return
 
         # Refresh ready status, initialize the library for force init or new lib cases
@@ -409,28 +410,28 @@ class ImageLib(LibraryBase):
         - If an embedded image is deleted, also remove embedding entry from the DB
         """
         # If there is no single embedded image, do full scan directly
-        if not self.get_embedded_files():
-            self.initialize(True, progress_reporter, cancel_event)
+        if not self.get_embedded_files() or not self.__vector_db or not self.__vector_db.db_is_ready():
+            self.initialize(force_init=True,
+                            progress_reporter=progress_reporter,
+                            cancel_event=cancel_event)
             return
-
-        ready: bool = self.lib_is_ready()
 
         # Load SQL DB and vector DB, and "not ready" has two cases:
         # 1. The lib is a new lib
         # 2. The lib is an existing lib but not loaded
-        if not ready:
+        if not self.lib_is_ready():
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
             self.__instanize_db()
 
-        first_run: bool = False
-        incremental: bool = True
-        if self.__vector_db.db_is_empty():  # type: ignore
-            # If DB is empty, do full scan directly
-            first_run = True
-            incremental = False
-
-        self.__scan(progress_reporter, cancel_event, first_run=first_run, incremental=incremental)
+        if not self.__vector_db.db_is_ready():
+            # Something is wrong here, just in case
+            # - get_embedded_files() is not empty, but vector DB is not ready, do force initialization instead
+            self.initialize(force_init=True,
+                            progress_reporter=progress_reporter,
+                            cancel_event=cancel_event)
+        else:
+            self.__scan(progress_reporter, cancel_event, first_run=False, incremental=True)
 
     """
     Query methods

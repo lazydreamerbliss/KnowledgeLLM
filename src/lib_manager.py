@@ -1,9 +1,5 @@
 import os
 import pickle
-import sys
-from pathlib import Path
-
-import torch
 
 from env import CONFIG_FOLDER
 from knowledge_base.document.doc_embedder import DocEmbedder

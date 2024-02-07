@@ -48,13 +48,13 @@ class DocumentLib(Generic[D], LibraryBase):
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
             if not self.metadata_exists():
-                initial_metadata: dict = BASIC_metadata | {
+                initial_metadata: dict = BASIC_METADATA | {
                     'type': 'document',
                     'uuid': uuid,
                     'name': lib_name,
                 }
                 self.initialize_metadata(initial_metadata)
-                initial_scan_profile: dict = BASIC_profile | {
+                initial_scan_profile: dict = BASIC_SCAN_PROFILE | {
                     'uuid': uuid,
                 }
                 self.initialize_scan_profile(initial_scan_profile)

@@ -130,13 +130,13 @@ class ImageLibVectorDb:
         raise VectorDbError('Vector DB not connected')
 
     @ensure_vector_db_connected
-    def db_is_empty(self) -> bool:
-        """Check if the vector DB is empty
+    def db_is_ready(self) -> bool:
+        """Check if the vector DB is ready to use
         - For redis, check if the namespace exists
         - For in-memory, check if the index file exists
         """
         if self.redis_vector_db:
-            return not self.redis_vector_db.namespace_exists()
-        elif self.mem_vector_db:
-            return not self.mem_vector_db.index_exists()
-        return True
+            return bool(self.redis_vector_db.namespace_exists())
+        if self.mem_vector_db:
+            return bool(self.mem_vector_db.index_exists())
+        return False

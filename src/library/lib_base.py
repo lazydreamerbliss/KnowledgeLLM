@@ -23,7 +23,7 @@ DEFAULT_EXCLUSION_LIST: set[str] = {
     LIB_DATA_FOLDER,
 }
 
-BASIC_metadata: dict = {
+BASIC_METADATA: dict = {
     'type': '',
     'uuid': '',  # UUID of the library
     'name': '',
@@ -34,7 +34,7 @@ BASIC_metadata: dict = {
     'exclusion_list': DEFAULT_EXCLUSION_LIST,
 }
 
-BASIC_profile: dict = {
+BASIC_SCAN_PROFILE: dict = {
     'uuid': '',  # UUID of the library
     'embedded_files': dict(),  # List of embedded files under the library
     'unfinished_files': dict(),  # List of files that are not finished embedding yet
@@ -98,6 +98,8 @@ class LibraryBase:
 
     def set_embedder(embedder: Any):
         """Set embedder for library
+
+        Embedder initialization is apart from initialize(), it is easy to switch to another embedder without a re-initialization
         """
         raise NotImplementedError()
 
@@ -174,7 +176,8 @@ class LibraryBase:
         os.makedirs(os.path.dirname(new_doc_path), exist_ok=True)
         shutil.move(doc_path, new_doc_path)
 
-        # Adjust the embedding info in metadata if this image has been embedded
+        # Adjust the embedding info in metadata if this file has been embedded
+        # - Since each file is managed by a UUID, simply update this UUID's relative path
         uuid: str | None = self.get_embedded_files().pop(relative_path, None)
         if uuid:
             self.get_embedded_files()[new_relative_path] = uuid
