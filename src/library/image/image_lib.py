@@ -299,7 +299,7 @@ class ImageLib(LibraryBase):
             return False
         return True
 
-    def initialize(self,
+    def full_scan(self,
                    force_init: bool = False,
                    progress_reporter: Callable[[int], None] | None = None,
                    cancel_event: Event | None = None):
@@ -401,37 +401,37 @@ class ImageLib(LibraryBase):
         last_scanned: datetime = datetime.strptime(self._metadata['last_scanned'], '%Y-%m-%d %H:%M:%S')
         return (datetime.now() - last_scanned).days
 
-    def incremental_initialization(self,
+    def incremental_scan(self,
                                    progress_reporter: Callable[[int], None] | None = None,
                                    cancel_event: Event | None = None):
-        """Incrementally initialize the library
-        - Embedded images are skipped
-        - Only embed the new images that are not embedded yet and add them to the DB
-        - If an embedded image is deleted, also remove embedding entry from the DB
+        """Incrementally scan and partially initialize the library
+        - Already-embedded images are skipped
+        - Only embed and record the new images that are newly added to the library but not embedded yet, and add them to the DB
+        - If an embedded image is deleted but its leftover remains, then remove embedding entry from the DB
         """
-        # If there is no single embedded image, do full scan directly
-        if not self.get_embedded_files() or not self.__vector_db or not self.__vector_db.db_is_ready():
-            self.initialize(force_init=True,
-                            progress_reporter=progress_reporter,
-                            cancel_event=cancel_event)
-            return
-
-        # Load SQL DB and vector DB, and "not ready" has two cases:
-        # 1. The lib is a new lib
-        # 2. The lib is an existing lib but not loaded
+        # Load DB content if not ready
         if not self.lib_is_ready():
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
             self.__instanize_db()
 
-        if not self.__vector_db.db_is_ready():
-            # Something is wrong here, just in case
-            # - get_embedded_files() is not empty, but vector DB is not ready, do force initialization instead
-            self.initialize(force_init=True,
+        # If there is no single embedded image, do full scan directly
+        if not self.get_embedded_files():  # type: ignore
+            self.full_scan(force_init=True,
                             progress_reporter=progress_reporter,
                             cancel_event=cancel_event)
-        else:
-            self.__scan(progress_reporter, cancel_event, first_run=False, incremental=True)
+            return
+
+        # Something is wrong here which should not happen, but just in case:
+        # - get_embedded_files() has records but vector DB is not ready, do force initialization instead
+        if not self.__vector_db.db_is_ready():  # type: ignore
+            self.full_scan(force_init=True,
+                            progress_reporter=progress_reporter,
+                            cancel_event=cancel_event)
+            return
+
+        # Do incremental scan
+        self.__scan(progress_reporter, cancel_event, first_run=False, incremental=True)
 
     """
     Query methods

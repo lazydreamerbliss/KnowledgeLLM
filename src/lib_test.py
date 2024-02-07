@@ -121,8 +121,8 @@ def test_image_lib(lib_manager: LibraryManager, test_lib_manager: bool):
             return
     else:
         img_lib.set_embedder(ImageEmbedder())
-        img_lib.initialize()
-        img_lib.incremental_initialization()
+        img_lib.full_scan()
+        img_lib.incremental_scan()
 
     for i in img_lib.get_embedded_files().keys():
         print(i)

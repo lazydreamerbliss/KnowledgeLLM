@@ -114,10 +114,10 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def initialize(self,
-                   force_init: bool = False,
-                   progress_reporter: Callable[[int], None] | None = None,
-                   cancel_event: Event | None = None):
+    def full_scan(self,
+                  force_init: bool = False,
+                  progress_reporter: Callable[[int], None] | None = None,
+                  cancel_event: Event | None = None):
         """Initialize the library
 
         Args:

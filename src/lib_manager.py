@@ -287,7 +287,7 @@ class LibraryManager:
             if self.__instance.lib_is_ready():
                 return UUID_EMPTY
             self.__instance.set_embedder(ImageEmbedder())
-            task_id: str = self.task_runner.submit_task(self.__instance.initialize, None, True, True,
+            task_id: str = self.task_runner.submit_task(self.__instance.full_scan, None, True, True,
                                                         force_init=kwargs.get('force_init', False))
             return task_id
 
