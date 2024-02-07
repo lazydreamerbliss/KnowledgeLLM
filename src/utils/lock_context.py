@@ -1,11 +1,8 @@
-import uuid
-from threading import Lock, RLock
-
-from utils.exceptions.task_errors import LockAcquisitionFailure
+from threading import Lock
 
 
 class LockContext:
-    def __init__(self, lock: Lock | RLock):
+    def __init__(self, lock: Lock):
         self.acquired: bool = False
         self.__lock = lock
 
