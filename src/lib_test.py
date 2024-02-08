@@ -23,10 +23,7 @@ IMG_LIB_UUID = '53821604-76a2-41b1-a655-e07a86096f93'
 def test_doc_lib(lib_manager: LibraryManager):
     lib_manager.use_library(DOC_LIB_UUID)
     doc_lib: DocumentLib = lib_manager.get_lib_instance()  # type: ignore
-    
-    
-    
-    
+
     # task_id: str | None = lib_manager.get_ready(relative_path='群聊_small.txt', provider_type=WechatHistoryProvider, lite_mode=False)
     # while True:
     #     if not task_id or task_runner.is_task_done(task_id):
@@ -125,7 +122,7 @@ def test_image_lib(lib_manager: LibraryManager, test_lib_manager: bool):
         img_lib.incremental_scan()
 
     for i in img_lib.get_embedded_files().keys():
-        print(i)
+        print(i, img_lib.get_embedded_files()[i])
 
     # test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
     # a = img_lib.image_for_image_search(test_img, 2)
@@ -185,9 +182,9 @@ def test_library_manager():
     lib_manager.create_library(img_lib_creation)
 
     # Test library switch - doc
-    #test_doc_lib(lib_manager)
+    test_doc_lib(lib_manager)
     # Test library switch - image
-    test_image_lib(lib_manager, False)
+    #test_image_lib(lib_manager, False)
 
     # # Test library demolish
     # lib_manager.use_library(DOC_LIB_UUID)
@@ -207,7 +204,7 @@ def test_library_manager():
 
 if __name__ == '__main__':
     test_library_manager()
-    
+
     # bb = DocEmbedder()
     # print(bb.predict_similarity('女士健身房', '女士健身房'))
     # print(bb.predict_similarity('女士健身房', '这是女士健身房吗'))

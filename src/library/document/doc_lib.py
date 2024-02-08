@@ -63,7 +63,7 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__doc_provider: D | None = None
         self.__vector_db: DocLibVectorDb | None = None
         self.__embedder: DocEmbedder | None = None
-        self._tracker = EmbeddingTracker(self._path_lib_data, DB_NAME)
+        self._tracker = ScanRecordTracker(self._path_lib_data, DB_NAME)
 
     """
     Private methods
@@ -80,7 +80,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not relative_path:
             raise LibraryError('Invalid relative path')
 
-        if self._tracker.relative_path_recorded(relative_path):  # type: ignore
+        if self._tracker.is_recorded(relative_path):  # type: ignore
             self.use_doc(relative_path, provider_type)
             return
 
@@ -216,11 +216,11 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        need_initialization: bool = force_init or not self._tracker.relative_path_recorded(relative_path)  # type: ignore
+        need_initialization: bool = force_init or not self._tracker.is_recorded(relative_path)  # type: ignore
         # If no need to initialize, just switch to the doc and return
         if not need_initialization:
             with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-                uuid: str = self._tracker.get_record_uuid(relative_path)  # type: ignore
+                uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
                 self.__doc_provider = provider_type(self.path_db,
                                                     uuid,
                                                     doc_path=None,
@@ -232,7 +232,7 @@ class DocumentLib(Generic[D], LibraryBase):
         # - If this is a force init, remove the existing embedding first
         # - If given doc is in unfinished list, clean up leftover if any
         if force_init and \
-                self._tracker.relative_path_recorded(relative_path) or self._tracker.relative_path_unfinished(relative_path):  # type: ignore
+                self._tracker.is_recorded(relative_path) or self._tracker.is_unfinished(relative_path):  # type: ignore
             self.remove_doc_embeddings([relative_path], provider_type)
 
         try:
@@ -289,7 +289,7 @@ class DocumentLib(Generic[D], LibraryBase):
             return False
 
         relative_path = relative_path.lstrip(os.path.sep)
-        if not self._tracker.relative_path_recorded(relative_path):  # type: ignore
+        if not self._tracker.is_recorded(relative_path):  # type: ignore
             return False
         return self.__doc_provider.get_table_name() == self.get_embedded_files()[relative_path]  # type: ignore
 
@@ -297,7 +297,7 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__embedder = embedder
 
     def remove_doc_embeddings(self, relative_paths: list[str], provider_type: Type[D]):
-        """Remove the embedding of a document under the library
+        """Remove the embedding of a document under the library (those docs must have same provider type)
         1. Delete the document's table from DB
         2. Delete the document's vector index
 
@@ -315,7 +315,7 @@ class DocumentLib(Generic[D], LibraryBase):
             relative_path = relative_path.lstrip(os.path.sep)
 
             # UUID is mandatory for data cleanup, retrieve UUID from scan history
-            uuid: str | None = self._tracker.get_record_uuid(relative_path)  # type: ignore
+            uuid: str | None = self._tracker.get_uuid(relative_path)  # type: ignore
             if not uuid:
                 uuid = self._tracker.get_unfinished_uuid(relative_path)  # type: ignore
             if not uuid:

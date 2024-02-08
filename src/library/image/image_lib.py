@@ -63,7 +63,7 @@ class ImageLib(LibraryBase):
         self.__table: ImageLibTable | None = None
         self.__vector_db: ImageLibVectorDb | None = None
         self.__embedder: ImageEmbedder | None = None
-        self._tracker = EmbeddingTracker(self._path_lib_data, DB_NAME)
+        self._tracker = ScanRecordTracker(self._path_lib_data, DB_NAME)
 
         # File scan is mutually exclusive, use a lock to prevent concurrent scan
         self.__scan_lock = Lock()
@@ -128,7 +128,7 @@ class ImageLib(LibraryBase):
                 file_relative_path: str = os.path.relpath(file_abs_path, self._path_lib)
                 all_files.add(file_relative_path)
                 if incremental:
-                    if self._tracker.relative_path_recorded(file_relative_path):  # type: ignore
+                    if self._tracker.is_recorded(file_relative_path):  # type: ignore
                         continue
                     to_be_embedded.add(file_relative_path)
 
@@ -384,8 +384,8 @@ class ImageLib(LibraryBase):
                 continue
 
             relative_path = relative_path.lstrip(os.path.sep)
-            if self._tracker.relative_path_recorded(relative_path):  # type: ignore
-                uuid: str = self._tracker.get_record_uuid(relative_path)  # type: ignore
+            if self._tracker.is_recorded(relative_path):  # type: ignore
+                uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
                 self.__vector_db.remove(uuid)  # type: ignore
                 self.__table.delete_row_by_uuid(uuid)  # type: ignore
                 self._tracker.remove_record_by_relative_path(relative_path)  # type: ignore

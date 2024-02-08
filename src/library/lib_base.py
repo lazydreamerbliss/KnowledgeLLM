@@ -6,7 +6,7 @@ from functools import wraps
 from threading import Event
 from typing import Any, Callable
 
-from library.embedding_tracker import EmbeddingTracker
+from library.scan_record_tracker import ScanRecordTracker
 from utils.constants.lib_constants import sorted_by_labels, view_styles
 from utils.exceptions.lib_errors import LibraryError
 
@@ -78,15 +78,15 @@ class LibraryBase:
         # In-memory metadata
         self._metadata: dict = dict()
         self.__path_metadata: str = os.path.join(self._path_lib_data, LibraryBase.METADATA_FILE)
-        # Embedding tracker to track embedded files under the library
-        self._tracker: EmbeddingTracker | None = None
+        # Scan tracker to track embedded files under the library
+        self._tracker: ScanRecordTracker | None = None
 
         # Ensure the library's data folder exists
         if not os.path.isdir(self._path_lib_data):
             os.makedirs(self._path_lib_data)
 
     """
-    Interface methods
+    Abstract methods (just a simulation...)
     """
 
     def set_embedder(embedder: Any):
@@ -171,7 +171,7 @@ class LibraryBase:
         os.makedirs(os.path.dirname(new_doc_path), exist_ok=True)
         shutil.move(doc_path, new_doc_path)
 
-        # Update the embedding record
+        # Update the scan record with new relative path to retain the embedding information
         self._tracker.update_record_path(new_relative_path, relative_path)
 
     def rename_file(self, relative_path: str, new_name: str):
@@ -264,7 +264,7 @@ class LibraryBase:
             os.remove(self.__path_metadata)
 
     def get_embedded_files(self) -> dict[str, str]:
-        """Get the embedded files under the library
+        """Get the embedded files under the library with [relative_path: UUID]
         """
         if not self._tracker:
             raise LibraryError('Embedding tracker not ready')
