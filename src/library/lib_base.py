@@ -6,6 +6,7 @@ from functools import wraps
 from threading import Event
 from typing import Any, Callable
 
+from library.embedding_tracker import EmbeddingTracker
 from utils.constants.lib_constants import sorted_by_labels, view_styles
 from utils.exceptions.lib_errors import LibraryError
 
@@ -32,12 +33,6 @@ BASIC_METADATA: dict = {
     'sorted_by': 'name',
     'favorite_list': set(),
     'exclusion_list': DEFAULT_EXCLUSION_LIST,
-}
-
-BASIC_SCAN_PROFILE: dict = {
-    'uuid': '',  # UUID of the library
-    'embedded_files': dict(),  # List of embedded files under the library
-    'unfinished_files': dict(),  # List of files that are not finished embedding yet
 }
 
 
@@ -67,8 +62,6 @@ class LibraryBase:
 
     # Metadata for the library
     METADATA_FILE: str = 'metadata.bin'
-    # Metadata for library file's scan profile
-    SCAN_PROFILE_FILE: str = 'scan_profile.bin'
 
     def __init__(self, lib_path: str):
         # Expand the lib path to absolute path
@@ -85,9 +78,9 @@ class LibraryBase:
         # In-memory metadata
         self._metadata: dict = dict()
         self.__path_metadata: str = os.path.join(self._path_lib_data, LibraryBase.METADATA_FILE)
-        # In-memory scan profile, for tracking the embedded files
-        self._scan_profile: dict = dict()
-        self.__path_scan_profile: str = os.path.join(self._path_lib_data, LibraryBase.SCAN_PROFILE_FILE)
+        # Embedding tracker to track embedded files under the library
+        self._tracker: EmbeddingTracker | None = None
+
         # Ensure the library's data folder exists
         if not os.path.isdir(self._path_lib_data):
             os.makedirs(self._path_lib_data)
@@ -157,6 +150,8 @@ class LibraryBase:
     def move_file(self, relative_path: str, new_relative_path: str):
         """Move the given file under current library and retain the existing embedding information
         """
+        if not self._tracker:
+            raise LibraryError('Embedding tracker not ready')
         if relative_path == new_relative_path:
             return
         if not relative_path or not new_relative_path:
@@ -176,12 +171,8 @@ class LibraryBase:
         os.makedirs(os.path.dirname(new_doc_path), exist_ok=True)
         shutil.move(doc_path, new_doc_path)
 
-        # Adjust the embedding info in metadata if this file has been embedded
-        # - Since each file is managed by a UUID, simply update this UUID's relative path
-        uuid: str | None = self.get_embedded_files().pop(relative_path, None)
-        if uuid:
-            self.get_embedded_files()[new_relative_path] = uuid
-            self._save_scan_profile()
+        # Update the embedding record
+        self._tracker.update_record_path(new_relative_path, relative_path)
 
     def rename_file(self, relative_path: str, new_name: str):
         """Rename the given file under current library and retain the existing embedding information
@@ -222,7 +213,7 @@ class LibraryBase:
             pass
 
     """
-    Metadata file & scan profile methods
+    Metadata file methods
     """
 
     def _save_metadata(self):
@@ -232,20 +223,13 @@ class LibraryBase:
             raise LibraryError(f'Metadata file missing: {self.__path_metadata}')
         pickle.dump(self._metadata, open(self.__path_metadata, 'wb'))
 
-    def _save_scan_profile(self):
-        """Save the scan profile file for any updates
-        """
-        if not os.path.isfile(self.__path_scan_profile):
-            raise LibraryError(f'Metadata file missing: {self.__path_scan_profile}')
-        pickle.dump(self._scan_profile, open(self.__path_scan_profile, 'wb'))
-
     def metadata_exists(self) -> bool:
-        """Check if the metadata & scan profile file exists
+        """Check if the metadata exists
         """
-        return os.path.isfile(self.__path_metadata) and os.path.isfile(self.__path_scan_profile)
+        return os.path.isfile(self.__path_metadata)
 
     def initialize_metadata(self, initial: dict):
-        """Initialize the metadata & scan profile file for the library
+        """Initialize the metadata for the library
         - Only called when the library is under a fresh initialization (metadata file not exists), the UUID should not be changed after this
         - File missing or modify the UUID manually will cause the library's index missing
         """
@@ -256,22 +240,8 @@ class LibraryBase:
         self.uuid = initial['uuid']
         pickle.dump(initial, open(self.__path_metadata, 'wb'))
 
-    def initialize_scan_profile(self, initial: dict):
-        """Initialize the profile file for the library
-        - Scan profile can only be initialized after metadata, as the UUID will be used to verify initial data
-        """
-        if not self._metadata:
-            raise LibraryError('Must initialize metadata before initialize scan profile')
-        if not initial:
-            raise LibraryError('Initial data must be provided for a new library')
-
-        if self.uuid != initial['uuid']:
-            raise LibraryError('Scan profile UUID mismatched with metadata UUID')
-        pickle.dump(initial, open(self.__path_scan_profile, 'wb'))
-        self._scan_profile = initial
-
     def load_metadata(self, given_uuid: str, given_name: str):
-        """Load the metadata & scan profile file of the library
+        """Load the metadata of the library
         """
         try:
             content: dict = pickle.load(open(self.__path_metadata, 'rb'))
@@ -286,28 +256,22 @@ class LibraryBase:
         if content['name'] != given_name:
             self.change_lib_name(given_name)
 
-    def load_scan_profile(self, given_uuid: str):
-        try:
-            content: dict = pickle.load(open(self.__path_scan_profile, 'rb'))
-        except:
-            raise LibraryError(f'Invalid scan profile: {self.__path_scan_profile}')
-        if not content:
-            raise LibraryError(f'Invalid scan profile: {self.__path_scan_profile}')
-        if not content.get('uuid', None) or content['uuid'] != given_uuid:
-            raise LibraryError(f'Scan profile UUID mismatched with metadata UUID: {self.__path_scan_profile}')
-        self._scan_profile = content
-
     def delete_metadata(self):
-        """Delete the metadata & scan profile file of the library
+        """Delete the metadata file of the library
         - Can only call on the deletion of current library
         """
         if os.path.isfile(self.__path_metadata):
             os.remove(self.__path_metadata)
-        if os.path.isfile(self.__path_scan_profile):
-            os.remove(self.__path_scan_profile)
+
+    def get_embedded_files(self) -> dict[str, str]:
+        """Get the embedded files under the library
+        """
+        if not self._tracker:
+            raise LibraryError('Embedding tracker not ready')
+        return self._tracker.get_all_records()
 
     """
-    Public methods to read library metadata & scan profile info
+    Public methods to read library metadata 
     """
 
     @ensure_metadata_ready
@@ -330,16 +294,8 @@ class LibraryBase:
     def get_exclusion_list(self) -> set[str]:
         return self._metadata['exclusion_list']
 
-    @ensure_lib_is_ready
-    def get_embedded_files(self) -> dict[str, str]:
-        return self._scan_profile['embedded_files']
-
-    @ensure_lib_is_ready
-    def get_unfinished_files(self) -> dict[str, str]:
-        return self._scan_profile['unfinished_files']
-
     """
-    Public methods to change library metadata & scan profile info
+    Public methods to change library metadata
     """
 
     @ensure_metadata_ready

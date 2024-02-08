@@ -54,20 +54,16 @@ class DocumentLib(Generic[D], LibraryBase):
                     'name': lib_name,
                 }
                 self.initialize_metadata(initial_metadata)
-                initial_scan_profile: dict = BASIC_SCAN_PROFILE | {
-                    'uuid': uuid,
-                }
-                self.initialize_scan_profile(initial_scan_profile)
             else:
                 self.load_metadata(uuid, lib_name)
-                self.load_scan_profile(uuid)
-        if not self._metadata or not self.uuid or not self._scan_profile:
+        if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
         self.path_db: str = os.path.join(self._path_lib_data, DB_NAME)
         self.__doc_provider: D | None = None
         self.__vector_db: DocLibVectorDb | None = None
         self.__embedder: DocEmbedder | None = None
+        self._tracker = EmbeddingTracker(self._path_lib_data, DB_NAME)
 
     """
     Private methods
@@ -84,7 +80,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not relative_path:
             raise LibraryError('Invalid relative path')
 
-        if relative_path in self.get_embedded_files():
+        if self._tracker.relative_path_recorded(relative_path):  # type: ignore
             self.use_doc(relative_path, provider_type)
             return
 
@@ -93,8 +89,7 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError(f'Invalid doc path: {doc_path}')
 
         # Record in scan history before embedding
-        self.get_unfinished_files()[relative_path] = uuid
-        self._save_scan_profile()
+        self._tracker.add_unfinished(relative_path, uuid)  # type: ignore
 
         # Create doc provider for this doc
         self.__doc_provider = provider_type(self.path_db,
@@ -153,9 +148,8 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__vector_db.persist()
 
         # Record info in metadata after finished embedding
-        self.get_unfinished_files().pop(relative_path, None)
-        self.get_embedded_files()[relative_path] = uuid
-        self._save_scan_profile()
+        self._tracker.remove_unfinished_by_relative_path(relative_path)  # type: ignore
+        self._tracker.add_record(relative_path, uuid)  # type: ignore
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)
@@ -222,11 +216,11 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        need_initialization: bool = force_init or relative_path not in self.get_embedded_files()
+        need_initialization: bool = force_init or not self._tracker.relative_path_recorded(relative_path)  # type: ignore
         # If no need to initialize, just switch to the doc and return
         if not need_initialization:
             with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-                uuid: str = self.get_embedded_files()[relative_path]
+                uuid: str = self._tracker.get_record_uuid(relative_path)  # type: ignore
                 self.__doc_provider = provider_type(self.path_db,
                                                     uuid,
                                                     doc_path=None,
@@ -237,8 +231,8 @@ class DocumentLib(Generic[D], LibraryBase):
         # Do initialization
         # - If this is a force init, remove the existing embedding first
         # - If given doc is in unfinished list, clean up leftover if any
-        if force_init and relative_path in self.get_embedded_files() \
-            or relative_path in self.get_unfinished_files():
+        if force_init and \
+                self._tracker.relative_path_recorded(relative_path) or self._tracker.relative_path_unfinished(relative_path):  # type: ignore
             self.remove_doc_embeddings([relative_path], provider_type)
 
         try:
@@ -247,8 +241,7 @@ class DocumentLib(Generic[D], LibraryBase):
         except TaskCancellationException:
             # On cancel, clean this doc's leftover and remove from embedding history
             self.remove_doc_embeddings([relative_path], provider_type)
-            self.get_unfinished_files().pop(relative_path, None)
-            self._save_scan_profile()
+            self._tracker.remove_unfinished_by_relative_path(relative_path)  # type: ignore
 
     def demolish(self):
         """Delete the doc library, it purges all library data
@@ -261,6 +254,7 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__embedder = None
         self.__doc_provider = None
         self.__vector_db = None
+        self._tracker = None
         shutil.rmtree(self._path_lib_data)
 
     def add_file(self, folder_relative_path: str, source_file: str):
@@ -295,7 +289,7 @@ class DocumentLib(Generic[D], LibraryBase):
             return False
 
         relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path not in self.get_embedded_files():
+        if not self._tracker.relative_path_recorded(relative_path):  # type: ignore
             return False
         return self.__doc_provider.get_table_name() == self.get_embedded_files()[relative_path]  # type: ignore
 
@@ -321,9 +315,9 @@ class DocumentLib(Generic[D], LibraryBase):
             relative_path = relative_path.lstrip(os.path.sep)
 
             # UUID is mandatory for data cleanup, retrieve UUID from scan history
-            uuid: str | None = self.get_embedded_files().get(relative_path, None)
+            uuid: str | None = self._tracker.get_record_uuid(relative_path)  # type: ignore
             if not uuid:
-                uuid = self.get_unfinished_files().get(relative_path, None)
+                uuid = self._tracker.get_unfinished_uuid(relative_path)  # type: ignore
             if not uuid:
                 continue
 
@@ -348,9 +342,8 @@ class DocumentLib(Generic[D], LibraryBase):
                     self.__vector_db = None
 
             # Remove doc from embedding history after deletion
-            self.get_embedded_files().pop(relative_path, None)
-            self.get_unfinished_files().pop(relative_path, None)
-        self._save_scan_profile()
+            self._tracker.remove_record_by_relative_path(relative_path)  # type: ignore
+            self._tracker.remove_unfinished_by_relative_path(relative_path)  # type: ignore
 
     """
     Query methods

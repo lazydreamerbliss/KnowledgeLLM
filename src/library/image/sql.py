@@ -4,8 +4,8 @@ record_structure: list[list[str]] = [
     ['id', 'INTEGER PRIMARY KEY'],
     ['timestamp', 'INTEGER NOT NULL'],
     ['uuid', 'TEXT'],
-    ['path', 'TEXT'],
-    ['filename', 'TEXT'],
+    ['path', 'TEXT'],  # Parent folder's relative path
+    ['filename', 'TEXT'],  # Image's filename
 ]
 
 # Note: an image library DB sits under a library folder, and the DB name is fixed
@@ -13,14 +13,14 @@ record_structure: list[list[str]] = [
 # - To retrieve the actual image, library folder + `path` is needed
 # - Table name is fixed for image library DB, since one DB only contains one table in image library
 DB_NAME: str = 'image_lib.db'
-TABLE_NAME: str = 'image_lib'
+LIB_TABLE_NAME = 'image_lib'
 RECORD_LENGTH: int = len(record_structure)
 
 
 class Record:
     def __init__(self, row: tuple):
         if not row or len(row) != RECORD_LENGTH:
-            raise SqlTableError('row size is not correct')
+            raise SqlTableError('Row size is not correct')
 
         self.id: int = row[0]
         self.timestamp: int = row[1]
@@ -35,69 +35,48 @@ class Record:
         return self.__str__()
 
 
-def initialize_table_sql(table_name: str) -> str:
-    if not table_name:
-        raise SqlTableError('table_name is None')
-
-    # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, uuid TEXT, path TEXT
+def initialize_table_sql() -> str:
+    # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, uuid TEXT, path TEXT, filename TEXT
     return f"""
-    CREATE TABLE IF NOT EXISTS "{table_name}" (
+    CREATE TABLE IF NOT EXISTS "{LIB_TABLE_NAME}" (
         {', '.join([f'{col[0]} {col[1]}' for col in record_structure])}
     );
     """
 
 
-def insert_row_sql(table_name: str) -> str:
-    if not table_name:
-        raise SqlTableError('table_name is None')
-
+def insert_row_sql() -> str:
     # Skip the first column (id)
     return f"""
-    INSERT INTO "{table_name}" ({', '.join([col[0] for col in record_structure[1:]])})
+    INSERT INTO "{LIB_TABLE_NAME}" ({', '.join([col[0] for col in record_structure[1:]])})
     VALUES ({', '.join(['?' for _ in range(RECORD_LENGTH-1)])});
     """
 
 
-def select_by_uuid_sql(table_name: str) -> str:
-    if not table_name:
-        raise SqlTableError('table_name is None')
-
+def select_by_uuid_sql() -> str:
     return f"""
-    SELECT * FROM "{table_name}" WHERE uuid = ?;
+    SELECT * FROM "{LIB_TABLE_NAME}" WHERE uuid = ?;
     """
 
 
-def select_by_path_sql(table_name: str) -> str:
-    if not table_name:
-        raise SqlTableError('table_name is None')
-
+def select_by_path_sql() -> str:
     return f"""
-    SELECT * FROM "{table_name}" WHERE path = ?;
+    SELECT * FROM "{LIB_TABLE_NAME}" WHERE path = ?;
     """
 
 
-def select_by_filename_sql(table_name: str) -> str:
-    if not table_name:
-        raise SqlTableError('table_name is None')
-
+def select_by_filename_sql() -> str:
     return f"""
-    SELECT * FROM "{table_name}" WHERE filename = ?;
+    SELECT * FROM "{LIB_TABLE_NAME}" WHERE filename = ?;
     """
 
 
-def select_by_path_and_filename_sql(table_name: str) -> str:
-    if not table_name:
-        raise SqlTableError('table_name is None')
-
+def select_by_path_and_filename_sql() -> str:
     return f"""
-    SELECT * FROM "{table_name}" WHERE path = ? AND filename = ?;
+    SELECT * FROM "{LIB_TABLE_NAME}" WHERE path = ? AND filename = ?;
     """
 
 
-def delete_by_uuid_sql(table_name: str) -> str:
-    if not table_name:
-        raise SqlTableError('table_name is None')
-
+def delete_by_uuid_sql() -> str:
     return f"""
-    DELETE FROM "{table_name}" WHERE uuid = ?;
+    DELETE FROM "{LIB_TABLE_NAME}" WHERE uuid = ?;
     """

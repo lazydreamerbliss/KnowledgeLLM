@@ -20,7 +20,7 @@ RECORD_LENGTH: int = len(record_structure)
 class Record:
     def __init__(self, row: tuple):
         if not row or len(row) != RECORD_LENGTH:
-            raise SqlTableError('row size is not correct')
+            raise SqlTableError('Row size is not correct')
 
         self.id: int = row[0]
         self.timestamp: int = row[1]

@@ -8,10 +8,6 @@ from utils.exceptions.db_errors import SqlTableError
 class DocLibTable(SqliteTable):
     def __init__(self, db_path: str, table_name: str):
         super().__init__(db_path, table_name)
-        self.__initialize_table()
-
-    @ensure_db
-    def __initialize_table(self) -> None:
         cursor = self.db.cursor()
         cursor.execute(initialize_table_sql(self.table_name))
         self.db.commit()
@@ -24,7 +20,7 @@ class DocLibTable(SqliteTable):
     def insert_row(self, row: tuple) -> int | None:
         # Skip the first column (id)
         if not row or len(row) != RECORD_LENGTH-1:
-            raise SqlTableError('row size is not correct')
+            raise SqlTableError('Row size is not correct')
 
         cur: Cursor = self.db.cursor()
         cur.execute(insert_row_sql(self.table_name), row)
@@ -36,7 +32,7 @@ class DocLibTable(SqliteTable):
         # Skip the first column (id)
         for row in rows:
             if not row or len(row) != RECORD_LENGTH-1:
-                raise SqlTableError('row size is not correct')
+                raise SqlTableError('Row size is not correct')
 
         cur: Cursor = self.db.cursor()
         cur.executemany(insert_row_sql(self.table_name), rows)

@@ -16,6 +16,7 @@ from db.vector.redis_client import BatchedPipeline
 from knowledge_base.image.image_embedder import ImageEmbedder
 from library.image.image_lib_table import ImageLibTable
 from library.image.image_lib_vector_db import ImageLibVectorDb
+from library.image.sql import DB_NAME
 from library.lib_base import *
 from utils.exceptions.task_errors import (LockAcquisitionFailure,
                                           TaskCancellationException)
@@ -53,20 +54,16 @@ class ImageLib(LibraryBase):
                     'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 }
                 self.initialize_metadata(initial_metadata)
-                initial_scan_profile: dict = BASIC_SCAN_PROFILE | {
-                    'uuid': uuid,
-                }
-                self.initialize_scan_profile(initial_scan_profile)
             else:
                 self.load_metadata(uuid, lib_name)
-                self.load_scan_profile(uuid)
-        if not self._metadata or not self.uuid or not self._scan_profile:
+        if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
         self.local_mode: bool = local_mode
         self.__table: ImageLibTable | None = None
         self.__vector_db: ImageLibVectorDb | None = None
         self.__embedder: ImageEmbedder | None = None
+        self._tracker = EmbeddingTracker(self._path_lib_data, DB_NAME)
 
         # File scan is mutually exclusive, use a lock to prevent concurrent scan
         self.__scan_lock = Lock()
@@ -101,7 +98,7 @@ class ImageLib(LibraryBase):
         self.__table.insert_row((timestamp, uuid, parent_folder, filename))  # type: ignore
         self.__vector_db.add(uuid, embedding, save_pipeline)  # type: ignore
         # Record scan history on saving the embedding to the DB
-        self.get_embedded_files()[relative_path] = uuid
+        self._tracker.add_record(relative_path, uuid)  # type: ignore
 
     def __library_walker(self,
                          progress_reporter: Callable[[int], None] | None,
@@ -131,14 +128,14 @@ class ImageLib(LibraryBase):
                 file_relative_path: str = os.path.relpath(file_abs_path, self._path_lib)
                 all_files.add(file_relative_path)
                 if incremental:
-                    if file_relative_path in self.get_embedded_files():
+                    if self._tracker.relative_path_recorded(file_relative_path):  # type: ignore
                         continue
                     to_be_embedded.add(file_relative_path)
 
         # Check if there are files are deleted but left in embedded files list
         # - This can happen when user deletes files from file system directly and library is not aware of these operation
-        if self.get_embedded_files():
-            to_be_deleted: set[str] = set(self.get_embedded_files().keys()) - all_files
+        if self._tracker.get_record_count() > 0:  # type: ignore
+            to_be_deleted: set[str] = set(self._tracker.get_all_relative_paths()) - all_files  # type: ignore
             if to_be_deleted:
                 tqdm.write(f'Incremental scan, found {len(to_be_deleted)} leftover items')
                 self.remove_embeddings(list(to_be_deleted))
@@ -275,7 +272,6 @@ class ImageLib(LibraryBase):
                 if not scan_only:
                     # On scan finished, persist index and save scan history
                     self.__vector_db.persist()  # type: ignore
-                    self._save_scan_profile()
                 if not incremental:
                     tqdm.write(f'Image library scanned')
                 else:
@@ -284,7 +280,6 @@ class ImageLib(LibraryBase):
             except Exception as e:
                 # On cancel or failure, persist current progress
                 self.__vector_db.persist()  # type: ignore
-                self._save_scan_profile()
                 if isinstance(e, TaskCancellationException):
                     tqdm.write('Library scan cancelled, progress saved')
                 else:
@@ -300,9 +295,9 @@ class ImageLib(LibraryBase):
         return True
 
     def full_scan(self,
-                   force_init: bool = False,
-                   progress_reporter: Callable[[int], None] | None = None,
-                   cancel_event: Event | None = None):
+                  force_init: bool = False,
+                  progress_reporter: Callable[[int], None] | None = None,
+                  cancel_event: Event | None = None):
         ready: bool = self.lib_is_ready()
         if ready and not force_init:
             return
@@ -350,6 +345,7 @@ class ImageLib(LibraryBase):
             self.__embedder = None
             self.__table = None
             self.__vector_db = None
+            self._tracker = None
             shutil.rmtree(self._path_lib_data)
 
     def add_file(self, folder_relative_path: str, source_file: str):
@@ -388,12 +384,11 @@ class ImageLib(LibraryBase):
                 continue
 
             relative_path = relative_path.lstrip(os.path.sep)
-            if relative_path in self.get_embedded_files():
-                uuid: str = self.get_embedded_files()[relative_path]
+            if self._tracker.relative_path_recorded(relative_path):  # type: ignore
+                uuid: str = self._tracker.get_record_uuid(relative_path)  # type: ignore
                 self.__vector_db.remove(uuid)  # type: ignore
                 self.__table.delete_row_by_uuid(uuid)  # type: ignore
-                self.get_embedded_files().pop(relative_path)
-        self._save_scan_profile()
+                self._tracker.remove_record_by_relative_path(relative_path)  # type: ignore
 
     def get_scan_gap(self) -> int:
         """Get the time gap from last scan in days
@@ -402,8 +397,8 @@ class ImageLib(LibraryBase):
         return (datetime.now() - last_scanned).days
 
     def incremental_scan(self,
-                                   progress_reporter: Callable[[int], None] | None = None,
-                                   cancel_event: Event | None = None):
+                         progress_reporter: Callable[[int], None] | None = None,
+                         cancel_event: Event | None = None):
         """Incrementally scan and partially initialize the library
         - Already-embedded images are skipped
         - Only embed and record the new images that are newly added to the library but not embedded yet, and add them to the DB
@@ -416,18 +411,18 @@ class ImageLib(LibraryBase):
             self.__instanize_db()
 
         # If there is no single embedded image, do full scan directly
-        if not self.get_embedded_files():  # type: ignore
+        if not self._tracker.get_record_count():  # type: ignore
             self.full_scan(force_init=True,
-                            progress_reporter=progress_reporter,
-                            cancel_event=cancel_event)
+                           progress_reporter=progress_reporter,
+                           cancel_event=cancel_event)
             return
 
         # Something is wrong here which should not happen, but just in case:
-        # - get_embedded_files() has records but vector DB is not ready, do force initialization instead
+        # - Embedding record table has records but vector DB is not ready, do force initialization instead
         if not self.__vector_db.db_is_ready():  # type: ignore
             self.full_scan(force_init=True,
-                            progress_reporter=progress_reporter,
-                            cancel_event=cancel_event)
+                           progress_reporter=progress_reporter,
+                           cancel_event=cancel_event)
             return
 
         # Do incremental scan
