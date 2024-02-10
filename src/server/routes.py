@@ -12,6 +12,8 @@ from server.file_utils.folder import *
 from server.route_helpers import *
 from singleton import lib_manager
 from utils.constants.lib_constants import *
+from utils.file_system.file import zip_directory
+from utils.file_system.folder import list_folder_content
 
 librarian_routes = Blueprint('librarian_routes', __name__)
 
@@ -23,7 +25,7 @@ def homePage():
                            current_lib=lib_manager.get_lib_uuid(),
                            favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
-                           library_types=library_types_CN)
+                           library_types=LIBRARY_TYPES_CN)
 
 
 @librarian_routes.route('/toggleViewStyle', methods=['GET'])
@@ -35,12 +37,12 @@ def toggle_view_style():
 
 @librarian_routes.route('/toggleSort', methods=['GET'])
 def toggle_sort():
-    if lib_manager.get_lib_sorted_by() not in sorted_by_labels:
+    if lib_manager.get_lib_sorted_by() not in SORTED_BY_LABELS:
         lib_manager.change_sorted_by('Name')
 
     # On toggle sort, always get next sort type in sorted_by_labels_ordered
-    next_sorted_by = sorted_by_labels_ordered[(
-        sorted_by_labels_ordered.index(lib_manager.get_lib_sorted_by()) + 1) % len(sorted_by_labels_ordered)]
+    next_sorted_by = SORTED_BY_LABELS_ORDERED[(
+        SORTED_BY_LABELS_ORDERED.index(lib_manager.get_lib_sorted_by()) + 1) % len(SORTED_BY_LABELS_ORDERED)]
     lib_manager.change_sorted_by(next_sorted_by)
     return jsonify({})
 
@@ -50,7 +52,7 @@ def add_library():
     lib_name: str = request.form.get('lib_name', '').strip()
     lib_path: str = request.form.get('lib_path', '').strip()
     lib_type: str = request.form.get('lib_type', '').strip()
-    if not lib_type or lib_type not in library_types:
+    if not lib_type or lib_type not in LIBRARY_TYPES:
         return render_error_page(404, '无法添加仓库，仓库类型不正确')
 
     if not lib_name or not lib_path:
@@ -105,34 +107,35 @@ def list_library_content(relative_path: str = ''):
 
     # List folder content
     try:
-        dir_dict, file_dict = list_folder_content(relative_path, lib_manager.get_lib_sorted_by())
+        dir_list, file_list = list_folder_content(relative_path)
+        dir_dict, file_dict = process_and_sort_folder_items(dir_list, file_list, lib_manager.get_lib_sorted_by())
     except:
         return render_error_page(404, '无法读取仓库文件')
 
     grid_view_button_style, list_view_button_style = "DISABLED", ""
     template_name: str = 'library_grid.html'
-    if lib_manager.get_lib_view_style() == view_styles[0]:
+    if lib_manager.get_lib_view_style() == VIEW_STYLES[0]:
         grid_view_button_style, list_view_button_style = "DISABLED", ""
         template_name = 'library_grid.html'
         if lib_manager.get_lib_type() == 'image':
             template_name = 'library_gallery_grid.html'
-    elif lib_manager.get_lib_view_style() == view_styles[1]:
+    elif lib_manager.get_lib_view_style() == VIEW_STYLES[1]:
         grid_view_button_style, list_view_button_style = "", "DISABLED"
         template_name = 'library_list.html'
         if lib_manager.get_lib_type() == 'image':
             template_name = 'library_gallery_list.html'
     return render_template(template_name,
                            current_lib=lib_manager.get_lib_uuid(),
-                           current_path=relative_path,
+                           parent_path=relative_path,
                            favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
-                           library_types=library_types_CN,
+                           library_types=LIBRARY_TYPES_CN,
                            grid_view_button_style=grid_view_button_style,
                            list_view_button_style=list_view_button_style,
                            breadcrumb_path=relative_path.split('/'),
                            dir_dict=dir_dict,
                            file_dict=file_dict,
-                           sorted_label_current=sorted_by_labels_CN[lib_manager.get_lib_sorted_by()])
+                           sorted_label_current=SORTED_BY_LABELS_CN[lib_manager.get_lib_sorted_by()])
 
 
 @librarian_routes.route('/file/<path:relative_path>', defaults={"browse": True}, methods=['GET'])
@@ -166,7 +169,7 @@ def browse_file(relative_path: str = '', browse: bool = True):
 
     if browse:
         category, _ = get_file_category(full_path)
-        if category != F_CATEGORY_UNKNOWN:
+        if category != FILE_CATEGORY_UNKNOWN:
             return get_file_content(full_path, start, end)
     return send_file(full_path)
 
@@ -227,4 +230,4 @@ def uploadFile(relative_path: str = ''):
                            failure_count=failure_count,
                            favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
-                           library_types=library_types_CN,)
+                           library_types=LIBRARY_TYPES_CN,)

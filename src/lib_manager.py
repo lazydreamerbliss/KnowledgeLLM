@@ -107,6 +107,8 @@ class LibraryManager:
         """
         if not self.__instance or not relative_path or not self.__favorite_list:
             return False
+
+        relative_path = relative_path.lstrip(os.path.sep)
         return relative_path in self.__favorite_list
 
     def is_excluded(self, relative_path: str) -> bool:
@@ -117,6 +119,7 @@ class LibraryManager:
         if not self.__instance or not relative_path or not self.__exclusion_list:
             return False
 
+        relative_path = relative_path.lstrip(os.path.sep)
         file_or_folder_name: str = os.path.basename(relative_path)
         return file_or_folder_name in self.__exclusion_list or relative_path in self.__exclusion_list
 
@@ -160,6 +163,22 @@ class LibraryManager:
         if not self.__instance:
             return 'name'
         return self.__instance.get_sorted_by()
+
+    def is_valid_relative_path(self, relative_path: str) -> bool:
+        """Check if provided path is a valid sub directory/file of the current directory
+        """
+        lib_path: str | None = self.get_lib_path()
+        if not lib_path:
+            return False
+        if not relative_path:
+            return True
+
+        relative_path = relative_path.lstrip(os.path.sep)
+        if not relative_path:
+            return True
+
+        full_path: str = os.path.join(lib_path, relative_path)
+        return os.path.exists(full_path)
 
     """
     Manager operations for managing current library
@@ -298,10 +317,12 @@ class LibraryManager:
             if self.__instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
                 return UUID_EMPTY
 
+            relative_path: str = kwargs['relative_path']
+            relative_path = relative_path.lstrip(os.path.sep)
             lite_mode: bool = kwargs.get('lite_mode', False)
             self.__instance.set_embedder(DocEmbedder(lite_mode=lite_mode))
             task_id: str = self.task_runner.submit_task(self.__instance.use_doc, None, True, True,
-                                                        relative_path=kwargs['relative_path'],
+                                                        relative_path=relative_path,
                                                         provider_type=kwargs['provider_type'],
                                                         force_init=kwargs.get('force_init', False))
             return task_id
@@ -318,6 +339,7 @@ class LibraryManager:
         if not self.__instance or not relative_path:
             return
 
+        relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self.__favorite_list:
             self.__favorite_list.add(relative_path)
             self.__instance.change_favorite_list(self.__favorite_list)
@@ -329,6 +351,7 @@ class LibraryManager:
         if not self.__instance or not relative_path:
             return
 
+        relative_path = relative_path.lstrip(os.path.sep)
         if relative_path in self.__favorite_list:
             self.__favorite_list.remove(relative_path)
             self.__instance.change_favorite_list(self.__favorite_list)
@@ -340,6 +363,7 @@ class LibraryManager:
         if not self.__instance or not relative_path:
             return
 
+        relative_path = relative_path.lstrip(os.path.sep)
         if relative_path not in self.__exclusion_list:
             self.__exclusion_list.add(relative_path)
             self.__instance.change_exclusion_list(self.__exclusion_list)
@@ -351,6 +375,7 @@ class LibraryManager:
         if not self.__instance or not relative_path:
             return
 
+        relative_path = relative_path.lstrip(os.path.sep)
         if relative_path in self.__exclusion_list:
             self.__exclusion_list.remove(relative_path)
             self.__instance.change_exclusion_list(self.__exclusion_list)

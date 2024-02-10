@@ -374,7 +374,7 @@ class ImageLib(LibraryBase):
 
     @ensure_lib_is_ready
     def remove_embeddings(self, relative_paths: list[str]):
-        """Remove the embedding of an image from the DB
+        """Remove the embeddings of images from the DB but keep the files
         """
         if not relative_paths:
             return

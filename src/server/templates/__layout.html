@@ -92,7 +92,7 @@
                 {% endfor %}
                 {% endif %}
                 {% if current_lib %}
-                <form id="upload-form" class="md-form" action="/upload/{{current_path}}" method="POST"
+                <form id="upload-form" class="md-form" action="/upload/{{parent_path}}" method="POST"
                     enctype="multipart/form-data" style="display:none;">
                     <input style="color:white;" class="btn btn-sm " type="file" name="file_list" multiple="true">
                     <input class="btn btn-sm mr-4" type="submit" value="Upload" />

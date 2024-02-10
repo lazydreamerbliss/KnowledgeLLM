@@ -7,7 +7,7 @@ from threading import Event
 from typing import Any, Callable
 
 from library.scan_record_tracker import ScanRecordTracker
-from utils.constants.lib_constants import sorted_by_labels, view_styles
+from utils.constants.lib_constants import SORTED_BY_LABELS, VIEW_STYLES
 from utils.exceptions.lib_errors import LibraryError
 
 LIB_DATA_FOLDER: str = '__library_data__'
@@ -71,13 +71,19 @@ class LibraryBase:
 
         # UUID of the library
         self.uuid: str = ''
+        # The current relative path user is browsing under the library
+        self.current_path: str = ''
+
+        # Static path info - these paths are not supposed to be changed after library's initialization
         # Path to the library root folder
         self._path_lib: str = lib_path
         # Path to the library's data folder
         self._path_lib_data: str = os.path.join(self._path_lib, LIB_DATA_FOLDER)
-        # In-memory metadata
-        self._metadata: dict = dict()
+        # Path to the library metadata file
         self.__path_metadata: str = os.path.join(self._path_lib_data, LibraryBase.METADATA_FILE)
+
+        # In-memory library metadata
+        self._metadata: dict = dict()
         # Scan tracker to track embedded files under the library
         self._tracker: ScanRecordTracker | None = None
 
@@ -147,6 +153,10 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
+    """
+    File operation methods
+    """
+
     def move_file(self, relative_path: str, new_relative_path: str):
         """Move the given file under current library and retain the existing embedding information
         """
@@ -176,6 +186,10 @@ class LibraryBase:
 
     def rename_file(self, relative_path: str, new_name: str):
         """Rename the given file under current library and retain the existing embedding information
+
+        Args:
+            relative_path (str): The relative path of the target file to be renamed
+            new_name (str): The new filename
         """
         if not relative_path or not new_name:
             raise LibraryError('Invalid relative path')
@@ -307,14 +321,14 @@ class LibraryBase:
 
     @ensure_metadata_ready
     def change_view_style(self, new_style: str):
-        if not new_style or new_style not in view_styles:
+        if not new_style or new_style not in VIEW_STYLES:
             return
         self._metadata['view_style'] = new_style
         self._save_metadata()
 
     @ensure_metadata_ready
     def change_sorted_by(self, new_sorted_by: str):
-        if not new_sorted_by or new_sorted_by not in sorted_by_labels:
+        if not new_sorted_by or new_sorted_by not in SORTED_BY_LABELS:
             return
         self._metadata['sorted_by'] = new_sorted_by
         self._save_metadata()

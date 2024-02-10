@@ -1,7 +1,7 @@
 {% if file_dict %}
 {% for file in file_dict %}
 <div class="col-3" style="margin-bottom:-10px">
-    <a href="/file/{{file.current_path}}/{{file.url}}">
+    <a href="/file/{{file.parent_path}}/{{file.url}}">
         <img src='/static/{{file.icon}}' style="position:absolute; height:25px; width:25px; border:0px;" />
         <p style="margin-left:35px; color:black; text-align:left; text-decoration:none;">
             {{file.display_name}}
