@@ -2,10 +2,11 @@ import os
 import re
 from typing import Any
 
+from library.lib_item import DirectoryItem, FileItem
+from server.file_utils.file import humanized_size
 from singleton import lib_manager
 from utils.constants.file_constants import FILE_ICON_MAPPING
 from utils.constants.lib_constants import SORTED_BY_LABELS
-from utils.file_system.folder import DirectoryItem, FileItem
 
 HASH_TAG: str = '#'
 HASH_TAG_ENCODED: str = '|&hash;|'
@@ -59,14 +60,14 @@ def __DirectoryItem_post_process(item: DirectoryItem) -> dict[str, Any]:
 
     display_length: int = DISPLAY_NAME_LENGTH_GRID if lib_manager.get_lib_view_style() == 'grid' else DISPLAY_NAME_LENGTH_LIST
     return {
-        'display_name': f'{item.display_name[0:display_length]}...' if len(item.display_name) > display_length else item.display_name,
+        'display_name': f'{item.name[0:display_length]}...' if len(item.name) > display_length else item.name,
         'name': item.name,
         'url': encode_hash_tag(item.name),
         'parent_path': encode_hash_tag(item.parent_path),
         'icon': '/icons/folder5.png',
         'dtc': item.dtc,
         'dtm': item.dtm,
-        'size': item.size,
+        'size': '-',
     }
 
 
@@ -87,22 +88,22 @@ def __FileItem_post_process(item: FileItem) -> dict[str, Any]:
     display_length: int = DISPLAY_NAME_LENGTH_GRID if lib_manager.get_lib_view_style() == 'grid' else DISPLAY_NAME_LENGTH_LIST
     display_length = DISPLAY_NAME_LENGTH_GRID if lib_manager.get_lib_type() == 'image' else display_length
     return {
-        'display_name': f'{item.display_name[0:display_length]}...' if len(item.display_name) > display_length else item.display_name,
+        'display_name': f'{item.name[0:display_length]}...' if len(item.name) > display_length else item.name,
         'name': item.name,
         'url': encode_hash_tag(item.name),
         'parent_path': encode_hash_tag(item.parent_path),
         'icon': f_icon,
         'dtc': item.dtc,
         'dtm': item.dtm,
-        'size': item.size,
+        'size': humanized_size(item.size_b),
         'size_b': item.size_b,
         'supported': item.supported,
     }
 
 
-def process_and_sort_folder_items(dir_list: list[DirectoryItem],
-                                  file_list: list[FileItem],
-                                  sorted_by: str = 'Name') -> tuple[list[dict], list[dict]]:
+def post_process_and_sort_folder_items(dir_list: list[DirectoryItem],
+                                       file_list: list[FileItem],
+                                       sorted_by: str = 'Name') -> tuple[list[dict], list[dict]]:
     """Post process and sort folder items by given sort_by label
     """
     dir_list_dict: list[dict] = [__DirectoryItem_post_process(item) for item in dir_list]

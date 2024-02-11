@@ -9,6 +9,22 @@ from utils.exceptions.task_errors import *
 EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these seconds
 
 
+def report_progress(progress_reporter: Callable[[int, int, str | None], None] | None,
+                    current_progress: int,
+                    current_phase: int = 1,
+                    phase_name: str | None = None):
+    """Report the progress of current task
+    """
+    if not progress_reporter:
+        return
+    if current_progress is None or current_progress < 0 or current_progress > 100:
+        return
+    try:
+        progress_reporter(current_progress, current_phase, phase_name)
+    except:
+        pass
+
+
 class TaskState:
     IN_PROGRESS = 'IN_PROGRESS'
     FINISHED = 'FINISHED'
@@ -21,11 +37,14 @@ class TaskObj:
     """
 
     def __init__(self, id: str):
-        self.id: str = id
         self.future: Future | None = None
         self.cancel_event: Event | None = None
+        self.id: str = id
         self.state: str = TaskState.IN_PROGRESS
-        self.progress: int = 0  # TODO: make it reportable
+        self.phase_count: int = 1  # The number of phases in the task
+        self.phase_name: str | None = None
+        self.current_phase: int = 1
+        self.progress: int = 0  # The progress of the task on current phase, if task with 1 phase only then it represents the overall progress of the task
         self.error: str | None = None
         self.submitted_on: datetime = datetime.now()
         self.completed_on: datetime | None = None
@@ -35,6 +54,9 @@ class TaskObj:
         return {
             'id': self.id,
             'state': self.state,
+            'phase_count': self.phase_count,
+            'phase_name': self.phase_name,
+            'current_phase': self.current_phase,
             'progress': self.progress,
             'error': self.error,
             'submitted_on': self.submitted_on,
@@ -63,7 +85,7 @@ class TaskRunner:
     def __run_task_with_catch(self,
                               task_id: str,
                               task_func: Callable,
-                              progress_reporter: Callable[[int], None] | None,
+                              progress_reporter: Callable | None,
                               cancel_event: Event | None,
                               args: tuple,
                               kwargs: dict):
@@ -97,35 +119,49 @@ class TaskRunner:
             self.tasks.pop(id)
         return res
 
-    def submit_task(self, task_func: Callable,
+    def submit_task(self,
+                    task_func: Callable,
                     callback_lambda: Callable | None,
                     support_reporter: bool,
                     support_cancel: bool,
+                    phase_count: int,
                     *task_args,
                     **task_kwargs):
         """Submit a function as a concurrent task and executing in the background
 
         Args:
-            task_func (Callable): The function to be executed
+            task_func (Callable): The target function to be executed
             callback_lambda (Callable | None): The optional callback function to be executed after the task is finished
-            reporter_lambda (Callable[[TaskObj], None] | None): The optional callback function to be executed to report the task progress
+            support_reporter (bool): If the task supports reporting execution progress
                 To support this, target function must have a keyword argument named `progress_reporter`
-            support_cancel (bool): If the task supports cancellation.
+            support_cancel (bool): If the task supports cancellation
                 To support this, target function must have a keyword argument named `cancel_event`
+            phase_count (int): The number of phases in the task, used with progress reporter
+            task_args (tuple): The positional arguments to be passed to the target function
+            task_kwargs (dict): The keyword arguments to be passed to the target function
         """
         if self.__get_active_task_count() >= self.max_parallel_tasks:
             raise TaskCreationFailureException('Maximum number of parallel tasks exceeded')
 
         task: TaskObj = TaskObj(str(uuid.uuid4()))
-        # The reporter lambda is used to report the progress of this task object
-        progress_reporter: Callable[[int], None] | None = None
-        if support_reporter:
-            progress_reporter = lambda x: setattr(self.tasks[task.id], 'progress', x)
+        task.phase_count = phase_count if phase_count >= 1 else 1
         if support_cancel:
             task.cancel_event = Event()
 
-        future: Future = self.__thread_pool.submit(
-            self.__run_task_with_catch, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
+        if support_reporter:
+            # The reporter function is used to report the progress of this task object
+            def progress_reporter(progress: int,
+                                  current_phase: int = 1,
+                                  phase_name: str | None = None):
+                t: TaskObj = self.tasks[task.id]
+                t.progress = progress
+                t.current_phase = current_phase
+                t.phase_name = phase_name
+            future: Future = self.__thread_pool.submit(
+                self.__run_task_with_catch, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
+        else:
+            future: Future = self.__thread_pool.submit(
+                self.__run_task_with_catch, task.id, task_func, None, task.cancel_event, task_args, task_kwargs)
         task.future = future
         self.tasks[task.id] = task
 

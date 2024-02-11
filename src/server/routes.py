@@ -6,14 +6,13 @@ from flask import (Blueprint, jsonify, redirect, render_template, request,
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from lib_manager import LibCreationObj
+from lib_manager import LibInfoObj
 from server.file_utils.file import *
 from server.file_utils.folder import *
 from server.route_helpers import *
 from singleton import lib_manager
 from utils.constants.lib_constants import *
-from utils.file_system.file import zip_directory
-from utils.file_system.folder import list_folder_content
+from utils.file import zip_directory
 
 librarian_routes = Blueprint('librarian_routes', __name__)
 
@@ -22,7 +21,7 @@ librarian_routes = Blueprint('librarian_routes', __name__)
 def homePage():
     lib_manager.use_library('')
     return render_template('home.html',
-                           current_lib=lib_manager.get_lib_uuid(),
+                           current_lib=None,
                            favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
                            library_types=LIBRARY_TYPES_CN)
@@ -37,12 +36,16 @@ def toggle_view_style():
 
 @librarian_routes.route('/toggleSort', methods=['GET'])
 def toggle_sort():
-    if lib_manager.get_lib_sorted_by() not in SORTED_BY_LABELS:
+    instance: LibraryBase | None = lib_manager.instance
+    if not instance:
+        return render_error_page(404, '仓库不存在')
+
+    if instance.get_sorted_by() not in SORTED_BY_LABELS:
         lib_manager.change_sorted_by('Name')
 
     # On toggle sort, always get next sort type in sorted_by_labels_ordered
     next_sorted_by = SORTED_BY_LABELS_ORDERED[(
-        SORTED_BY_LABELS_ORDERED.index(lib_manager.get_lib_sorted_by()) + 1) % len(SORTED_BY_LABELS_ORDERED)]
+        SORTED_BY_LABELS_ORDERED.index(instance.get_sorted_by()) + 1) % len(SORTED_BY_LABELS_ORDERED)]
     lib_manager.change_sorted_by(next_sorted_by)
     return jsonify({})
 
@@ -69,7 +72,7 @@ def add_library():
     if lib_path in lib_manager.get_library_path_list():
         return render_error_page(404, '无法添加仓库，已存在相同路径的仓库')
 
-    lib: LibCreationObj = LibCreationObj()
+    lib: LibInfoObj = LibInfoObj()
     lib.name = lib_name
     lib.uuid = str(uuid.uuid4())
     lib.path = lib_path
@@ -81,16 +84,17 @@ def add_library():
 @librarian_routes.route('/library/', methods=['GET'])
 @librarian_routes.route('/library/<path:relative_path>', methods=['GET'])
 def list_library_content(relative_path: str = ''):
+    instance: LibraryBase | None = lib_manager.instance
+    if not instance:
+        return render_error_page(404, '仓库不存在')
+
     # If lib uuid param is provided, means switch to and list content for another library's relative path
     # Otherwise, list content for current library with given relative path
     uuid: str | None = request.args.get('uuid', '')
-    if lib_manager.lib_exists(uuid) and uuid != lib_manager.get_lib_uuid():
+    if lib_manager.lib_exists(uuid) and uuid != instance.uuid:
         lib_manager.use_library(uuid)
     if not uuid:
-        uuid = lib_manager.get_lib_uuid()
-
-    if not uuid or not lib_manager.lib_exists(uuid):
-        return render_error_page(404, '仓库不存在')
+        uuid = instance.uuid
 
     relative_path = preprocess_relative_path(relative_path)
     error_page: str | None = verify_relative_path(relative_path)
@@ -98,34 +102,32 @@ def list_library_content(relative_path: str = ''):
         return error_page
 
     # If relative path is a file, redirect to file page
-    lib_path: str | None = lib_manager.get_lib_path()
-    if not lib_path:
-        return render_error_page(404, '仓库不存在')
+    lib_path: str = instance.path_lib
     full_path: str = os.path.join(lib_path, relative_path)
     if os.path.isfile(full_path):
         return redirect('/file/'+relative_path)
 
     # List folder content
     try:
-        dir_list, file_list = list_folder_content(relative_path)
-        dir_dict, file_dict = process_and_sort_folder_items(dir_list, file_list, lib_manager.get_lib_sorted_by())
+        dir_list, file_list = lib_manager.get_lib_instance().list_folder_content(relative_path)  # type: ignore
+        dir_dict, file_dict = post_process_and_sort_folder_items(dir_list, file_list, instance.get_sorted_by())
     except:
         return render_error_page(404, '无法读取仓库文件')
 
     grid_view_button_style, list_view_button_style = "DISABLED", ""
     template_name: str = 'library_grid.html'
-    if lib_manager.get_lib_view_style() == VIEW_STYLES[0]:
+    if instance.get_view_style() == VIEW_STYLES[0]:
         grid_view_button_style, list_view_button_style = "DISABLED", ""
         template_name = 'library_grid.html'
-        if lib_manager.get_lib_type() == 'image':
+        if lib_manager.get_lib_info().type == 'image':  # type: ignore
             template_name = 'library_gallery_grid.html'
-    elif lib_manager.get_lib_view_style() == VIEW_STYLES[1]:
+    elif instance.get_view_style() == VIEW_STYLES[1]:
         grid_view_button_style, list_view_button_style = "", "DISABLED"
         template_name = 'library_list.html'
-        if lib_manager.get_lib_type() == 'image':
+        if lib_manager.get_lib_info().type == 'image':  # type: ignore
             template_name = 'library_gallery_list.html'
     return render_template(template_name,
-                           current_lib=lib_manager.get_lib_uuid(),
+                           current_lib=instance.uuid,
                            parent_path=relative_path,
                            favorite_list=lib_manager.__favorite_list,
                            library_list=lib_manager.get_library_list(),
@@ -135,20 +137,22 @@ def list_library_content(relative_path: str = ''):
                            breadcrumb_path=relative_path.split('/'),
                            dir_dict=dir_dict,
                            file_dict=file_dict,
-                           sorted_label_current=SORTED_BY_LABELS_CN[lib_manager.get_lib_sorted_by()])
+                           sorted_label_current=SORTED_BY_LABELS_CN[instance.get_sorted_by()])
 
 
 @librarian_routes.route('/file/<path:relative_path>', defaults={"browse": True}, methods=['GET'])
 def browse_file(relative_path: str = '', browse: bool = True):
+    instance: LibraryBase | None = lib_manager.instance
+    if not instance:
+        return render_error_page(404, '仓库不存在')
+
     relative_path = preprocess_relative_path(relative_path)
     error_page: str | None = verify_relative_path(relative_path)
     if error_page:
         return error_page
 
     # If relative path is a folder, redirect to folder page
-    lib_path: str | None = lib_manager.get_lib_path()
-    if not lib_path:
-        return render_error_page(404, '仓库不存在')
+    lib_path: str = instance.path_lib
     full_path: str = os.path.join(lib_path, relative_path)
     if os.path.isdir(full_path):
         return redirect('/library/'+relative_path)
@@ -176,14 +180,16 @@ def browse_file(relative_path: str = '', browse: bool = True):
 
 @librarian_routes.route('/downloadFolder/<relative_path>')
 def download_folder(relative_path: str = ''):
+    instance: LibraryBase | None = lib_manager.instance
+    if not instance:
+        return render_error_page(404, '仓库不存在')
+
     relative_path = preprocess_relative_path(relative_path)
     error_page: str | None = verify_relative_path(relative_path)
     if error_page:
         return error_page
 
-    lib_path: str | None = lib_manager.get_lib_path()
-    if not lib_path:
-        return render_error_page(404, '仓库不存在')
+    lib_path: str = instance.path_lib
     full_path: str = os.path.join(lib_path, relative_path)
     zip_filename: str = f'{uuid.uuid4()}.zip'
     zip_file_path: str = os.path.join(full_path, zip_filename)
@@ -197,14 +203,16 @@ def download_folder(relative_path: str = ''):
 @librarian_routes.route('/upload/', methods=['POST'])
 @librarian_routes.route('/upload/<path:relative_path>', methods=['POST'])
 def uploadFile(relative_path: str = ''):
+    instance: LibraryBase | None = lib_manager.instance
+    if not instance:
+        return render_error_page(404, '仓库不存在')
+
     relative_path = preprocess_relative_path(relative_path)
     error_page: str | None = verify_relative_path(relative_path)
     if error_page:
         return error_page
 
-    lib_path: str | None = lib_manager.get_lib_path()
-    if not lib_path:
-        return render_error_page(404, '仓库不存在')
+    lib_path: str = instance.path_lib
     full_path: str = os.path.join(lib_path, relative_path)
     file_list: list[FileStorage] = request.files.getlist('file_list')
     success_count: int = 0

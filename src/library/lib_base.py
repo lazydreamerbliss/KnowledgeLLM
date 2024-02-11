@@ -6,8 +6,10 @@ from functools import wraps
 from threading import Event
 from typing import Any, Callable
 
+from library.lib_item import *
 from library.scan_record_tracker import ScanRecordTracker
-from utils.constants.lib_constants import SORTED_BY_LABELS, VIEW_STYLES
+from utils.constants.lib_constants import (SORTED_BY_LABELS,
+                                           SUPPORTED_EXTENSIONS, VIEW_STYLES)
 from utils.exceptions.lib_errors import LibraryError
 
 LIB_DATA_FOLDER: str = '__library_data__'
@@ -21,7 +23,7 @@ DEFAULT_EXCLUSION_LIST: set[str] = {
     '.localized',
     '__pycache__',
     'node_modules',
-    LIB_DATA_FOLDER,
+    LIB_DATA_FOLDER,  # The folder for library's data
 }
 
 BASIC_METADATA: dict = {
@@ -42,7 +44,7 @@ def ensure_lib_is_ready(func):
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
         if not self.lib_is_ready():
-            raise LibraryError(f'Library is not ready: {self._path_lib}')
+            raise LibraryError(f'Library is not ready: {self.path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -53,7 +55,7 @@ def ensure_metadata_ready(func):
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
         if not self._metadata:
-            raise LibraryError(f'Library is not ready: {self._path_lib}')
+            raise LibraryError(f'Library is not ready: {self.path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -76,9 +78,9 @@ class LibraryBase:
 
         # Static path info - these paths are not supposed to be changed after library's initialization
         # Path to the library root folder
-        self._path_lib: str = lib_path
+        self.path_lib: str = lib_path
         # Path to the library's data folder
-        self._path_lib_data: str = os.path.join(self._path_lib, LIB_DATA_FOLDER)
+        self._path_lib_data: str = os.path.join(self.path_lib, LIB_DATA_FOLDER)
         # Path to the library metadata file
         self.__path_metadata: str = os.path.join(self._path_lib_data, LibraryBase.METADATA_FILE)
 
@@ -92,7 +94,7 @@ class LibraryBase:
             os.makedirs(self._path_lib_data)
 
     """
-    Abstract methods (just a simulation...)
+    Library methods
     """
 
     def set_embedder(embedder: Any):
@@ -148,14 +150,14 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
+    """
+    File A/R/W/D operation methods
+    """
+
     def add_file(self, folder_relative_path: str, source_file: str):
         """Add given source file to the library under the given folder
         """
         raise NotImplementedError()
-
-    """
-    File operation methods
-    """
 
     def move_file(self, relative_path: str, new_relative_path: str):
         """Move the given file under current library and retain the existing embedding information
@@ -168,12 +170,12 @@ class LibraryBase:
             raise LibraryError('Invalid relative path')
 
         relative_path = relative_path.lstrip(os.path.sep)
-        doc_path: str = os.path.join(self._path_lib, relative_path)
+        doc_path: str = os.path.join(self.path_lib, relative_path)
         if not os.path.isfile(doc_path):
             raise LibraryError('Invalid doc path')
 
         new_relative_path = new_relative_path.lstrip(os.path.sep)
-        new_doc_path: str = os.path.join(self._path_lib, new_relative_path)
+        new_doc_path: str = os.path.join(self.path_lib, new_relative_path)
         if os.path.isfile(new_doc_path):
             raise LibraryError('Filename already exists')
 
@@ -208,23 +210,85 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    """
-    Task manager methods
-    """
+    def list_folder_content(self, folder_relative_path: str) -> tuple[list[DirectoryItem], list[FileItem]]:
+        """List the content of a folder, no recursion
 
-    def report_progress(self,
-                        progress_reporter: Callable[[int], None] | None,
-                        current_progress: int):
-        """Report the progress of current task
+        Args:
+            folder_relative_path (str): The relative path of the folder to be scanned, starting from the root of current library
         """
-        if not progress_reporter:
-            return
-        if current_progress is None or current_progress < 0 or current_progress > 100:
-            return
-        try:
-            progress_reporter(current_progress)
-        except:
-            pass
+        dir_list: list[DirectoryItem] = list()
+        file_list: list[FileItem] = list()
+
+        folder_relative_path = folder_relative_path.lstrip(os.sep)
+        folder_full_path: str = os.path.join(self.path_lib, folder_relative_path)
+        if not os.path.isdir(folder_full_path):
+            return dir_list, file_list
+
+        for item_name in os.listdir(folder_full_path):
+            item_path: str = os.path.join(folder_full_path, item_name)
+
+            if os.path.isdir(item_path):
+                dir_relative_path: str = os.path.join(folder_relative_path, item_name)
+                if not self.is_accessible(dir_relative_path):
+                    continue
+
+                d_item: DirectoryItem = DirectoryItem()
+                d_item.name = item_name
+                d_item.parent_path = folder_relative_path
+                try:
+                    d_stats: os.stat_result = os.stat(item_path)
+                    d_item.dtc = datetime.utcfromtimestamp(d_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+                    d_item.dtm = datetime.utcfromtimestamp(d_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    d_item.dtc = '-'
+                    d_item.dtm = '-'
+                dir_list.append(d_item)
+
+            else:
+                file_relative_path: str = os.path.join(folder_relative_path, item_name)
+                if not self.is_accessible(file_relative_path):
+                    continue
+
+                f_item: FileItem = FileItem()
+                f_item.name = item_name
+                f_item.parent_path = folder_relative_path
+
+                _, extension = os.path.splitext(item_name)
+                if extension:
+                    extension[1:].lower()
+                f_item.extension = extension
+                f_item.supported = extension in SUPPORTED_EXTENSIONS
+                f_item.embedded = False if not self._tracker else self._tracker.is_recorded(file_relative_path)
+                try:
+                    f_stats: os.stat_result = os.stat(item_path)
+                    f_item.dtc = datetime.utcfromtimestamp(f_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+                    f_item.dtm = datetime.utcfromtimestamp(f_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                    f_item.size_b = f_stats.st_size
+                except:
+                    f_item.dtc = '-'
+                    f_item.dtm = '-'
+                    f_item.size_b = -1
+                file_list.append(f_item)
+
+        return dir_list, file_list
+
+    def is_accessible(self, relative_path: str) -> bool:
+        """Check if the given relative path is accessible under the library
+        - Accessible means the file or folder is not in the exclusion list and it is under the library's root
+        """
+        if not relative_path:
+            return True
+        relative_path = relative_path.lstrip(os.path.sep)
+        if not relative_path:
+            return True
+
+        exclusion_list: set[str] = self.get_exclusion_list()
+        if exclusion_list:
+            file_or_folder_name: str = os.path.basename(relative_path)
+            if file_or_folder_name in exclusion_list or relative_path in exclusion_list:
+                return False
+        full_path: str = os.path.join(self.path_lib, relative_path)
+        return os.path.exists(full_path)
 
     """
     Metadata file methods
@@ -237,7 +301,7 @@ class LibraryBase:
             raise LibraryError(f'Metadata file missing: {self.__path_metadata}')
         pickle.dump(self._metadata, open(self.__path_metadata, 'wb'))
 
-    def metadata_exists(self) -> bool:
+    def _metadata_exists(self) -> bool:
         """Check if the metadata exists
         """
         return os.path.isfile(self.__path_metadata)
@@ -336,9 +400,4 @@ class LibraryBase:
     @ensure_metadata_ready
     def change_favorite_list(self, new_list: set[str]):
         self._metadata['favorite_list'] = new_list
-        self._save_metadata()
-
-    @ensure_metadata_ready
-    def change_exclusion_list(self, new_list: set[str]):
-        self._metadata['exclusion_list'] = new_list
         self._save_metadata()

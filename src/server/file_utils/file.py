@@ -5,7 +5,7 @@ from mimetypes import guess_type
 from flask import Response
 
 from utils.constants.file_constants import *
-from utils.file_system.file import chunk_read
+from utils.file import chunk_read
 
 range_pattern: re.Pattern = re.compile(r'(?P<start>\d+)-(?P<end>\d+)')
 

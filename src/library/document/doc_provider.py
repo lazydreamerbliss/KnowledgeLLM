@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from knowledge_base.document.doc_provider_base import *
 from library.document.doc_lib_table import DocLibTable
+from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
 
 TXT_EXTENSION: str = 'txt'
@@ -24,8 +25,13 @@ class DocProvider(DocProviderBase[DocLibTable]):
     # Type for the table for this type of document provider
     TABLE_TYPE: type = DocLibTable
 
-    def __init__(self, db_path: str, uuid: str, doc_path: str | None = None, re_dump: bool = False):
-        super().__init__(db_path, uuid, doc_path, re_dump, table_type=DocProvider.TABLE_TYPE)
+    def __init__(self,
+                 db_path: str,
+                 uuid: str,
+                 doc_path: str | None = None,
+                 re_dump: bool = False,
+                 progress_reporter: Callable[[int, int, str | None], None] | None = None):
+        super().__init__(db_path, uuid, doc_path, re_dump, progress_reporter, table_type=DocProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path
         if not self._table.row_count() or re_dump:
@@ -40,11 +46,21 @@ class DocProvider(DocProviderBase[DocLibTable]):
         timestamp: datetime = datetime.now()
         try:
             reader: PdfReader = PdfReader(doc_path)
-            for page in tqdm(reader.pages, desc=f'Loading PDF content to DB...', unit='page', ascii=' |'):
+            previous_progress: int = -1
+            total: int = len(reader.pages)
+            for i, page in tqdm(enumerate(reader.pages), desc=f'Loading PDF content to DB...', unit='page', ascii=' |'):
                 page_text: str = page.extract_text()
                 page_text = page_text.strip()
                 if not page_text:
                     continue
+
+                # If reporter is given, report progress to task manager
+                # - Reduce report frequency, only report when progress changes
+                current_progress: int = int(i / total * 100)
+                if current_progress > previous_progress:
+                    previous_progress = current_progress
+                    report_progress(self._progress_reporter, current_progress, current_phase=1, phase_name='DUMP')
+
                 # PDF text is separated by '\n \n', single '\n' is for line wrapping
                 for line in page_text.split('\n \n'):
                     line = line.strip()
@@ -60,28 +76,50 @@ class DocProvider(DocProviderBase[DocLibTable]):
         timestamp: datetime = datetime.now()
         try:
             doc: Document = docx.Document(doc_path)
-            for paragraph in tqdm(doc.paragraphs, desc=f'Loading DOC/DOCX content to DB...', unit='paragraph', ascii=' |'):
+            previous_progress: int = -1
+            total: int = len(doc.paragraphs)
+            for i, paragraph in tqdm(enumerate(doc.paragraphs), desc=f'Loading DOC/DOCX content to DB...', unit='paragraph', ascii=' |'):
                 line = paragraph.text.strip()
                 if not line:
                     continue
+
+                # If reporter is given, report progress to task manager
+                # - Reduce report frequency, only report when progress changes
+                current_progress: int = int(i / total * 100)
+                if current_progress > previous_progress:
+                    previous_progress = current_progress
+                    report_progress(self._progress_reporter, current_progress, current_phase=1, phase_name='DUMP')
+
                 self._table.insert_row((timestamp, line))
             return
         except Exception as e:
             raise DocProviderError(f'Failed to read DOC/DOCX content: {doc_path}, error: {e}')
 
     def __read_ebook(self, doc_path: str):
-        raise DocProviderError(f'Unsupported digital book format: {doc_path}')
+        raise NotImplementedError()
 
     def __read_txt(self, doc_path: str):
         timestamp: datetime = datetime.now()
         try:
-            with open(doc_path, 'r', encoding='utf-8') as F:
-                # 'ascii' param needs an extra space, try to remove it to see what happens
-                for line in tqdm(F, desc=f'Loading plain text content to DB...', unit='line', ascii=' |'):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    self._table.insert_row((timestamp, line))
+            with open(doc_path, 'r', encoding='utf-8') as f:
+                all_lines: list[str] = f.readlines()
+
+            # 'ascii' param needs an extra space, try to remove it to see what happens
+            previous_progress: int = -1
+            total: int = len(all_lines)
+            for i, line in tqdm(enumerate(all_lines), desc=f'Loading plain text content to DB...', unit='line', ascii=' |'):
+                line = line.strip()
+                if not line:
+                    continue
+
+                # If reporter is given, report progress to task manager
+                # - Reduce report frequency, only report when progress changes
+                current_progress: int = int(i / total * 100)
+                if current_progress > previous_progress:
+                    previous_progress = current_progress
+                    report_progress(self._progress_reporter, current_progress, current_phase=1, phase_name='DUMP')
+
+                self._table.insert_row((timestamp, line))
         except Exception as e:
             raise DocProviderError(f'Failed to read plain text content: {doc_path}, error: {e}')
 

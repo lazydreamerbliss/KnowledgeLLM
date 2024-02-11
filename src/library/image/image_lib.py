@@ -21,6 +21,7 @@ from library.lib_base import *
 from utils.exceptions.task_errors import (LockAcquisitionFailure,
                                           TaskCancellationException)
 from utils.lock_context import LockContext
+from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
 
 
@@ -46,7 +47,7 @@ class ImageLib(LibraryBase):
 
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
-            if not self.metadata_exists():
+            if not self._metadata_exists():
                 initial_metadata: dict = BASIC_METADATA | {
                     'type': 'image',
                     'uuid': uuid,
@@ -101,13 +102,13 @@ class ImageLib(LibraryBase):
         self._tracker.add_record(relative_path, uuid)  # type: ignore
 
     def __library_walker(self,
-                         progress_reporter: Callable[[int], None] | None,
+                         progress_reporter: Callable[[int, int, str | None], None] | None,
                          incremental: bool = False,
                          scan_only: bool = False) -> Generator[tuple[str, list[float] | None], None, None]:
         """Walk in the library and embed the images on the fly
 
         Args:
-            progress_reporter (Callable[[int], None] | None): The progress reporter function to report the progress to task manager
+            progress_reporter (Callable[[int, int, str | None], None] | None): The progress reporter function to report the progress to task manager
             incremental (bool, optional): If this is an incremental run. Defaults to False.
             scan_only (bool, optional): If do file scan only (without embedding). Defaults to False.
 
@@ -118,14 +119,14 @@ class ImageLib(LibraryBase):
         to_be_embedded: set[str] = set()
 
         # Get all files under current library
-        lib_data_folder_abs_path: str = os.path.join(self._path_lib, LIB_DATA_FOLDER)
-        for root, _, filenames in os.walk(self._path_lib):
+        lib_data_folder_abs_path: str = os.path.join(self.path_lib, LIB_DATA_FOLDER)
+        for root, _, filenames in os.walk(self.path_lib):
             if root == lib_data_folder_abs_path:
                 continue
             for filename in filenames:
                 # Relative path built from os.path.relpath does not start with os.path.sep, no need to strip
                 file_abs_path: str = os.path.join(root, filename)
-                file_relative_path: str = os.path.relpath(file_abs_path, self._path_lib)
+                file_relative_path: str = os.path.relpath(file_abs_path, self.path_lib)
                 all_files.add(file_relative_path)
                 if incremental:
                     if self._tracker.is_recorded(file_relative_path):  # type: ignore
@@ -157,9 +158,9 @@ class ImageLib(LibraryBase):
             try:
                 # Validate if the file is an image and insert it into the table
                 # - After verify() the file stream is closed, need to reopen it
-                img: Image.Image = Image.open(os.path.join(self._path_lib, relative_path))
+                img: Image.Image = Image.open(os.path.join(self.path_lib, relative_path))
                 img.verify()
-                img = Image.open(os.path.join(self._path_lib, relative_path))
+                img = Image.open(os.path.join(self.path_lib, relative_path))
             except:
                 tqdm.write(f'Invalid image: {relative_path}, skip')
                 continue
@@ -169,7 +170,7 @@ class ImageLib(LibraryBase):
             current_progress: int = int(i / total * 100)
             if current_progress > previous_progress:
                 previous_progress = current_progress
-                self.report_progress(progress_reporter, current_progress)
+                report_progress(progress_reporter, current_progress)
 
             if not scan_only:
                 start_time: float = time.time()
@@ -182,7 +183,7 @@ class ImageLib(LibraryBase):
 
     def __do_scan(self,
                   save_pipeline: BatchedPipeline | None,
-                  progress_reporter: Callable[[int], None] | None,
+                  progress_reporter: Callable[[int, int, str | None], None] | None,
                   cancel_event: Event | None,
                   first_run: bool,
                   incremental: bool,
@@ -191,7 +192,7 @@ class ImageLib(LibraryBase):
 
         Args:
             save_pipeline (BatchedPipeline | None): _description_
-            progress_reporter (Callable[[int], None] | None): _description_
+            progress_reporter (Callable[[int, int, str | None], None] | None): _description_
             cancel_event (Event | None): _description_
             first_run (bool): If this is a fresh run, index creation depends on this param
             incremental (bool): If this is an incremental run
@@ -221,7 +222,7 @@ class ImageLib(LibraryBase):
                 self.__write_embedding_entry(relative_path, embedding, save_pipeline)
 
     def __scan(self,
-               progress_reporter: Callable[[int], None] | None,
+               progress_reporter: Callable[[int, int, str | None], None] | None,
                cancel_event: Event | None,
                first_run: bool,
                incremental: bool = False,
@@ -230,7 +231,7 @@ class ImageLib(LibraryBase):
 
         Args:
             save_pipeline (BatchedPipeline | None): _description_
-            progress_reporter (Callable[[int], None] | None): _description_
+            progress_reporter (Callable[[int, int, str | None], None] | None): _description_
             cancel_event (Event | None): _description_
             first_run (bool): If this is a fresh run, index creation depends on this param
             incremental (bool): If this is an incremental run
@@ -290,13 +291,13 @@ class ImageLib(LibraryBase):
     """
 
     def lib_is_ready(self) -> bool:
-        if not self.metadata_exists() or not self.__table or not self.__vector_db or not self.__embedder:
+        if not self._metadata_exists() or not self.__table or not self.__vector_db or not self.__embedder:
             return False
         return True
 
     def full_scan(self,
                   force_init: bool = False,
-                  progress_reporter: Callable[[int], None] | None = None,
+                  progress_reporter: Callable[[int, int, str | None], None] | None = None,
                   cancel_event: Event | None = None):
         ready: bool = self.lib_is_ready()
         if ready and not force_init:
@@ -317,11 +318,11 @@ class ImageLib(LibraryBase):
         # Refresh ready status, initialize the library for force init or new lib cases
         ready: bool = self.lib_is_ready()
         if ready:
-            with TqdmContext(f'Forcibly re-initializing library: {self._path_lib}, purging existing library data...', 'Cleaned'):
+            with TqdmContext(f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...', 'Cleaned'):
                 self.__vector_db.clean_all_data()  # type: ignore
                 self.__table.clean_all_data()  # type: ignore
         else:
-            tqdm.write(f'Initialize library DB: {self._path_lib} for new library')
+            tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
 
         self.__scan(progress_reporter, cancel_event, first_run=True, incremental=False)
 
@@ -360,7 +361,7 @@ class ImageLib(LibraryBase):
                 continue
 
             relative_path = relative_path.lstrip(os.path.sep)
-            image_path: str = os.path.join(self._path_lib, relative_path)
+            image_path: str = os.path.join(self.path_lib, relative_path)
             if os.path.isfile(image_path):
                 os.remove(image_path)
         self.remove_embeddings(relative_paths)
@@ -397,7 +398,7 @@ class ImageLib(LibraryBase):
         return (datetime.now() - last_scanned).days
 
     def incremental_scan(self,
-                         progress_reporter: Callable[[int], None] | None = None,
+                         progress_reporter: Callable[[int, int, str | None], None] | None = None,
                          cancel_event: Event | None = None):
         """Incrementally scan and partially initialize the library
         - Already-embedded images are skipped

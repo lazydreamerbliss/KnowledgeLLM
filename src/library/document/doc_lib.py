@@ -13,6 +13,7 @@ from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
 from library.lib_base import *
 from utils.exceptions.task_errors import TaskCancellationException
+from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
 
 """
@@ -47,7 +48,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
         # Load metadata
         with TqdmContext('Loading library metadata...', 'Loaded'):
-            if not self.metadata_exists():
+            if not self._metadata_exists():
                 initial_metadata: dict = BASIC_METADATA | {
                     'type': 'document',
                     'uuid': uuid,
@@ -73,7 +74,7 @@ class DocumentLib(Generic[D], LibraryBase):
                          relative_path: str,
                          provider_type: Type[D],
                          uuid: str,
-                         progress_reporter: Callable[[int], None] | None,
+                         progress_reporter: Callable[[int, int, str | None], None] | None,
                          cancel_event: Event | None):
         """Initialize a document under the library
         """
@@ -84,7 +85,7 @@ class DocumentLib(Generic[D], LibraryBase):
             self.use_doc(relative_path, provider_type)
             return
 
-        doc_path: str = os.path.join(self._path_lib, relative_path)
+        doc_path: str = os.path.join(self.path_lib, relative_path)
         if not os.path.isfile(doc_path):
             raise LibraryError(f'Invalid doc path: {doc_path}')
 
@@ -95,7 +96,8 @@ class DocumentLib(Generic[D], LibraryBase):
         self.__doc_provider = provider_type(self.path_db,
                                             uuid,
                                             doc_path=doc_path,
-                                            re_dump=False)  # type: ignore
+                                            re_dump=False,
+                                            progress_reporter=progress_reporter)
         total: int = self.__doc_provider.get_record_count()
 
         # Do embedding, and create vector DB for this doc
@@ -116,7 +118,7 @@ class DocumentLib(Generic[D], LibraryBase):
             current_progress: int = int(i / total * 100)
             if current_progress > previous_progress:
                 previous_progress = current_progress
-                self.report_progress(progress_reporter, current_progress)
+                report_progress(progress_reporter, current_progress, current_phase=2, phase_name='EMBEDDING')
 
             key_text: str = self.__doc_provider.get_key_text_from_record(row)
             embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
@@ -200,7 +202,7 @@ class DocumentLib(Generic[D], LibraryBase):
     """
 
     def lib_is_ready(self) -> bool:
-        if not self.metadata_exists() or not self._metadata or not self.__doc_provider:
+        if not self._metadata_exists() or not self._metadata or not self.__doc_provider:
             return False
         return True
 
@@ -208,7 +210,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 relative_path: str,
                 provider_type: Type[D],
                 force_init: bool = False,
-                progress_reporter: Callable[[int], None] | None = None,
+                progress_reporter: Callable[[int, int, str | None], None] | None = None,
                 cancel_event: Event | None = None):
         if not relative_path:
             raise LibraryError('Invalid relative path')
@@ -224,7 +226,8 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.__doc_provider = provider_type(self.path_db,
                                                     uuid,
                                                     doc_path=None,
-                                                    re_dump=False)  # type: ignore
+                                                    re_dump=False,
+                                                    progress_reporter=progress_reporter)
                 self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
             return
 
@@ -272,7 +275,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 continue
 
             relative_path = relative_path.lstrip(os.path.sep)
-            doc_path: str = os.path.join(self._path_lib, relative_path)
+            doc_path: str = os.path.join(self.path_lib, relative_path)
             if os.path.isfile(doc_path):
                 os.remove(doc_path)
         self.remove_doc_embeddings(relative_paths, provider_type)
@@ -329,9 +332,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 if not is_active_doc:
                     # For non-active doc, create temp provider and temp vector DB to delete leftover
                     tmp_provider: DocProviderBase = provider_type(self.path_db,
-                                                                  uuid,
-                                                                  doc_path=None,
-                                                                  re_dump=False)  # type: ignore
+                                                                  uuid)
                     tmp_provider.delete_table()
                     tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
                     tmp_vector_db.delete_db()
