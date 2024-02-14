@@ -28,7 +28,7 @@ class WechatHistoryTable(SqliteTable):
     def insert_row(self, row: tuple) -> int | None:
         # Skip the first column (id)
         if not row or len(row) != RECORD_LENGTH-1:
-            raise SqlTableError('row size is not correct')
+            raise SqlTableError('Row size is not correct')
 
         cur: Cursor = self.db.cursor()
         cur.execute(insert_row_sql(self.table_name), row)
@@ -40,7 +40,7 @@ class WechatHistoryTable(SqliteTable):
         # Skip the first column (id)
         for row in rows:
             if not row or len(row) != RECORD_LENGTH-1:
-                raise SqlTableError('row size is not correct')
+                raise SqlTableError('Row size is not correct')
 
         cur: Cursor = self.db.cursor()
         cur.executemany(insert_row_sql(self.table_name), rows)

@@ -7,7 +7,7 @@ import numpy as np
 from faiss import IndexFlatL2, IndexIDMap2, IndexIVFFlat
 from tqdm import tqdm
 
-from utils.exceptions.db_errors import VectorDbError
+from utils.exceptions.db_errors import VectorDbCoreError
 
 
 def ensure_index(func):
@@ -16,7 +16,7 @@ def ensure_index(func):
     @wraps(func)
     def wrapper(self: 'InMemoryVectorDb', *args, **kwargs):
         if not self.mem_index_flat and not self.mem_index_ivf:
-            raise VectorDbError('Index not initialized')
+            raise VectorDbCoreError('Index not initialized')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -30,7 +30,7 @@ class InMemoryVectorDb:
 
     def __init__(self, data_folder, index_filename: str | None = None, ignore_index_error: bool = False):
         if not data_folder:
-            raise VectorDbError(
+            raise VectorDbCoreError(
                 'A folder path is mandatory for using in-memory vector DB, index file will be created in the folder')
 
         tqdm.write(f'Loading vector index from disk...', end=' ')
@@ -55,28 +55,28 @@ class InMemoryVectorDb:
                 self.mem_index_ivf = obj['index_ivf']  # IndexIVFFlat
 
                 if not self.mem_index_flat and not self.mem_index_ivf:
-                    raise VectorDbError(f'Corrupted index file: index not loaded')
+                    raise VectorDbCoreError(f'Corrupted index file: index not loaded')
                 if self.id_mapping:
                     index_size: int = self.mem_index_flat.ntotal if self.mem_index_flat else self.mem_index_ivf.ntotal
                     # If we are not ignoring index error, raise exception on length mismatch
                     if not ignore_index_error and len(self.id_mapping) != index_size:
-                        raise VectorDbError(
+                        raise VectorDbCoreError(
                             f'Corrupted index file: ID mapping size {len(self.id_mapping)} does not match index size {index_size}')
 
                 tqdm.write(f'Loaded index from {index_file_path}')
-            except VectorDbError:
+            except VectorDbCoreError:
                 raise
             except Exception as e:
-                raise VectorDbError(f'Corrupted index file: {e}')
+                raise VectorDbCoreError(f'Corrupted index file: {e}')
         else:
-            tqdm.write(f'Index file {index_file_path} not found, this is a new database')
+            tqdm.write(f'Index file {index_file_path} not found, this is a new vector database')
 
     def __get_index(self) -> IndexFlatL2 | IndexIDMap2 | IndexIVFFlat:
         if self.mem_index_flat:
             return self.mem_index_flat
         if self.mem_index_ivf:
             return self.mem_index_ivf
-        raise VectorDbError('Index not initialized')
+        raise VectorDbCoreError('Index not initialized')
 
     def initialize_index(self,
                          vector_dimension: int,
@@ -108,7 +108,7 @@ class InMemoryVectorDb:
 
         # IVF index case
         if training_set_uuid_list and len(training_set) != len(training_set_uuid_list):
-            raise VectorDbError('Training set and UUID list have different lengths')
+            raise VectorDbCoreError('Training set and UUID list have different lengths')
 
         # The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
         if expected_dataset_size <= 7020:
@@ -171,7 +171,7 @@ class InMemoryVectorDb:
         if not uuids and not ids:
             return
         if uuids and not ids and not self.id_mapping:
-            raise VectorDbError('ID mapping is required for removing by UUID')
+            raise VectorDbCoreError('ID mapping is required for removing by UUID')
 
         to_be_removed_ids: list[int] | None = None
         if ids:

@@ -2,7 +2,7 @@
 {% for file in file_dict %}
 <div class="col-md-2 col-sm-4 col-6 mt-2">
     <div class="thumbnail hvr-shadow">
-        <a href="/file/{{file.current_path}}/{{file.url}}">
+        <a href="/file/{{file.parent_path}}/{{file.url}}">
             <img src='/static/{{file.icon}}' class='img-thumbnail' style="border:0px;" />
             <p style="color:black; text-align:center; text-decoration:none;">
                 <p style="color:black;" data-toggle="tooltip" data-placement="right" title="{{file.name}}">

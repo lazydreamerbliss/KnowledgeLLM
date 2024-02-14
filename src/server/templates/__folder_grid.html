@@ -2,7 +2,7 @@
 {% for dir in dir_dict %}
 <div class="col-md-2 col-sm-4 col-6 mt-2">
     <div class="thumbnail hvr-shadow">
-        <a href="/library/{{dir.current_path}}/{{dir.url}}">
+        <a href="/library/{{dir.parent_path}}/{{dir.url}}">
             <img src='/static/{{dir.icon}}' class='img-thumbnail' style="border:0px;" />
             <p style="color:black; text-align:center; text-decoration:none;">
                 <p style="color:black;" data-toggle="tooltip" data-placement="right" title="{{dir.name}}">

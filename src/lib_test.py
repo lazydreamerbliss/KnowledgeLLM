@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 
 from knowledge_base.image.image_tagger import ImageTagger
-from lib_manager import LibCreationObj
+from lib_manager import LibInfoObj
 from library.document.doc_lib import DocumentLib
 from library.document.doc_provider import DocProvider
 from library.document.wechat.wechat_history_provider import \
@@ -13,7 +13,7 @@ from library.image.image_lib import ImageLib
 from singleton import *
 
 TEST_DOC_LIB = '~/Documents/test_lib'
-TEST_IMG_LIB = '~/Pictures/test_lib_small'
+TEST_IMG_LIB = '~/Pictures/test_lib'
 SAMPLE_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
 
 DOC_LIB_UUID = 'e8c0bd6f-2163-4294-92e6-4d225ab10b41'
@@ -22,11 +22,8 @@ IMG_LIB_UUID = '53821604-76a2-41b1-a655-e07a86096f93'
 
 def test_doc_lib(lib_manager: LibraryManager):
     lib_manager.use_library(DOC_LIB_UUID)
-    doc_lib: DocumentLib = lib_manager.get_lib_instance()  # type: ignore
-    
-    
-    
-    
+    doc_lib: DocumentLib = lib_manager.instance  # type: ignore
+
     # task_id: str | None = lib_manager.get_ready(relative_path='群聊_small.txt', provider_type=WechatHistoryProvider, lite_mode=False)
     # while True:
     #     if not task_id or task_runner.is_task_done(task_id):
@@ -104,41 +101,41 @@ def test_doc_lib(lib_manager: LibraryManager):
 
 
 def test_image_lib(lib_manager: LibraryManager, test_lib_manager: bool):
-    lib_manager.use_library(IMG_LIB_UUID)
-    img_lib: ImageLib = lib_manager.get_lib_instance()  # type: ignore
-    if test_lib_manager:
-        task_id: str | None = lib_manager.get_ready()
-        while True:
-            if not task_id or task_runner.is_task_done(task_id):
-                print(task_runner.get_task_state([task_id]))  # type: ignore
-                break
-            else:
-                print(task_runner.get_task_state([task_id]))  # type: ignore
-            time.sleep(1)
+    if lib_manager.use_library(IMG_LIB_UUID):
+        img_lib: ImageLib = lib_manager.instance  # type: ignore
+        if test_lib_manager:
+            task_id: str | None = lib_manager.get_ready()
+            while True:
+                if not task_id or task_runner.is_task_done(task_id):
+                    print(task_runner.get_task_state([task_id]))  # type: ignore
+                    break
+                else:
+                    print(task_runner.get_task_state([task_id]))  # type: ignore
+                time.sleep(1)
 
-        if task_id and not task_runner.is_task_successful(task_id):
-            # Failed to load the documenta
-            return
-    else:
-        img_lib.set_embedder(ImageEmbedder())
-        img_lib.initialize()
-        img_lib.incremental_initialization()
+            if task_id and not task_runner.is_task_successful(task_id):
+                # Failed to load the document
+                return
+        else:
+            img_lib.set_embedder(ImageEmbedder())
+            img_lib.full_scan()
+            img_lib.incremental_scan()
 
-    for i in img_lib.get_embedded_files().keys():
-        print(i)
+        for i in img_lib.get_embedded_files().keys():
+            print(i, img_lib.get_embedded_files()[i])
 
-    # test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
-    # a = img_lib.image_for_image_search(test_img, 2)
-    # print(a)
-    # print("####################################")
-    # b = img_lib.text_for_image_search('astronaut', 2)
-    # print(b)
-    # print("####################################")
+        test_img = Image.open(f"{SAMPLE_FOLDER}/1.jpg")
+        a = img_lib.image_for_image_search(test_img, 2)
+        print(a)
+        print("####################################")
+        b = img_lib.text_for_image_search('astronaut', 2)
+        print(b)
+        print("####################################")
 
-    # sample_tagger = ImageTagger()
-    # c = sample_tagger.get_tags(test_img, 10)
-    # print(c)
-    # print("####################################")
+        sample_tagger = ImageTagger()
+        c = sample_tagger.get_tags(test_img, 10)
+        print(c)
+        print("####################################")
 
 
 def test_llm():
@@ -169,12 +166,12 @@ def test_llm():
 
 
 def test_library_manager():
-    doc_lib_creation = LibCreationObj()
+    doc_lib_creation = LibInfoObj()
     doc_lib_creation.type = 'document'
     doc_lib_creation.name = 'test_doc_lib'
     doc_lib_creation.uuid = DOC_LIB_UUID
     doc_lib_creation.path = TEST_DOC_LIB
-    img_lib_creation = LibCreationObj()
+    img_lib_creation = LibInfoObj()
     img_lib_creation.type = 'image'
     img_lib_creation.name = 'test_img_lib'
     img_lib_creation.uuid = IMG_LIB_UUID
@@ -185,9 +182,9 @@ def test_library_manager():
     lib_manager.create_library(img_lib_creation)
 
     # Test library switch - doc
-    #test_doc_lib(lib_manager)
+    test_doc_lib(lib_manager)
     # Test library switch - image
-    test_image_lib(lib_manager, False)
+    #test_image_lib(lib_manager, True)
 
     # # Test library demolish
     # lib_manager.use_library(DOC_LIB_UUID)
@@ -207,7 +204,7 @@ def test_library_manager():
 
 if __name__ == '__main__':
     test_library_manager()
-    
+
     # bb = DocEmbedder()
     # print(bb.predict_similarity('女士健身房', '女士健身房'))
     # print(bb.predict_similarity('女士健身房', '这是女士健身房吗'))

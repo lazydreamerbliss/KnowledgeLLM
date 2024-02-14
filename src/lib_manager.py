@@ -1,9 +1,7 @@
 import os
 import pickle
-import sys
-from pathlib import Path
 
-import torch
+from tqdm import tqdm
 
 from env import CONFIG_FOLDER
 from knowledge_base.document.doc_embedder import DocEmbedder
@@ -16,9 +14,10 @@ from utils.task_runner import TaskRunner
 from utils.tqdm_context import TqdmContext
 
 UUID_EMPTY: str = '00000000-0000-0000-0000-000000000000'
+CONFIG_FILE: str = 'librarian.cfg'
 
 
-class LibCreationObj:
+class LibInfoObj:
     """Define a library object for server side to create and use
     """
 
@@ -41,52 +40,50 @@ class LibraryManager:
     """This is a single threaded, single session app, so one manager instance globally is enough
     """
 
-    CONFIG_FILE: str = 'librarian.cfg'
-
     def __init__(self, task_runner: TaskRunner):
         if not task_runner:
             raise LibraryManagerException('Task runner is not provided')
 
         self.task_runner: TaskRunner = task_runner
-        config_file_path: str = os.path.join(CONFIG_FOLDER, LibraryManager.CONFIG_FILE)
+        self.__path_config: str = os.path.join(CONFIG_FOLDER, CONFIG_FILE)
+        # KV: uuid -> Library
+        self.__libraries: dict[str, LibInfoObj] = dict()
+        # Current library instance
+        self.instance: LibraryBase | None = None
+
+        current_lib: str = ''
         try:
-            obj: dict = pickle.load(open(config_file_path, 'rb'))
-        except:
-            # If failed to load and the config file does not exist, it means it's the first time to run the app
-            # - Otherwise the config file is corrupted
-            if not os.path.isfile(config_file_path):
+            if not os.path.isfile(self.__path_config):
                 obj: dict = dict()
             else:
-                raise LibraryManagerException('Config file corrupted')
-
-        # KV: uuid -> Library
-        self.__libraries: dict[str, LibCreationObj] = obj.get('libraries', dict())
-        # Filter lists for current library
-        self.__favorite_list: set[str] = set()
-        self.__exclusion_list: set[str] = set()
-
-        # Current library instance and UUID
-        self.__instance: LibraryBase | None = None  # The instance of currently active library
-        current_lib: str = obj.get('current_lib', '')
-        if current_lib:
-            if current_lib not in self.__libraries:
-                raise LibraryManagerException('Config file corrupted')
-            self.instanize_lib(current_lib)
+                obj: dict = pickle.load(open(self.__path_config, 'rb'))
+                self.__libraries = obj['libraries']
+                current_lib = obj['current_lib']
+            if current_lib:
+                if current_lib not in self.__libraries:
+                    raise LibraryManagerException('Config file corrupted')
+                self.instanize_lib(current_lib)
+        except:
+            raise LibraryManagerException('Config file corrupted')
 
     def __save(self):
         pickle.dump(
             {
                 'libraries': self.__libraries,
-                'current_lib': self.__instance.uuid if self.__instance else ''
+                'current_lib': self.instance.uuid if self.instance else ''
             },
-            open(LibraryManager.CONFIG_FILE, 'wb'))
+            open(self.__path_config, 'wb'))
 
     """
     Get current library information
     """
 
-    def get_lib_instance(self) -> LibraryBase | None:
-        return self.__instance
+    def get_lib_info(self) -> LibInfoObj | None:
+        """Get the general info of current library
+        """
+        if not self.instance:
+            return None
+        return self.__libraries[self.instance.uuid]
 
     def lib_exists(self, uuid: str) -> bool:
         return uuid in self.__libraries
@@ -104,83 +101,28 @@ class LibraryManager:
         res: list[str] = [self.__libraries[uuid].path for uuid in self.__libraries]
         return res
 
-    def is_favorited(self, relative_path: str) -> bool:
-        """Check if a relative path is favorited in current library
-        - Only check if path is favorited
-        - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
-        """
-        if not self.__instance or not relative_path or not self.__favorite_list:
-            return False
-        return relative_path in self.__favorite_list
-
-    def is_excluded(self, relative_path: str) -> bool:
-        """Check if a relative path is excluded in current library
-        - Check both file/folder name and it's relative path
-        - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
-        """
-        if not self.__instance or not relative_path or not self.__exclusion_list:
-            return False
-
-        file_or_folder_name: str = os.path.basename(relative_path)
-        return file_or_folder_name in self.__exclusion_list or relative_path in self.__exclusion_list
-
-    def get_current_lib(self) -> LibCreationObj | None:
-        """Get the general info of current library
-        """
-        if not self.__instance:
-            return None
-        return self.__libraries[self.__instance.uuid]
-
-    def get_lib_name(self) -> str | None:
-        obj: LibCreationObj | None = self.get_current_lib()
-        if not obj:
-            return None
-        return obj.name
-
-    def get_lib_type(self) -> str | None:
-        obj: LibCreationObj | None = self.get_current_lib()
-        if not obj:
-            return None
-        return obj.type
-
-    def get_lib_uuid(self) -> str | None:
-        obj: LibCreationObj | None = self.get_current_lib()
-        if not obj:
-            return None
-        return obj.uuid
-
-    def get_lib_path(self) -> str | None:
-        obj: LibCreationObj | None = self.get_current_lib()
-        if not obj:
-            return None
-        return obj.path
-
-    def get_lib_view_style(self) -> str:
-        if not self.__instance:
-            return 'grid'
-        return self.__instance.get_view_style()
-
-    def get_lib_sorted_by(self) -> str:
-        if not self.__instance:
-            return 'name'
-        return self.__instance.get_sorted_by()
-
     """
     Manager operations for managing current library
     """
 
-    def use_library(self, uuid: str):
+    def use_library(self, uuid: str) -> bool:
         """Switch to another library with given UUID
         """
         if uuid and uuid in self.__libraries:
             if self.instanize_lib(uuid):
                 self.__save()
+                return True
+        return False
 
-    def create_library(self, new_lib: LibCreationObj, switch_to: bool = False):
+    def create_library(self, new_lib: LibInfoObj, switch_to: bool = False):
         """Add a library to the manager, this only write the library info to config file unless the switch_to flag is set
         - Pre check to params must be done before calling this method
         """
         if new_lib.uuid in self.__libraries or new_lib.path in self.get_library_path_list():
+            if new_lib.uuid in self.__libraries and new_lib.path == self.__libraries[new_lib.uuid].path:
+                # If the new library's same UUID and and same path all matched, just do instanize and return
+                tqdm.write(f'Library with same UUID and path already created, library name: {new_lib.name}')
+                return
             raise LibraryManagerException('Library with same UUID or path already exists')
 
         self.__libraries[new_lib.uuid] = new_lib
@@ -193,50 +135,55 @@ class LibraryManager:
     def demolish_library(self):
         """Demolish current library
         """
-        if not self.__instance:
+        if not self.instance:
             raise LibraryManagerException('Only an active library can be deleted')
 
-        uuid: str = self.__instance.uuid
+        uuid: str = self.instance.uuid
         with TqdmContext(f'Demolishing library: {self.__libraries[uuid]}...', 'Done'):
-            self.__instance.demolish()
-            self.__instance = None
+            self.instance.demolish()
+            self.instance = None
             self.__libraries.pop(uuid)
             self.__favorite_list = set()
-            self.__exclusion_list = set()
             self.__save()
 
     def change_name(self, new_name: str):
-        if not self.__instance or not new_name:
+        """Change library name for both library instance and the config file of manager
+        """
+        if not self.instance or not new_name:
             return
 
-        obj: LibCreationObj | None = self.get_current_lib()
+        obj: LibInfoObj | None = self.get_lib_info()
         if not obj:
             return
 
-        self.__instance.change_lib_name(new_name)
+        self.instance.change_lib_name(new_name)
         obj.name = new_name
         self.__save()
 
     def change_view_style(self, new_style: str):
-        if not self.__instance or not new_style:
+        """Change view style for both library instance and the config file of manager
+        """
+        if not self.instance or not new_style:
             return
 
-        obj: LibCreationObj | None = self.get_current_lib()
+        obj: LibInfoObj | None = self.get_lib_info()
         if not obj:
             return
 
-        self.__instance.change_view_style(new_style)
+        self.instance.change_view_style(new_style)
         self.__save()
 
     def change_sorted_by(self, new_sorted_by: str):
-        if not self.__instance or not new_sorted_by:
+        """Change sorted by for both library instance and the config file of manager
+        """
+        if not self.instance or not new_sorted_by:
             return
 
-        obj: LibCreationObj | None = self.get_current_lib()
+        obj: LibInfoObj | None = self.get_lib_info()
         if not obj:
             return
 
-        self.__instance.change_sorted_by(new_sorted_by)
+        self.instance.change_sorted_by(new_sorted_by)
         self.__save()
 
     """
@@ -248,27 +195,24 @@ class LibraryManager:
 
         Return True if the instanization is succeeded, otherwise False
         """
-        if self.__instance and self.__instance.uuid == lib_uuid:
+        if self.instance and self.instance.uuid == lib_uuid:
             return True
 
-        self.__instance = None
+        self.instance = None
         if lib_uuid in self.__libraries:
             try:
-                obj: LibCreationObj = self.__libraries[lib_uuid]
+                obj: LibInfoObj = self.__libraries[lib_uuid]
                 if obj.type == 'image':
-                    self.__instance = ImageLib(obj.path, obj.name, obj.uuid, local_mode=True)
+                    self.instance = ImageLib(obj.path, obj.name, obj.uuid, local_mode=True)
                 elif obj.type == 'video':
                     pass
                 elif obj.type == 'document':
-                    self.__instance = DocumentLib(obj.path, obj.name, obj.uuid)
+                    self.instance = DocumentLib(obj.path, obj.name, obj.uuid)
                 elif obj.type == 'general':
                     pass
-
-                if self.__instance:
-                    self.__favorite_list = self.__instance.get_favorite_list()
-                    self.__exclusion_list = self.__instance.get_exclusion_list()
                 return True
-            except:
+            except Exception as e:
+                tqdm.write(f'Library instanization failed, error: {e}')
                 return False
         return False
 
@@ -283,29 +227,33 @@ class LibraryManager:
         Returns:
             str | None: Task ID
         """
-        if not self.__instance:
+        if not self.instance:
             raise LibraryManagerException('Library is not selected')
 
         # Image library case
-        if isinstance(self.__instance, ImageLib):
-            if self.__instance.lib_is_ready():
+        if isinstance(self.instance, ImageLib):
+            if self.instance.is_ready():
                 return UUID_EMPTY
-            self.__instance.set_embedder(ImageEmbedder())
-            task_id: str = self.task_runner.submit_task(self.__instance.initialize, None, True, True,
+            self.instance.set_embedder(ImageEmbedder())
+            # The phase count is 1 for image library's initialization task
+            task_id: str = self.task_runner.submit_task(self.instance.full_scan, None, True, True, 1,
                                                         force_init=kwargs.get('force_init', False))
             return task_id
 
         # Document library case
-        if isinstance(self.__instance, DocumentLib):
+        if isinstance(self.instance, DocumentLib):
             if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs:
                 raise LibraryError('Invalid parameters for DocumentLib')
-            if self.__instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
+            if self.instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
                 return UUID_EMPTY
 
+            relative_path: str = kwargs['relative_path']
+            relative_path = relative_path.lstrip(os.path.sep)
             lite_mode: bool = kwargs.get('lite_mode', False)
-            self.__instance.set_embedder(DocEmbedder(lite_mode=lite_mode))
-            task_id: str = self.task_runner.submit_task(self.__instance.use_doc, None, True, True,
-                                                        relative_path=kwargs['relative_path'],
+            self.instance.set_embedder(DocEmbedder(lite_mode=lite_mode))
+            # The phase count is 2 for document library's initialization task
+            task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True, 2,
+                                                        relative_path=relative_path,
                                                         provider_type=kwargs['provider_type'],
                                                         force_init=kwargs.get('force_init', False))
             return task_id
@@ -314,47 +262,3 @@ class LibraryManager:
         # TODO: Add more library types here
 
         return None
-
-    def add_favorite(self, relative_path: str):
-        """Add a relative path as favorite of current library
-        - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
-        """
-        if not self.__instance or not relative_path:
-            return
-
-        if relative_path not in self.__favorite_list:
-            self.__favorite_list.add(relative_path)
-            self.__instance.change_favorite_list(self.__favorite_list)
-
-    def remove_favorite(self, relative_path: str):
-        """Remove a relative path from favorite of current library
-        - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
-        """
-        if not self.__instance or not relative_path:
-            return
-
-        if relative_path in self.__favorite_list:
-            self.__favorite_list.remove(relative_path)
-            self.__instance.change_favorite_list(self.__favorite_list)
-
-    def add_exclusion(self, relative_path: str):
-        """Add a relative path as exclusion of current library
-        - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
-        """
-        if not self.__instance or not relative_path:
-            return
-
-        if relative_path not in self.__exclusion_list:
-            self.__exclusion_list.add(relative_path)
-            self.__instance.change_exclusion_list(self.__exclusion_list)
-
-    def remove_exclusion(self, relative_path: str):
-        """Remove a relative path from exclusion of current library
-        - Ensure the relative_path is stripped and heading/trailing system path separator is removed before calling
-        """
-        if not self.__instance or not relative_path:
-            return
-
-        if relative_path in self.__exclusion_list:
-            self.__exclusion_list.remove(relative_path)
-            self.__instance.change_exclusion_list(self.__exclusion_list)

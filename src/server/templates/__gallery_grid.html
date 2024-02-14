@@ -3,7 +3,7 @@
     {% for i in range(file_dict|length) %}
     <div class="thumbnail hvr-shadow">
         <div class="img-grid-container" style="margin-top:10px">
-            <img id="image-grid-{{i}}" class="img-grid" src='/file/{{file_dict[i].current_path}}/{{file_dict[i].url}}'
+            <img id="image-grid-{{i}}" class="img-grid" src='/file/{{file_dict[i].parent_path}}/{{file_dict[i].url}}'
                 onclick="clickImage(this)">
             <p style="color:black;" data-toggle="tooltip" data-placement="right" title="{{file_dict[i].name}}">
                 {{ file_dict[i].display_name }}

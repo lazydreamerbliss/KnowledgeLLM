@@ -19,9 +19,9 @@ class DocProviderBase(Generic[T]):
     def __init__(self,
                  db_file: str,
                  table_name: str,
-                 doc_path: str | None,  # Just for Python's generic type param compatibility, not used in base class
-                 re_dump: bool,  # Just for Python's generic type param compatibility, not used in base class
-                 table_type: Type[T]):
+                 doc_path: str | None = None,  # Just for Python's generic type param compatibility, not used in base class
+                 progress_reporter: Callable[[int, int, str | None], None] | None = None,
+                 table_type: Type[T] = TABLE_TYPE):
         """Base class for document provider
 
         Args:
@@ -30,6 +30,7 @@ class DocProviderBase(Generic[T]):
             table_type (Type[T]): Generic type constructor for SqliteTable
         """
         self._table: T = table_type(db_file, table_name)
+        self._progress_reporter: Callable[[int, int, str | None], None] | None = progress_reporter
 
     def get_table_name(self) -> str:
         """Get the name of the table for this document provider

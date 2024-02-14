@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from knowledge_base.document.doc_provider_base import *
 from library.document.wechat.wechat_history_table import WechatHistoryTable
+from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
 
 
@@ -25,16 +26,18 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
     ignore_pattern: re.Pattern = re.compile(
         r'^\[.+\]$')
 
-    def __init__(self, db_path: str, uuid: str, doc_path: str | None = None, re_dump: bool = False):
-        super().__init__(db_path, uuid, doc_path, re_dump, table_type=WechatHistoryProvider.TABLE_TYPE)
+    def __init__(self,
+                 db_path: str,
+                 uuid: str,
+                 doc_path: str | None = None,
+                 progress_reporter: Callable[[int, int, str | None], None] | None = None):
+        super().__init__(db_path, uuid, doc_path, progress_reporter, table_type=WechatHistoryProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path (chat history)
-        if not self._table.row_count() or re_dump:
+        if not self._table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
-
             with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
-                self._table.clean_all_data()
                 self.initialize(doc_path)
 
     def __msg_clean_up(self, msg: str) -> str:
@@ -109,12 +112,22 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
             # 'ascii' param needs an extra space, try to remove it to see what happens
             all_lines: list[str] = f.readlines()
 
-        for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
+        total: int = len(all_lines)
+        previous_progress: int = -1
+        #for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
+        for i, line in enumerate(all_lines):
             line = line.strip()
             if not line:
                 continue
             if i == 0:
                 continue
+
+            # If reporter is given, report progress to task manager
+            # - Reduce report frequency, only report when progress changes
+            current_progress: int = int(i / total * 100)
+            if current_progress > previous_progress:
+                previous_progress = current_progress
+                report_progress(self._progress_reporter, current_progress, current_phase=1, phase_name='DUMP')
 
             message_match: re.Match | None = WechatHistoryProvider.msg_pattern.match(line)
 

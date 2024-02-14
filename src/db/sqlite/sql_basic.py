@@ -10,6 +10,15 @@ def create_index_sql(table_name: str, column_name: str) -> str:
     """
 
 
+def create_unique_index_sql(table_name: str, column_name: str) -> str:
+    if not table_name:
+        raise SqlTableError('table_name is None')
+
+    return f"""
+    CREATE UNIQUE INDEX IF NOT EXISTS "{table_name}_{column_name}_idx" ON "{table_name}" ({column_name});
+    """
+
+
 def select_by_id_sql(table_name: str) -> str:
     if not table_name:
         raise SqlTableError('table_name is None')
@@ -28,7 +37,7 @@ def select_by_ids_sql(table_name: str) -> str:
     """
 
 
-def select_many_sql(table_name: str, top_k: int, order_by: str | None, asc: bool) -> str:
+def select_many_sql(table_name: str, top_k: int, order_by: str | None = None, asc: bool = True) -> str:
     if not table_name:
         raise SqlTableError('table_name is None')
     if not order_by:
@@ -40,7 +49,7 @@ def select_many_sql(table_name: str, top_k: int, order_by: str | None, asc: bool
     """
 
 
-def select_all_sql(table_name: str, order_by: str | None, asc: bool) -> str:
+def select_all_sql(table_name: str, order_by: str | None = None, asc: bool = True) -> str:
     if not table_name:
         raise SqlTableError('table_name is None')
     if not order_by:

@@ -43,7 +43,7 @@ with open(Path(f'{Path(__file__).parent.parent.parent}/local_models/fancyfeast--
 
 
 if __name__ == '__main__':
-    with open(f'{Path(__file__).parent}/tmp.txt', 'w') as F:
+    with open(f'{Path(__file__).parent}/tmp.txt', 'w') as f:
         for i, tag in enumerate(tag_list):
             translate = translated_list[i]
             F.write(f'{tag_list[i]}:{translated_list[i]}\n')

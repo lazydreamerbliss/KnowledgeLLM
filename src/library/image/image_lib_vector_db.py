@@ -8,7 +8,7 @@ from redis.commands.search.result import Result
 from db.vector.mem_vector_db import InMemoryVectorDb
 from db.vector.redis_client import BatchedPipeline
 from db.vector.redis_vector_db import RedisVectorDb
-from utils.exceptions.db_errors import VectorDbError
+from utils.exceptions.db_errors import LibraryVectorDbError
 
 
 def ensure_vector_db_connected(func):
@@ -17,7 +17,7 @@ def ensure_vector_db_connected(func):
     @wraps(func)
     def wrapper(self: 'ImageLibVectorDb', *args, **kwargs):
         if not self.redis_vector_db and not self.mem_vector_db:
-            raise VectorDbError('Vector DB not connected')
+            raise LibraryVectorDbError('Vector DB not connected')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -33,10 +33,10 @@ class ImageLibVectorDb:
                  ignore_index_error: bool = False):
         # If use redis, UUID and namespace are mandatory
         if use_redis and not lib_uuid:
-            raise VectorDbError('Library UUID is mandatory for using redis as vector DB')
+            raise LibraryVectorDbError('Library UUID is mandatory for using redis as vector DB')
         # If use in-memory DB, library path is mandatory
         if not use_redis and not data_folder:
-            raise VectorDbError('Library path is mandatory for using in-memory vector DB')
+            raise LibraryVectorDbError('Library path is mandatory for using in-memory vector DB')
 
         self.redis_vector_db: RedisVectorDb | None = None
         self.mem_vector_db: InMemoryVectorDb | None = None
@@ -117,6 +117,7 @@ class ImageLibVectorDb:
         if embedding is None or not top_k or top_k <= 0:
             return list()
 
+        
         if self.redis_vector_db:
             embedding_as_bytes: bytes = embedding.tobytes()
             param: dict = {"query_vector": embedding_as_bytes} if not extra_params else \
@@ -127,16 +128,16 @@ class ImageLibVectorDb:
             return search_result.docs
         elif self.mem_vector_db:
             return self.mem_vector_db.query(embedding, top_k)
-        raise VectorDbError('Vector DB not connected')
+        raise LibraryVectorDbError('Vector DB not connected')
 
     @ensure_vector_db_connected
-    def db_is_empty(self) -> bool:
-        """Check if the vector DB is empty
+    def db_is_ready(self) -> bool:
+        """Check if the vector DB is ready to use
         - For redis, check if the namespace exists
         - For in-memory, check if the index file exists
         """
         if self.redis_vector_db:
-            return not self.redis_vector_db.namespace_exists()
-        elif self.mem_vector_db:
-            return not self.mem_vector_db.index_exists()
-        return True
+            return bool(self.redis_vector_db.namespace_exists())
+        if self.mem_vector_db:
+            return bool(self.mem_vector_db.index_exists())
+        return False
