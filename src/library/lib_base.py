@@ -43,7 +43,7 @@ def ensure_lib_is_ready(func):
     """
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
-        if not self.lib_is_ready():
+        if not self.is_ready():
             raise LibraryError(f'Library is not ready: {self.path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
@@ -104,7 +104,7 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    def lib_is_ready(self) -> bool:
+    def is_ready(self) -> bool:
         """Check if the library is ready for use
         - If not, means only the metadata file created
         """
@@ -117,13 +117,13 @@ class LibraryBase:
 
     def full_scan(self,
                   force_init: bool = False,
-                  progress_reporter: Callable[[int], None] | None = None,
+                  progress_reporter: Callable[[int, int, str | None], None] | None = None,
                   cancel_event: Event | None = None):
         """Initialize the library
 
         Args:
             force_init (bool, optional): If the initialization is a force re-initialization. Defaults to False.
-            reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
+            reporter (Callable[[int, int, str | None], None] | None, optional): The reporter function which reports progress to task runner
             It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
             cancel_event (Event | None, optional): The event object to check if the initialization is cancelled. Defaults to None.
         """
@@ -133,7 +133,7 @@ class LibraryBase:
                 relative_path: str,
                 provider_type: Any,
                 force_init: bool = False,
-                progress_reporter: Callable[[int], None] | None = None,
+                progress_reporter: Callable[[int, int, str | None], None] | None = None,
                 cancel_event: Event | None = None):
         """Initialize or switch to a document under current library
         - If target document is not in metadata, then this is an uninitialized document, call __initialize_doc()
@@ -144,7 +144,7 @@ class LibraryBase:
             relative_path (str): The target document's relative path based on current library
             provider_type (Type[D]): The target document's provider's type info
             force_init (bool, optional): If the initialization is a force re-initialization, this will delete doc's previous embeddings (if any). Defaults to False.
-            reporter (Callable[[int], None] | None, optional): The reporter function which reports progress to task runner
+            reporter (Callable[[int, int, str | None], None] | None, optional): The reporter function which reports progress to task runner
             It accepts a integer from 0~100 to represent current progress of initialization. Defaults to None.
             cancel_event (Event | None, optional): The event object to check if the initialization is cancelled. Defaults to None.
         """

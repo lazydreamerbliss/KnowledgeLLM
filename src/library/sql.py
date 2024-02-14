@@ -9,6 +9,9 @@ record_structure: list[list[str]] = [
 ]
 
 # This is the table of embedding record
+# - Each embedding record has a relative path of this embedded file under the root directory with a UUID to identify this file
+# - The `unfinished` column is used to indicate whether this file has finished embedding or not
+# - If `unfinished` is 1, then this file's embedding process has been interrupted (e.g., cancelled, faulted, etc.)
 EMBEDDING_RECORD_TABLE_NAME: str = 'embedding_record'
 RECORD_LENGTH: int = len(record_structure)
 
@@ -97,15 +100,27 @@ def update_relative_path_by_relative_path_sql(unfinished: bool) -> str:
     """
 
 
-def delete_by_uuid_sql(unfinished: bool) -> str:
+def delete_by_uuid_with_state_sql(unfinished: bool) -> str:
     unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
     return f"""
     DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE uuid = ? AND {unfinished_str};
     """
 
 
-def delete_by_relative_path_sql(unfinished: bool) -> str:
+def delete_by_relative_path_with_state_sql(unfinished: bool) -> str:
     unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
     return f"""
     DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE relative_path = ? AND {unfinished_str};
+    """
+
+
+def delete_by_uuid_sql() -> str:
+    return f"""
+    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE uuid = ?;
+    """
+
+
+def delete_by_relative_path_sql() -> str:
+    return f"""
+    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE relative_path = ?;
     """

@@ -2,6 +2,8 @@ import os
 from datetime import datetime
 from sqlite3 import Cursor
 
+from tqdm import tqdm
+
 from db.sqlite.sql_basic import create_index_sql, create_unique_index_sql
 from db.sqlite.table import SqliteTable, ensure_db
 from library.sql import *
@@ -101,14 +103,28 @@ class ScanRecordTable(SqliteTable):
     @ensure_db
     def delete_record_by_uuid(self, uuid: str, unfinished: bool) -> bool:
         cur: Cursor = self.db.cursor()
-        cur.execute(delete_by_uuid_sql(unfinished), (uuid,))
+        cur.execute(delete_by_uuid_with_state_sql(unfinished), (uuid,))
         self.db.commit()
         return cur.rowcount > 0
 
     @ensure_db
     def delete_record_by_relative_path(self, path: str, unfinished: bool) -> bool:
         cur: Cursor = self.db.cursor()
-        cur.execute(delete_by_relative_path_sql(unfinished), (path,))
+        cur.execute(delete_by_relative_path_with_state_sql(unfinished), (path,))
+        self.db.commit()
+        return cur.rowcount > 0
+
+    @ensure_db
+    def delete_by_uuid(self, uuid: str) -> bool:
+        cur: Cursor = self.db.cursor()
+        cur.execute(delete_by_uuid_sql(), (uuid,))
+        self.db.commit()
+        return cur.rowcount > 0
+
+    @ensure_db
+    def delete_by_relative_path(self, path: str) -> bool:
+        cur: Cursor = self.db.cursor()
+        cur.execute(delete_by_relative_path_sql(), (path,))
         self.db.commit()
         return cur.rowcount > 0
 
@@ -119,6 +135,21 @@ class ScanRecordTracker:
 
     def __init__(self, db_path: str, db_name: str):
         self.__table = ScanRecordTable(db_path, db_name)
+
+    def clean_all_data(self):
+        """Clean up the tracking history
+        """
+        self.__table.clean_all_data()
+
+    def remove_by_relative_path(self, relative_path: str) -> bool:
+        """Delete one record/unfinished record by relative path
+        """
+        return self.__table.delete_by_relative_path(relative_path)
+
+    def remove_by_uuid(self, uuid: str) -> bool:
+        """Delete one record/unfinished record by uuid
+        """
+        return self.__table.delete_by_uuid(uuid)
 
     """
     Embedding record methods
@@ -216,3 +247,26 @@ class ScanRecordTracker:
         """Delete one unfinished record by uuid
         """
         return self.__table.delete_record_by_uuid(uuid, unfinished=True)
+
+
+class UnfinishedScanRecordTrackerManager:
+    """Maintain an automatic scan record tracker for on going scan tasks
+    """
+
+    def __init__(self, tracker: ScanRecordTracker, relative_path: str, uuid: str):
+        self.__tracker: ScanRecordTracker = tracker
+        self.__relative_path: str = relative_path
+        self.__uuid: str = uuid
+
+    def __enter__(self):
+        # On enter, add the given relative path and uuid to unfinished records
+        tqdm.write(f'Adding unfinished record: {self.__relative_path} - {self.__uuid}')
+        self.__tracker.add_unfinished(self.__relative_path, self.__uuid)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # On exit, remove the given relative path and uuid from unfinished records
+        tqdm.write(f'Removing unfinished record: {self.__relative_path} - {self.__uuid}')
+        if self.__relative_path:
+            self.__tracker.remove_unfinished_by_relative_path(self.__relative_path)
+        elif self.__uuid:
+            self.__tracker.remove_unfinished_by_uuid(self.__uuid)

@@ -30,17 +30,14 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                  db_path: str,
                  uuid: str,
                  doc_path: str | None = None,
-                 re_dump: bool = False,
                  progress_reporter: Callable[[int, int, str | None], None] | None = None):
-        super().__init__(db_path, uuid, doc_path, re_dump, progress_reporter, table_type=WechatHistoryProvider.TABLE_TYPE)
+        super().__init__(db_path, uuid, doc_path, progress_reporter, table_type=WechatHistoryProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path (chat history)
-        if not self._table.row_count() or re_dump:
+        if not self._table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
-
             with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
-                self._table.clean_all_data()
                 self.initialize(doc_path)
 
     def __msg_clean_up(self, msg: str) -> str:
@@ -117,7 +114,8 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
         total: int = len(all_lines)
         previous_progress: int = -1
-        for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
+        #for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
+        for i, line in enumerate(all_lines):
             line = line.strip()
             if not line:
                 continue

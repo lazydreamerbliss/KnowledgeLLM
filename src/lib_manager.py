@@ -1,6 +1,8 @@
 import os
 import pickle
 
+from tqdm import tqdm
+
 from env import CONFIG_FOLDER
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.image.image_embedder import ImageEmbedder
@@ -103,18 +105,24 @@ class LibraryManager:
     Manager operations for managing current library
     """
 
-    def use_library(self, uuid: str):
+    def use_library(self, uuid: str) -> bool:
         """Switch to another library with given UUID
         """
         if uuid and uuid in self.__libraries:
             if self.instanize_lib(uuid):
                 self.__save()
+                return True
+        return False
 
     def create_library(self, new_lib: LibInfoObj, switch_to: bool = False):
         """Add a library to the manager, this only write the library info to config file unless the switch_to flag is set
         - Pre check to params must be done before calling this method
         """
         if new_lib.uuid in self.__libraries or new_lib.path in self.get_library_path_list():
+            if new_lib.uuid in self.__libraries and new_lib.path == self.__libraries[new_lib.uuid].path:
+                # If the new library's same UUID and and same path all matched, just do instanize and return
+                tqdm.write(f'Library with same UUID and path already created, library name: {new_lib.name}')
+                return
             raise LibraryManagerException('Library with same UUID or path already exists')
 
         self.__libraries[new_lib.uuid] = new_lib
@@ -203,7 +211,8 @@ class LibraryManager:
                 elif obj.type == 'general':
                     pass
                 return True
-            except:
+            except Exception as e:
+                tqdm.write(f'Library instanization failed, error: {e}')
                 return False
         return False
 
@@ -223,10 +232,11 @@ class LibraryManager:
 
         # Image library case
         if isinstance(self.instance, ImageLib):
-            if self.instance.lib_is_ready():
+            if self.instance.is_ready():
                 return UUID_EMPTY
             self.instance.set_embedder(ImageEmbedder())
-            task_id: str = self.task_runner.submit_task(self.instance.full_scan, None, True, True,
+            # The phase count is 1 for image library's initialization task
+            task_id: str = self.task_runner.submit_task(self.instance.full_scan, None, True, True, 1,
                                                         force_init=kwargs.get('force_init', False))
             return task_id
 
@@ -241,7 +251,8 @@ class LibraryManager:
             relative_path = relative_path.lstrip(os.path.sep)
             lite_mode: bool = kwargs.get('lite_mode', False)
             self.instance.set_embedder(DocEmbedder(lite_mode=lite_mode))
-            task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True,
+            # The phase count is 2 for document library's initialization task
+            task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True, 2,
                                                         relative_path=relative_path,
                                                         provider_type=kwargs['provider_type'],
                                                         force_init=kwargs.get('force_init', False))

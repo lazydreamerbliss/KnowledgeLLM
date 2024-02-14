@@ -154,7 +154,8 @@ class ImageLib(LibraryBase):
         # Start to process each image
         total: int = len(to_be_embedded)
         previous_progress: int = -1
-        for i, relative_path in tqdm(enumerate(to_be_embedded), desc=f'Processing images', unit='item', ascii=' |'):
+        #for i, relative_path in tqdm(enumerate(to_be_embedded), desc=f'Processing images', unit='item', ascii=' |'):
+        for i, relative_path in enumerate(to_be_embedded):
             try:
                 # Validate if the file is an image and insert it into the table
                 # - After verify() the file stream is closed, need to reopen it
@@ -290,7 +291,7 @@ class ImageLib(LibraryBase):
     Overridden public methods from LibraryBase
     """
 
-    def lib_is_ready(self) -> bool:
+    def is_ready(self) -> bool:
         if not self._metadata_exists() or not self.__table or not self.__vector_db or not self.__embedder:
             return False
         return True
@@ -299,11 +300,11 @@ class ImageLib(LibraryBase):
                   force_init: bool = False,
                   progress_reporter: Callable[[int, int, str | None], None] | None = None,
                   cancel_event: Event | None = None):
-        ready: bool = self.lib_is_ready()
+        ready: bool = self.is_ready()
         if ready and not force_init:
             return
 
-        # Load SQL DB and vector DB, and "not ready" has two cases:
+        # Load SQL DB and vector DB, and "not ready" has 2 cases:
         # 1. The lib is a new lib
         # 2. The lib is an existing lib but not loaded
         if not ready:
@@ -315,12 +316,20 @@ class ImageLib(LibraryBase):
         if not force_init and self.__table.row_count() > 0 and self.__vector_db.db_is_ready():  # type: ignore
             return
 
-        # Refresh ready status, initialize the library for force init or new lib cases
-        ready: bool = self.lib_is_ready()
+        # Refresh ready status, initialize the library for 3 cases:
+        # 1. Force init
+        # 2. New lib
+        # 3. Not a force init, but index corrupted. This can pass is_ready() check but will fail on vector_db.db_is_ready()
+        ready: bool = self.is_ready()
         if ready:
-            with TqdmContext(f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...', 'Cleaned'):
+            if force_init:
+                msg: str = f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...'
+            else:
+                msg: str = f'Vector DB corrupted, forcibly re-initializing library: {self.path_lib}, purging existing library data...'
+            with TqdmContext(msg, 'Cleaned'):
                 self.__vector_db.clean_all_data()  # type: ignore
                 self.__table.clean_all_data()  # type: ignore
+                self._tracker.clean_all_data()  # type: ignore
         else:
             tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
 
@@ -356,7 +365,7 @@ class ImageLib(LibraryBase):
         if not relative_paths:
             return
 
-        for relative_path in tqdm(relative_paths, desc=f'Deleting images', unit='item', ascii=' |'):
+        for relative_path in relative_paths:
             if not relative_path:
                 continue
 
@@ -380,7 +389,7 @@ class ImageLib(LibraryBase):
         if not relative_paths:
             return
 
-        for relative_path in tqdm(relative_paths, desc=f'Deleting embeddings', unit='item', ascii=' |'):
+        for relative_path in relative_paths:
             if not relative_path:
                 continue
 
@@ -406,7 +415,7 @@ class ImageLib(LibraryBase):
         - If an embedded image is deleted but its leftover remains, then remove embedding entry from the DB
         """
         # Load DB content if not ready
-        if not self.lib_is_ready():
+        if not self.is_ready():
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
             self.__instanize_db()

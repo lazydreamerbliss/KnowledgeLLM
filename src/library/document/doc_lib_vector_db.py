@@ -5,7 +5,7 @@ import numpy as np
 
 from db.vector.mem_vector_db import InMemoryVectorDb
 from db.vector.redis_client import BatchedPipeline
-from utils.exceptions.db_errors import VectorDbError
+from utils.exceptions.db_errors import LibraryVectorDbError, VectorDbCoreError
 
 
 def ensure_vector_db_connected(func):
@@ -14,7 +14,7 @@ def ensure_vector_db_connected(func):
     @wraps(func)
     def wrapper(self: 'DocLibVectorDb', *args, **kwargs):
         if not self.mem_vector_db:
-            raise VectorDbError('Vector DB not connected')
+            raise LibraryVectorDbError('Vector DB not connected')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -26,7 +26,7 @@ class DocLibVectorDb:
 
     def __init__(self, data_folder: str, db_name: str):
         if not data_folder or not db_name:
-            raise VectorDbError('Invalid input')
+            raise LibraryVectorDbError('Invalid input')
 
         idx_path: str = os.path.join(data_folder, self.INDEX_FOLDER)
         idx_file: str = f'{db_name}.idx'
@@ -75,13 +75,7 @@ class DocLibVectorDb:
         if embedding is None or not top_k or top_k <= 0:
             return list()
 
-        return self.mem_vector_db.query(embedding, top_k)
-
-    @ensure_vector_db_connected
-    def db_is_empty(self) -> bool:
-        """Check if the vector DB is empty
-        - For in-memory, check if the index file exists
-        """
-        if self.mem_vector_db:
-            return not self.mem_vector_db.index_exists()
-        return True
+        try:
+            return self.mem_vector_db.query(embedding, top_k)
+        except VectorDbCoreError:
+            raise LibraryVectorDbError(f'Index not found, current document needs to be re-embedded')

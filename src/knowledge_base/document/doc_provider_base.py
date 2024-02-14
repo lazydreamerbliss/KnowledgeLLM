@@ -20,7 +20,6 @@ class DocProviderBase(Generic[T]):
                  db_file: str,
                  table_name: str,
                  doc_path: str | None = None,  # Just for Python's generic type param compatibility, not used in base class
-                 re_dump: bool = False,  # Just for Python's generic type param compatibility, not used in base class
                  progress_reporter: Callable[[int, int, str | None], None] | None = None,
                  table_type: Type[T] = TABLE_TYPE):
         """Base class for document provider

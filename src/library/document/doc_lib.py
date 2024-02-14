@@ -12,6 +12,7 @@ from knowledge_base.document.doc_provider_base import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
 from library.lib_base import *
+from library.scan_record_tracker import UnfinishedScanRecordTrackerManager
 from utils.exceptions.task_errors import TaskCancellationException
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
@@ -89,68 +90,66 @@ class DocumentLib(Generic[D], LibraryBase):
         if not os.path.isfile(doc_path):
             raise LibraryError(f'Invalid doc path: {doc_path}')
 
-        # Record in scan history before embedding
-        self._tracker.add_unfinished(relative_path, uuid)  # type: ignore
+        # Start to track embedding and progress
+        with UnfinishedScanRecordTrackerManager(self._tracker, relative_path, uuid):  # type: ignore
+            # Create doc provider for this doc
+            self.__doc_provider = provider_type(self.path_db,
+                                                uuid,
+                                                doc_path=doc_path,
+                                                progress_reporter=progress_reporter)
+            total: int = self.__doc_provider.get_record_count()
 
-        # Create doc provider for this doc
-        self.__doc_provider = provider_type(self.path_db,
-                                            uuid,
-                                            doc_path=doc_path,
-                                            re_dump=False,
-                                            progress_reporter=progress_reporter)
-        total: int = self.__doc_provider.get_record_count()
+            # Do embedding, and create vector DB for this doc
+            # - The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
+            use_IVF: bool = total > 7020
+            self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
 
-        # Do embedding, and create vector DB for this doc
-        # - The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
-        use_IVF: bool = total > 7020
-        self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
+            embedding_list: list[npt.ArrayLike] = list()
+            previous_progress: int = -1
+            first_round: bool = True
+            #for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
+            for i, row in enumerate(self.__doc_provider.get_all_records()):
+                if cancel_event and cancel_event.is_set():
+                    tqdm.write('Embedding cancelled')
+                    raise TaskCancellationException('Library initialization cancelled')
 
-        embedding_list: list[npt.ArrayLike] = list()
-        previous_progress: int = -1
-        first_round: bool = True
-        for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
-            if cancel_event and cancel_event.is_set():
-                tqdm.write('Embedding cancelled')
-                raise TaskCancellationException('Library initialization cancelled')
+                # If reporter is given, report progress to task manager
+                # - Reduce report frequency, only report when progress changes
+                current_progress: int = int(i / total * 100)
+                if current_progress > previous_progress:
+                    previous_progress = current_progress
+                    report_progress(progress_reporter, current_progress, current_phase=2, phase_name='EMBEDDING')
 
-            # If reporter is given, report progress to task manager
-            # - Reduce report frequency, only report when progress changes
-            current_progress: int = int(i / total * 100)
-            if current_progress > previous_progress:
-                previous_progress = current_progress
-                report_progress(progress_reporter, current_progress, current_phase=2, phase_name='EMBEDDING')
+                key_text: str = self.__doc_provider.get_key_text_from_record(row)
+                embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
 
-            key_text: str = self.__doc_provider.get_key_text_from_record(row)
-            embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
+                # For IVF case, save all embeddings for further training
+                if use_IVF:
+                    embedding_list.append(embedding)  # type: ignore
+                    continue
 
-            # For IVF case, save all embeddings for further training
+                # For non-IVF (Flat) case, add embedding to index directly
+                if first_round:
+                    first_round = False
+                    dimension: int = embedding.size
+                    self.__vector_db.initialize_index(dimension, training_set=None)
+                self.__vector_db.add(None, embedding.tolist())
+
             if use_IVF:
-                embedding_list.append(embedding)  # type: ignore
-                continue
+                embeddings: np.ndarray = np.asarray(embedding_list)
 
-            # For non-IVF (Flat) case, add embedding to index directly
-            if first_round:
-                first_round = False
-                dimension: int = embedding.size
-                self.__vector_db.initialize_index(dimension, training_set=None)
-            self.__vector_db.add(None, embedding.tolist())
+                # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
+                # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
+                # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
+                # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
+                text_count: int = embeddings.shape[0]
+                dimension: int = embeddings.shape[1]
+                with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
+                    self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
 
-        if use_IVF:
-            embeddings: np.ndarray = np.asarray(embedding_list)
-
-            # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
-            # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
-            # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
-            # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
-            text_count: int = embeddings.shape[0]
-            dimension: int = embeddings.shape[1]
-            with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
-                self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
-
-        self.__vector_db.persist()
+            self.__vector_db.persist()
 
         # Record info in metadata after finished embedding
-        self._tracker.remove_unfinished_by_relative_path(relative_path)  # type: ignore
         self._tracker.add_record(relative_path, uuid)  # type: ignore
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
@@ -201,7 +200,7 @@ class DocumentLib(Generic[D], LibraryBase):
     Overridden public methods from LibraryBase
     """
 
-    def lib_is_ready(self) -> bool:
+    def is_ready(self) -> bool:
         if not self._metadata_exists() or not self._metadata or not self.__doc_provider:
             return False
         return True
@@ -226,25 +225,22 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.__doc_provider = provider_type(self.path_db,
                                                     uuid,
                                                     doc_path=None,
-                                                    re_dump=False,
                                                     progress_reporter=progress_reporter)
                 self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
             return
 
-        # Do initialization
-        # - If this is a force init, remove the existing embedding first
-        # - If given doc is in unfinished list, clean up leftover if any
-        if force_init and \
-                self._tracker.is_recorded(relative_path) or self._tracker.is_unfinished(relative_path):  # type: ignore
+        # Clean up existing embeddings or leftover if any when:
+        # - If this is a force init
+        # - If given doc is in unfinished list
+        if force_init or self._tracker.is_unfinished(relative_path):  # type: ignore
             self.remove_doc_embeddings([relative_path], provider_type)
 
         try:
             uuid: str = str(uuid4())
             self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
         except TaskCancellationException:
-            # On cancel, clean this doc's leftover and remove from embedding history
+            # On cancel, clean this doc's leftover
             self.remove_doc_embeddings([relative_path], provider_type)
-            self._tracker.remove_unfinished_by_relative_path(relative_path)  # type: ignore
 
     def demolish(self):
         """Delete the doc library, it purges all library data
@@ -288,7 +284,7 @@ class DocumentLib(Generic[D], LibraryBase):
         """Check if library is ready on the given document
         - This need to ensure lib_is_ready() and confirm the given relative_path is the current doc
         """
-        if not self.lib_is_ready() or not relative_path:
+        if not self.is_ready() or not relative_path:
             return False
 
         relative_path = relative_path.lstrip(os.path.sep)
@@ -342,9 +338,8 @@ class DocumentLib(Generic[D], LibraryBase):
                     self.__vector_db.delete_db()  # type: ignore
                     self.__vector_db = None
 
-            # Remove doc from embedding history after deletion
-            self._tracker.remove_record_by_relative_path(relative_path)  # type: ignore
-            self._tracker.remove_unfinished_by_relative_path(relative_path)  # type: ignore
+            # Remove doc from embedding history after deletion if this doc is tracked
+            self._tracker.remove_by_relative_path(relative_path)  # type: ignore
 
     """
     Query methods

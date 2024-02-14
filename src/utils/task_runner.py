@@ -149,7 +149,7 @@ class TaskRunner:
             task.cancel_event = Event()
 
         if support_reporter:
-            # The reporter function is used to report the progress of this task object
+            # The reporter function is used to report the progress of current task object via closure
             def progress_reporter(progress: int,
                                   current_phase: int = 1,
                                   phase_name: str | None = None):
@@ -157,6 +157,7 @@ class TaskRunner:
                 t.progress = progress
                 t.current_phase = current_phase
                 t.phase_name = phase_name
+                t.duration = int((datetime.now() - t.submitted_on).total_seconds())
             future: Future = self.__thread_pool.submit(
                 self.__run_task_with_catch, task.id, task_func, progress_reporter, task.cancel_event, task_args, task_kwargs)
         else:
