@@ -25,7 +25,7 @@ class ImageTagger:
 
         self.tag_list: list[str] = list()
         self.tag_list_cn: list[str] = list()
-        with open(Path(ImageTagger.model_path)/'top_tags.txt', 'r') as f:
+        with open(Path(ImageTagger.model_path) / 'top_tags.txt', 'r') as f:
             for line in f.readlines():
                 line = line.strip()
                 if not line:

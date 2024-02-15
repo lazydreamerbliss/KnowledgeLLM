@@ -49,7 +49,8 @@ class DocProvider(DocProviderBase[DocLibTable]):
         try:
             reader: PdfReader = PdfReader(doc_path)
             total: int = len(reader.pages)
-            #for i, page in tqdm(enumerate(reader.pages), desc=f'Loading PDF content to DB...', unit='page', ascii=' |'):
+            # for i, page in tqdm(enumerate(reader.pages), desc=f'Loading PDF content
+            # to DB...', unit='page', ascii=' |'):
             for i, page in enumerate(reader.pages):
                 page_text: str = page.extract_text()
                 page_text = page_text.strip()
@@ -76,7 +77,8 @@ class DocProvider(DocProviderBase[DocLibTable]):
         try:
             doc: Document = docx.Document(doc_path)
             total: int = len(doc.paragraphs)
-            #for i, paragraph in tqdm(enumerate(doc.paragraphs), desc=f'Loading DOC/DOCX content to DB...', unit='paragraph', ascii=' |'):
+            # for i, paragraph in tqdm(enumerate(doc.paragraphs), desc=f'Loading
+            # DOC/DOCX content to DB...', unit='paragraph', ascii=' |'):
             for i, paragraph in enumerate(doc.paragraphs):
                 line = paragraph.text.strip()
                 if not line:
@@ -104,7 +106,8 @@ class DocProvider(DocProviderBase[DocLibTable]):
             with open(doc_path, 'r', encoding='utf-8') as f:
                 all_lines: list[str] = f.readlines()
             total: int = len(all_lines)
-            #for i, line in tqdm(enumerate(all_lines), desc=f'Loading plain text content to DB...', unit='line', ascii=' |'):
+            # for i, line in tqdm(enumerate(all_lines), desc=f'Loading plain text
+            # content to DB...', unit='line', ascii=' |'):
             for i, line in enumerate(all_lines):
                 line = line.strip()
                 if not line:

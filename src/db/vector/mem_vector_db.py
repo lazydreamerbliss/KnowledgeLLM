@@ -113,7 +113,9 @@ class InMemoryVectorDb:
         if training_set_uuid_list and len(training_set) != len(training_set_uuid_list):
             raise VectorDbCoreError('Training set and UUID list have different lengths')
 
-        # The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
+        # The threshold "7020" is from IVF's warning message "WARNING clustering
+        # 2081 points to 180 centroids: please provide at least 7020 training
+        # points"
         if expected_dataset_size <= 7020:
             tqdm.write(f'Dataset size {expected_dataset_size} is too small for IVF, suggest using flat index instead')
 

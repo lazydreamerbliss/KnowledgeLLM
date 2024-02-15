@@ -63,7 +63,7 @@ class LibraryManager:
                 if current_lib not in self.__libraries:
                     raise LibraryManagerException('Config file corrupted')
                 self.instanize_lib(current_lib)
-        except:
+        except BaseException:
             raise LibraryManagerException('Config file corrupted')
 
     def __save(self):

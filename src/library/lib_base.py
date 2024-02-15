@@ -239,7 +239,7 @@ class LibraryBase:
                     d_stats: os.stat_result = os.stat(item_path)
                     d_item.dtc = datetime.utcfromtimestamp(d_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
                     d_item.dtm = datetime.utcfromtimestamp(d_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
-                except:
+                except BaseException:
                     d_item.dtc = '-'
                     d_item.dtm = '-'
                 dir_list.append(d_item)
@@ -264,7 +264,7 @@ class LibraryBase:
                     f_item.dtc = datetime.utcfromtimestamp(f_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
                     f_item.dtm = datetime.utcfromtimestamp(f_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
                     f_item.size_b = f_stats.st_size
-                except:
+                except BaseException:
                     f_item.dtc = '-'
                     f_item.dtm = '-'
                     f_item.size_b = -1
@@ -323,7 +323,7 @@ class LibraryBase:
         """
         try:
             content: dict = pickle.load(open(self.__path_metadata, 'rb'))
-        except:
+        except BaseException:
             raise LibraryError(f'Invalid metadata file: {self.__path_metadata}')
         if not content:
             raise LibraryError(f'Invalid metadata file: {self.__path_metadata}')
@@ -349,7 +349,7 @@ class LibraryBase:
         return self._tracker.get_all_records()
 
     """
-    Public methods to read library metadata 
+    Public methods to read library metadata
     """
 
     @ensure_metadata_ready

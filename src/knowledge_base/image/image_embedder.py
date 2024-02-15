@@ -37,7 +37,7 @@ class ImageEmbedder:
 
         # Encode image as input for CLIP model, to get features
         encoded: BatchEncoding = self.encoder(images=img, return_tensors="pt", padding=True)
-        image_features: Tensor = self.model.get_image_features(encoded.get('pixel_values'))[batch_size-1]
+        image_features: Tensor = self.model.get_image_features(encoded.get('pixel_values'))[batch_size - 1]
         feature: np.ndarray = image_features.numpy()
         return feature.astype(np.float32)
 

@@ -108,7 +108,7 @@ class DocumentLib(Generic[D], LibraryBase):
             embedding_list: list[npt.ArrayLike] = list()
             previous_progress: int = -1
             first_round: bool = True
-            #for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
+            # for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
             for i, row in enumerate(self.__doc_provider.get_all_records()):
                 if cancel_event and cancel_event.is_set():
                     tqdm.write('Embedding cancelled')

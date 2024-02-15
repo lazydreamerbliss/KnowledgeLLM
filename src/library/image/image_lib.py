@@ -88,7 +88,8 @@ class ImageLib(LibraryBase):
                                                 data_folder=self._path_lib_data,
                                                 ignore_index_error=force_init)
 
-    def __write_embedding_entry(self, relative_path: str, embedding: list[float], save_pipeline: BatchedPipeline | None = None):
+    def __write_embedding_entry(self, relative_path: str,
+                                embedding: list[float], save_pipeline: BatchedPipeline | None = None):
         """Write an image entry (file info + embedding) to both DB and vector DB
         - An UUID is generated to identify the image globally
         """
@@ -163,7 +164,7 @@ class ImageLib(LibraryBase):
                 img: Image.Image = Image.open(os.path.join(self.path_lib, relative_path))
                 img.verify()
                 img = Image.open(os.path.join(self.path_lib, relative_path))
-            except:
+            except BaseException:
                 tqdm.write(f'Invalid image: {relative_path}, skip')
                 continue
 
@@ -320,7 +321,8 @@ class ImageLib(LibraryBase):
         # Refresh ready status, initialize the library for 3 cases:
         # 1. Force init
         # 2. New lib
-        # 3. Not a force init, but index corrupted. This can pass is_ready() check but will fail on vector_db.db_is_ready()
+        # 3. Not a force init, but index corrupted. This can pass is_ready() check
+        # but will fail on vector_db.db_is_ready()
         ready: bool = self.is_ready()
         if ready:
             if force_init:

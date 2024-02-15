@@ -11,7 +11,7 @@ from utils.tqdm_context import TqdmContext
 
 class DocEmbedder:
     def __init__(self, lite_mode: bool = False):
-        transformer_path: str = os.path.join(MODEL_FOLDER, 'sentence_transformers',  TRANSFORMER_MODEL)
+        transformer_path: str = os.path.join(MODEL_FOLDER, 'sentence_transformers', TRANSFORMER_MODEL)
         cross_encoder_path: str = os.path.join(MODEL_FOLDER, CROSS_ENCODER_MODEL)
 
         with TqdmContext('Initializing text embedder, loading transformers...', 'Loaded'):

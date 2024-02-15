@@ -29,7 +29,8 @@ class RedisVectorDb:
         schema = (
             VectorField(
                 "$",  # The path to the vector field in the JSON object
-                # Specifies the indexing method, which is either a FLAT or a hierarchical navigable small world graph (HNSW)
+                # Specifies the indexing method, which is either a FLAT or a hierarchical
+                # navigable small world graph (HNSW)
                 "FLAT",
                 {
                     "TYPE": "FLOAT32",  # Sets the type of a vector component, in this case a 32-bit floating point number

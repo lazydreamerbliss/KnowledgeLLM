@@ -10,7 +10,7 @@ words = ['amazing', 'interesting', 'love', 'great', 'nice']
 
 translated_list: list[str] = list()
 tag_list: list[str] = list()
-with open(Path(f'{Path(__file__).parent.parent.parent}/local_models/fancyfeast--joytag')/'top_tags.txt', 'r') as f:
+with open(Path(f'{Path(__file__).parent.parent.parent}/local_models/fancyfeast--joytag') / 'top_tags.txt', 'r') as f:
     batch_size: int = 200
     pending_for_trans: str = ''
     saved_taggers: str = ''
@@ -22,7 +22,19 @@ with open(Path(f'{Path(__file__).parent.parent.parent}/local_models/fancyfeast--
         if batch_count <= batch_size:
             continue
         else:
-            translated: str = translator.translate(pending_for_trans).replace('\u200b', '').replace('；', ';').replace('; ;;', ';;;').replace(';; ;', ';;;').replace('; ; ;', ';;;').replace(';;;', ';;')
+            translated: str = translator.translate(pending_for_trans).replace(
+                '\u200b',
+                '').replace(
+                '；',
+                ';').replace(
+                '; ;;',
+                ';;;').replace(
+                ';; ;',
+                ';;;').replace(
+                    '; ; ;',
+                    ';;;').replace(
+                        ';;;',
+                ';;')
             tag_list += [tag for tag in saved_taggers.split(';;')]
             translated_list += [word for word in translated.split(';;')]
             print(saved_taggers)
@@ -32,9 +44,20 @@ with open(Path(f'{Path(__file__).parent.parent.parent}/local_models/fancyfeast--
             batch_count = 0
             pending_for_trans = ''
 
-
     if len(pending_for_trans) > 0:
-        translated: str = translator.translate(pending_for_trans).replace('\u200b', '').replace('；', ';').replace('; ;;', ';;;').replace(';; ;', ';;;').replace('; ; ;', ';;;').replace(';;;', ';;')
+        translated: str = translator.translate(pending_for_trans).replace(
+            '\u200b',
+            '').replace(
+            '；',
+            ';').replace(
+            '; ;;',
+            ';;;').replace(
+                ';; ;',
+                ';;;').replace(
+                    '; ; ;',
+                    ';;;').replace(
+                        ';;;',
+            ';;')
         print(saved_taggers)
         print(translated)
         print(len(tag_list), len(translated_list))
@@ -46,4 +69,4 @@ if __name__ == '__main__':
     with open(f'{Path(__file__).parent}/tmp.txt', 'w') as f:
         for i, tag in enumerate(tag_list):
             translate = translated_list[i]
-            F.write(f'{tag_list[i]}:{translated_list[i]}\n')
+            f.write(f'{tag_list[i]}:{translated_list[i]}\n')

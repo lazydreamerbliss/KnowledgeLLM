@@ -184,7 +184,7 @@ def test_library_manager():
     # Test library switch - doc
     test_doc_lib(lib_manager)
     # Test library switch - image
-    #test_image_lib(lib_manager, True)
+    # test_image_lib(lib_manager, True)
 
     # # Test library demolish
     # lib_manager.use_library(DOC_LIB_UUID)

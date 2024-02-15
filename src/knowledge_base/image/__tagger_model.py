@@ -172,7 +172,8 @@ class CLIPMlp(nn.Module):
 class FastCLIPAttention2(nn.Module):
     """Fast Attention module for CLIP-like. This is NOT a drop-in replacement for CLIPAttention, since it adds additional flexibility.  Mainly uses xformers."""
 
-    def __init__(self, hidden_size: int, out_dim: int, num_attention_heads: int, out_seq_len: Optional[int] = None, norm_qk: bool = False):
+    def __init__(self, hidden_size: int, out_dim: int, num_attention_heads: int,
+                 out_seq_len: Optional[int] = None, norm_qk: bool = False):
         super().__init__()
         self.out_seq_len = out_seq_len
         self.embed_dim = hidden_size
@@ -332,7 +333,8 @@ def sinusoidal_position_embedding(width: int, height: int, depth: int, dtype, de
 
 
 class CLIPEmbeddingLayer(nn.Module):
-    def __init__(self, hidden_size: int, num_channels: int, image_size: int, patch_size: int, patch_dropout: float = 0.0, good_dropout: bool = False, dpn: bool = False, sine_positional_embeddings: bool = False):
+    def __init__(self, hidden_size: int, num_channels: int, image_size: int, patch_size: int, patch_dropout: float = 0.0,
+                 good_dropout: bool = False, dpn: bool = False, sine_positional_embeddings: bool = False):
         super().__init__()
 
         assert image_size % patch_size == 0, "Image dimensions must be divisible by the patch size."
@@ -396,7 +398,8 @@ class CLIPEmbeddingLayer(nn.Module):
             embeddings = patches + position_embeddings
         elif self.good_dropout:
             # Pick random patches to drop out
-            # The "good_dropout" variant uses random permutations for each batch item, but is slightly slower and involves more code
+            # The "good_dropout" variant uses random permutations for each batch item,
+            # but is slightly slower and involves more code
 
             # The below method is a nice trick to generate a batch of random permutations.
             # Torch (as of 1.13) doesn't have a built-in function to do this, and a for loop of torch.randperm is slow.
@@ -412,7 +415,8 @@ class CLIPEmbeddingLayer(nn.Module):
             embeddings = patches.gather(1, patch_mask.unsqueeze(-1).expand(-1, -1, self.hidden_size)
                                         ) + position_embeddings[patch_mask]
         else:
-            # The non-"good_dropout" variant uses a single random permutation for all batch items, but is faster and uses less code
+            # The non-"good_dropout" variant uses a single random permutation for all
+            # batch items, but is faster and uses less code
             indices = torch.randperm(seq_len, device=pixel_values.device)[:patch_dropout]
             embeddings = patches[:, indices, :] + position_embeddings[indices.expand(1, -1)]
 
@@ -420,7 +424,8 @@ class CLIPEmbeddingLayer(nn.Module):
 
 
 class MHAPoolingHead(nn.Module):
-    def __init__(self, hidden_size: int, num_attention_heads: int, activation_cls, out_dim: int, alt_style: bool, norm_qk: bool):
+    def __init__(self, hidden_size: int, num_attention_heads: int,
+                 activation_cls, out_dim: int, alt_style: bool, norm_qk: bool):
         super().__init__()
 
         self.out_dim = out_dim if not alt_style else hidden_size
@@ -1075,7 +1080,8 @@ class ViT(TaggerModel):
         return self.state_dict()
 
     def load(self, state_dict):
-        if 'head.weight' in state_dict and 'head.bias' in state_dict and state_dict['head.weight'].shape[0] == (self.n_tags + 9):
+        if 'head.weight' in state_dict and 'head.bias' in state_dict and state_dict['head.weight'].shape[0] == (
+                self.n_tags + 9):
             # Support old models which included 3 rating and 6 score dimensions
             state_dict['head.weight'] = state_dict['head.weight'][:self.n_tags]
             state_dict['head.bias'] = state_dict['head.bias'][:self.n_tags]

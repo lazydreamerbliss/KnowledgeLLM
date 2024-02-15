@@ -35,7 +35,8 @@ class Record:
 
 
 def initialize_table_sql() -> str:
-    # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, relative_path TEXT, uuid TEXT, unfinished INTEGER NOT NULL DEFAULT 0
+    # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, relative_path TEXT,
+    # uuid TEXT, unfinished INTEGER NOT NULL DEFAULT 0
     return f"""
     CREATE TABLE IF NOT EXISTS "{EMBEDDING_RECORD_TABLE_NAME}" (
         {', '.join([f'{col[0]} {col[1]}' for col in record_structure])}

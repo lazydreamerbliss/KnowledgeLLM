@@ -21,7 +21,7 @@ def report_progress(progress_reporter: Callable[[int, int, str | None], None] | 
         return
     try:
         progress_reporter(current_progress, current_phase, phase_name)
-    except:
+    except BaseException:
         pass
 
 

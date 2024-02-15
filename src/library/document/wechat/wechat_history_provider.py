@@ -114,7 +114,8 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
         total: int = len(all_lines)
         previous_progress: int = -1
-        #for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB, {len(all_lines)} lines in total', unit='line', ascii=' |'):
+        # for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB,
+        # {len(all_lines)} lines in total', unit='line', ascii=' |'):
         for i, line in enumerate(all_lines):
             line = line.strip()
             if not line:
@@ -162,7 +163,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                 tmp: str = line
                 bracket_close: bool = False
                 j: int = i
-                while not bracket_close and j+1 < len(all_lines):
+                while not bracket_close and j + 1 < len(all_lines):
                     j += 1
                     tmp += all_lines[j]
                     bracket_close = tmp.endswith('」')

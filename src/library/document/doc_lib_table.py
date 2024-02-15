@@ -19,7 +19,7 @@ class DocLibTable(SqliteTable):
     @ensure_db
     def insert_row(self, row: tuple) -> int | None:
         # Skip the first column (id)
-        if not row or len(row) != RECORD_LENGTH-1:
+        if not row or len(row) != RECORD_LENGTH - 1:
             raise SqlTableError('Row size is not correct')
 
         cur: Cursor = self.db.cursor()
@@ -31,7 +31,7 @@ class DocLibTable(SqliteTable):
     def insert_rows(self, rows: list[tuple]) -> int | None:
         # Skip the first column (id)
         for row in rows:
-            if not row or len(row) != RECORD_LENGTH-1:
+            if not row or len(row) != RECORD_LENGTH - 1:
                 raise SqlTableError('Row size is not correct')
 
         cur: Cursor = self.db.cursor()

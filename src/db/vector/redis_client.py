@@ -84,7 +84,7 @@ class RedisClient:
             decode_responses=decode_responses)
         try:
             self.connected: bool = bool(self.__client.ping())
-        except:
+        except BaseException:
             self.connected: bool = False
 
     @ensure_redis
