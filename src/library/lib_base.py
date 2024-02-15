@@ -97,7 +97,7 @@ class LibraryBase:
     Library methods
     """
 
-    def set_embedder(embedder: Any):
+    def set_embedder(self, embedder: Any):
         """Set embedder for library
 
         Embedder initialization is apart from initialize(), it is easy to switch to another embedder without a re-initialization

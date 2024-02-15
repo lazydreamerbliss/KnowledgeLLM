@@ -27,26 +27,13 @@ class SqliteTable:
             db_path (str): Optional if connection is provided
             connection (Connection | None): Optional if db_path is provided
         """
-        self.db: Connection
-        self.table_name: str
-        self.__initialize(db_path, table_name)
-
-    def __enter__(self, db_path: str, table_name: str) -> 'SqliteTable':
-        self.__initialize(db_path, table_name)
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.db is not None:
-            self.db.close()
-
-    def __initialize(self, db_path: str, table_name: str):
         if not db_path:
             raise SqlTableError('db_path is None')
         if not table_name:
             raise SqlTableError('table_name is None')
 
-        self.table_name = table_name
-        self.db = sqlite3.connect(db_path, check_same_thread=False)
+        self.table_name: str = table_name
+        self.db: Connection = sqlite3.connect(db_path, check_same_thread=False)
 
     @ensure_db
     def table_exists(self) -> bool:

@@ -17,7 +17,7 @@ class RedisVectorDb:
             raise VectorDbCoreError('Namespace and index name are mandatory for using redis as vector DB')
 
         with TqdmContext('Connecting to Redis vector DB...', 'Connected'):
-            self.redis: RedisClient = RedisClient()
+            self.__redis: RedisClient = RedisClient()
             self.namespace: str = namespace
             self.index_name: str = index_name
 
@@ -46,7 +46,7 @@ class RedisVectorDb:
 
         # Create the index
         try:
-            self.redis.client().ft(self.index_name).create_index(fields=schema, definition=definition)
+            self.__redis.client().ft(self.index_name).create_index(fields=schema, definition=definition)
         except ResponseError as e:
             if e.args[0] == 'Index already exists':
                 return
@@ -55,7 +55,7 @@ class RedisVectorDb:
     def get_save_pipeline(self, batch_size: int = 1000) -> BatchedPipeline:
         """Get a batched save pipeline for vector DB
         """
-        return self.redis.batched_pipeline(batch_size)
+        return self.__redis.batched_pipeline(batch_size)
 
     def add(self, uuid: str, embedding: list[float], pipeline: BatchedPipeline | None = None):
         """Save given embedding to vector DB
@@ -63,7 +63,7 @@ class RedisVectorDb:
         if pipeline:
             pipeline.json_set(f'{self.namespace}:{uuid}', embedding)
         else:
-            self.redis.json_set(f'{self.namespace}:{uuid}', embedding)
+            self.__redis.json_set(f'{self.namespace}:{uuid}', embedding)
 
     def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
         """Remove given embedding from vector DB
@@ -71,14 +71,14 @@ class RedisVectorDb:
         if pipeline:
             pipeline.json_delete(f'{self.namespace}:{uuid}')
         else:
-            self.redis.delete(f'{self.namespace}:{uuid}')
+            self.__redis.delete(f'{self.namespace}:{uuid}')
 
     def clean_all_data(self):
         """Fully clean the library data for reset
         - Remove all keys in vector DB within the namespace
         """
-        self.redis.delete_by_prefix(f'{self.namespace}:')
-        self.redis.snapshot()
+        self.__redis.delete_by_prefix(f'{self.namespace}:')
+        self.__redis.snapshot()
 
     def delete_db(self):
         """Fully drop and delete the library data
@@ -86,19 +86,19 @@ class RedisVectorDb:
         2. Delete the index
         """
         self.clean_all_data()
-        self.redis.client().ft(self.index_name).dropindex()
-        self.redis.save()
+        self.__redis.client().ft(self.index_name).dropindex()
+        self.__redis.save()
 
     def persist(self):
         """Persist index to disk
         """
-        self.redis.save()
+        self.__redis.save()
 
     def get_search(self) -> Search:
-        return self.redis.client().ft(self.index_name)
+        return self.__redis.client().ft(self.index_name)
 
     def namespace_exists(self) -> bool:
         """Check if the namespace exists
         - It tries to get one key with the namespace prefix
         """
-        return self.redis.get_one_with_prefix(f'{self.namespace}:') is not None
+        return self.__redis.get_one_with_prefix(f'{self.namespace}:') is not None

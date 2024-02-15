@@ -31,7 +31,8 @@ class DocLibVectorDb:
         idx_path: str = os.path.join(data_folder, self.INDEX_FOLDER)
         idx_file: str = f'{db_name}.idx'
         # No need to check if path and file are valid, InMemoryVectorDb will do it
-        self.mem_vector_db: InMemoryVectorDb = InMemoryVectorDb(idx_path, idx_file)
+        self.mem_vector_db: InMemoryVectorDb = InMemoryVectorDb(data_folder=idx_path,
+                                                                index_filename=idx_file)
 
     @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int, training_set: np.ndarray | None, dataset_size: int = -1):
@@ -78,4 +79,4 @@ class DocLibVectorDb:
         try:
             return self.mem_vector_db.query(embedding, top_k)
         except VectorDbCoreError:
-            raise LibraryVectorDbError(f'Index not found, current document needs to be re-embedded')
+            raise LibraryVectorDbError(f'Index not found for target document, a re-embedding is required')

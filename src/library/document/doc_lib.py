@@ -41,6 +41,7 @@ class DocumentLib(Generic[D], LibraryBase):
         """
         Args:
             lib_path (str): Path to the library
+            lib_name (str): Name to the library
             uuid (str): UUID of the library
         """
         if not uuid or not lib_name:

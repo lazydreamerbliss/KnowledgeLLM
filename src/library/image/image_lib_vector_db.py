@@ -117,7 +117,6 @@ class ImageLibVectorDb:
         if embedding is None or not top_k or top_k <= 0:
             return list()
 
-        
         if self.redis_vector_db:
             embedding_as_bytes: bytes = embedding.tobytes()
             param: dict = {"query_vector": embedding_as_bytes} if not extra_params else \

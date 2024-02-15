@@ -76,8 +76,9 @@ class ImageLib(LibraryBase):
     def __instanize_db(self, force_init: bool = False):
         """Instanize the DBs
 
-        If force init is provided, the index error (if any encountered during loading) will be ignored as the index data
+        If `force_init` is provided, the index error (if any encountered during loading) will be ignored as the index data
         will be purged afterwards, and for force init case index error are allowed
+        - Set `ignore_index_error` to the value of `force_init` to ignore index error if force init is provided
         """
         if not self.__table:
             self.__table = ImageLibTable(self._path_lib_data)
@@ -154,7 +155,7 @@ class ImageLib(LibraryBase):
         # Start to process each image
         total: int = len(to_be_embedded)
         previous_progress: int = -1
-        #for i, relative_path in tqdm(enumerate(to_be_embedded), desc=f'Processing images', unit='item', ascii=' |'):
+        # for i, relative_path in tqdm(enumerate(to_be_embedded), desc=f'Processing images', unit='item', ascii=' |'):
         for i, relative_path in enumerate(to_be_embedded):
             try:
                 # Validate if the file is an image and insert it into the table
