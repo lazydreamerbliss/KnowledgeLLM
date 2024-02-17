@@ -6,13 +6,13 @@ const nodeExternals = require("webpack-node-externals");
 const configForWeb = {
   name: "web",
   entry: {
-    index: __dirname + "/UI/index.ts",
+    index: __dirname + "/ui/index.ts",
   },
   output: {
     filename: "bundle.js",
     path: path.resolve(__dirname, "dist"),
   },
-  plugins: [new CopyWebpackPlugin({ patterns: [__dirname + "/UI/static"] }), new ReactRefreshPlugin()],
+  plugins: [new CopyWebpackPlugin({ patterns: [__dirname + "/ui/static"] }), new ReactRefreshPlugin()],
   devServer: {
     port: 5012,
     devMiddleware: {
@@ -27,7 +27,7 @@ const configForWeb = {
         loader: "babel-loader",
         options: {
           plugins: [require.resolve("react-refresh/babel")],
-          configFile: __dirname + "/UI/.babelrc",
+          configFile: __dirname + "/ui/.babelrc",
         },
       },
       {
