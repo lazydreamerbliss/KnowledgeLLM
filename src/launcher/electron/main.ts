@@ -1,23 +1,26 @@
 import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
-import { loadApi } from "./bridge/bridge-main";
+import { startServer } from "./serverDaemon";
+
+startServer();
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    minWidth: 800,
-    minHeight: 600,
+    minWidth: 1366,
+    minHeight: 768,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
     },
+    // titleBarStyle: "hidden",
+    // titleBarOverlay: {
+    //   color: "#1f1f1f",
+    //   symbolColor: "#dfdfdf",
+    //   height: 32,
+    // },
   });
   mainWindow.setMenuBarVisibility(false);
-
-  mainWindow.webContents.openDevTools({
-    mode: "undocked",
-    activate: false,
-  }); // Open the developer tools, for debugging
   mainWindow.loadURL("http://localhost:5012");
   console.log(app.getLocale());
 };
@@ -38,5 +41,8 @@ app.whenReady().then(() => {
     if (win === null) return;
     win.setTitle(title);
   });
-  loadApi();
+  ipcMain.handle("toggle-dev-tools", (event) => {
+    const webContents = event.sender;
+    webContents.toggleDevTools();
+  });
 });
