@@ -1,0 +1,20 @@
+{% extends '__layout.html' %}
+{% block content_html %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div style="padding:100px 15px; text-align:center;margin-top:60px">
+                <h1 style="margin-top:30px;">
+                    <strong>{{error_code}}</strong>
+                </h1>
+                <h3 class='text-muted'>{{error_text}}</h3>
+                <div style="margin-top:60px; margin-bottom:15px;">
+                    <a href="/" class="btn btn-info btn-lg">
+                        返回首页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content_html %}

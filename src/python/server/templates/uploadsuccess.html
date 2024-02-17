@@ -1,0 +1,32 @@
+{% extends '__layout.html' %}
+{% block content_html %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div style="padding:100px 15px; text-align:center;">
+                <h1>
+                    <strong>{{success_count}}</strong>
+                </h1>
+                <h3 class='text-muted'>
+                    Files Uploaded Successfully
+                </h3>
+                {% if failure_count > 0 %}
+                <div class="error-details lead">
+                    {{failure_count}} failed to upload.
+                </div>
+                {% endif %}
+                <div class="error-details lead">
+                    {% autoescape false %}
+                    {{message}}
+                    {% endautoescape %}
+                </div>
+                <div style="margin-top:15px; margin-bottom:15px;">
+                    <a href="/" class="btn btn-info btn-lg">
+                        Take Me Home
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content_html %}

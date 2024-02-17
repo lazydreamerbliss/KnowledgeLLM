@@ -1,0 +1,23 @@
+{% if file_dict %}
+{% for file in file_dict %}
+<div class="col-3" style="margin-bottom:-10px">
+    <a href="/file/{{file.parent_path}}/{{file.url}}">
+        <img src='/static/{{file.icon}}' style="position:absolute; height:25px; width:25px; border:0px;" />
+        <p style="margin-left:35px; color:black; text-align:left; text-decoration:none;">
+            {{file.display_name}}
+        </p>
+    </a>
+</div>
+<div class="col-3" style="margin-bottom:-10px">
+    <p style="margin-left:45px;">{{file.dtc}}</p>
+</div>
+<div class="col-3" style="margin-bottom:-10px">
+    <p style="margin-left:45px;">{{file.dtm}}</p>
+</div>
+<div class="col-3" style="margin-bottom:-10px; ">
+    <p style="margin-left:110px;">{{file.size}}</p>
+</div>
+{% endfor %}
+{% else %}
+<p style="color:black; margin:auto; margin-top:30px">没有文件</p>
+{% endif%}
