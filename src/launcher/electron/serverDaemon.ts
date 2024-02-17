@@ -20,22 +20,31 @@ function lazy(ms: number, fn: () => void): () => void {
   };
 }
 
-let server: ChildProcess;
-let serverGeneration = 0;
+// let server: ChildProcess;
+// let serverGeneration = 0;
+
+let server:
+  | {
+      process: ChildProcess;
+      generation: number;
+    }
+  | undefined;
 
 const lazyStartServer = lazy(1000, () => {
-  if (server) {
-    server.kill();
+  let serverGeneration = 0;
+  if (server !== undefined) {
+    server.process.kill();
+    serverGeneration = server.generation + 1;
   }
-  console.log("starting server");
-  server = fork("./dist/server.js", [serverGeneration.toString()], {
-    stdio: "pipe",
-  });
-  server.on("exit", (code) => {
-    console.log(`server gen ${serverGeneration} exited with code ${code}`);
-  });
 
-  serverGeneration++;
+  console.log("Restart server");
+
+  server = {
+    process: fork("./dist/server.js", [serverGeneration.toString()], {
+      stdio: "pipe",
+    }),
+    generation: serverGeneration,
+  };
 });
 
 export function startServer() {

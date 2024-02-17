@@ -21,7 +21,7 @@ The launcher for KnowledgeLLM.
 
 ## Edit code and debug
 
-When edit UI code (under `./ui`), you just need to save the code and changes will apply automatically. To debug these code, you just need to debug in the debugger window of electron.
+When edit UI code (under `./ui`), you just need to save the code and changes will apply automatically **(However, you need manual refresh if you edit code in ./ui/static)**. To debug these code, you just need to debug in the debugger window of electron.
 
 When edit Server code (under `./server`), you just need to save the code and changes will apply automatically. To debug these code, you just need to debug in the vscode.
 

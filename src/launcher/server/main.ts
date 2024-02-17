@@ -3,6 +3,8 @@ import Cors from "koa-cors";
 import Logger from "koa-logger";
 import { ApiRouter } from "./apis";
 
+console.log(`Nodejs server gen ${process.argv[2]}`);
+
 (async function StartServer() {
   const app = new Koa();
 
