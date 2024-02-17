@@ -3,6 +3,8 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 const ReactRefreshPlugin = require("@pmmmwh/react-refresh-webpack-plugin");
 const nodeExternals = require("webpack-node-externals");
 
+const isServe = !!process.env.WEBPACK_SERVE;
+
 const configForWeb = {
   name: "web",
   entry: {
@@ -12,12 +14,14 @@ const configForWeb = {
     filename: "bundle.js",
     path: path.resolve(__dirname, "dist"),
   },
-  plugins: [new CopyWebpackPlugin({ patterns: [__dirname + "/ui/static"] }), new ReactRefreshPlugin()],
+  plugins: [
+    new CopyWebpackPlugin({ patterns: [__dirname + "/ui/static"] }),
+    ...(isServe ? [new ReactRefreshPlugin()] : []),
+  ],
   devServer: {
     port: 5012,
-    devMiddleware: {
-      writeToDisk: true,
-    },
+    static: __dirname + "/ui/static",
+    hot: true,
   },
   module: {
     rules: [

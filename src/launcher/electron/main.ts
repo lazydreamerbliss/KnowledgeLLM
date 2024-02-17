@@ -7,14 +7,18 @@ startServer();
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    minWidth: 800,
-    minHeight: 600,
-    width: 1366,
-    height: 768,
+    minWidth: 1366,
+    minHeight: 768,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
     },
+    // titleBarStyle: "hidden",
+    // titleBarOverlay: {
+    //   color: "#1f1f1f",
+    //   symbolColor: "#dfdfdf",
+    //   height: 32,
+    // },
   });
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadURL("http://localhost:5012");
