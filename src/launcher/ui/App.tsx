@@ -2,8 +2,9 @@ import React from "react";
 import { tailwindConfig } from "./tailwind.config";
 import TextInput from "./components/TextInput";
 import Button from "./components/Button";
-import { getTitleBarRect } from "./utility/runtimeHelper";
+import { getTitleBarRect } from "./util/runtimeHelper";
 import Label from "./components/Lable";
+import { getAppSettings } from "./api";
 
 export default function UX() {
   const [titleBarRect, setTitleBarRect] = React.useState(getTitleBarRect);
@@ -29,7 +30,14 @@ export default function UX() {
       >
         <Label>Hello!</Label>
         <TextInput className="py-0" placeholder="Search" />
-        <Button className="py-0">Button</Button>
+        <Button
+          className="py-0"
+          onClick={async () => {
+            console.log(await getAppSettings());
+          }}
+        >
+          Button
+        </Button>
       </header>
       <div className="flex flex-1 flex-row">
         <div className="p-1">This is lib panel</div>

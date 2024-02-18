@@ -12,7 +12,7 @@ console.log(`Nodejs server gen ${process.argv[2]}`);
 
   app.use(Logger());
 
-  const router = await ApiRouter();
+  const router = ApiRouter();
   app.use(router.routes());
   app.use(router.allowedMethods());
 
