@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, webContents } from "electron";
 import { startServer } from "./serverDaemon";
 
 startServer();
@@ -13,16 +13,18 @@ const createWindow = () => {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
     },
-    // titleBarStyle: "hidden",
-    // titleBarOverlay: {
-    //   color: "#1f1f1f",
-    //   symbolColor: "#dfdfdf",
-    //   height: 32,
-    // },
+    backgroundColor: "#000000",
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#272727",
+      symbolColor: "#dfdfdf",
+      height: 32, // todo: we might need another data for macOS and linux
+    },
   });
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadURL("http://localhost:5012");
   console.log(app.getLocale());
+  // mainWindow.webContents.toggleDevTools();
 };
 
 app.whenReady().then(() => {

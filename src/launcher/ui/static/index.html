@@ -6,6 +6,15 @@
     <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'"> -->
     <meta data-rh="true" name="viewport" content="width=device-width, initial-scale=1">
     <title>Knowledge LLM</title>
+    <style> /* this css is only used to make title bar draggable*/
+      .app-drag {
+        -webkit-app-region: drag;
+      }
+
+      .app-drag * {
+        -webkit-app-region: no-drag;
+      }
+    </style>
   </head>
   <body>
     <div id="app" style="height: 100vh;">Loading the UI</div>

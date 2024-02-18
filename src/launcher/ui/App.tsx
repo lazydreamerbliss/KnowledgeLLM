@@ -1,32 +1,40 @@
 import React from "react";
-import { jsonStringify } from "./utility/common";
 import { tailwindConfig } from "./tailwind.config";
+import TextInput from "./components/TextInput";
+import Button from "./components/Button";
+import { getTitleBarRect } from "./utility/runtimeHelper";
+import Label from "./components/Lable";
 
 export default function UX() {
-  React.useEffect(() => {
-    (window as any).tailwind.config = tailwindConfig;
+  const [titleBarRect, setTitleBarRect] = React.useState(getTitleBarRect);
+  React.useLayoutEffect(() => {
+    (window as any).tailwind.config = tailwindConfig; // this helps to apply the style after hot reload
+    function updateSize() {
+      const titleBarRect = getTitleBarRect();
+      setTitleBarRect(titleBarRect);
+      console.log("resized: ", titleBarRect);
+    }
+    window.addEventListener("resize", updateSize);
+    updateSize();
+    return () => window.removeEventListener("resize", updateSize);
   }, []);
-  const [content, setContent] = React.useState("");
   return (
-    <div className="w-full h-full bg-base text-base">
-      <div className="w-full h-full grid place-items-center">
-        <div
-          className=" bg-primary rounded-xl md:p-8 dark:bg-slate-800 shadow-lg "
-          onClick={async () => {
-            jsonStringify({ a: 1 });
-          }}
-        >
-          Open Folder
-        </div>
-        <input
-          type="text"
-          placeholder="Input title"
-          value={content}
-          onChange={async (e) => {
-            setContent(e.target.value);
-          }}
-        />
-        <input type="text" placeholder="Input title" />
+    <div className="w-full h-full bg-base text-base flex flex-col">
+      <header
+        className="app-drag px-1 bg-appBar flex flex-row text-xs justify-between items-center"
+        style={{
+          height: titleBarRect.height, // this make sure the title bar is the same height as the control overlay
+          width: titleBarRect.width, // this avoids rendering contents behind control overlay
+        }}
+      >
+        <Label>Hello!</Label>
+        <TextInput className="py-0" placeholder="Search" />
+        <Button className="py-0">Button</Button>
+      </header>
+      <div className="flex flex-1 flex-row">
+        <div className="p-1">This is lib panel</div>
+        <div className="flex-1 bg-workbench">This is workbench</div>
+        <div className="p-1">This is ai panel</div>
       </div>
     </div>
   );

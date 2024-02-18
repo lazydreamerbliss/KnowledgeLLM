@@ -3,6 +3,7 @@
   "compilerOptions": {
     "jsx": "react",
     "target": "ES6",
-    "lib": ["dom"]
+    "lib": ["dom"],
+    "moduleResolution": "node"
   }
 }

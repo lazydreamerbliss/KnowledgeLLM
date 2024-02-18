@@ -1,6 +1,9 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { initRuntime } from "./utility/runtimeHelper";
+
+initRuntime();
 
 const container = document.getElementById("app");
 
