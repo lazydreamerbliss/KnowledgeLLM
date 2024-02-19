@@ -1,22 +1,20 @@
 {
-    "editor.quickSuggestions": {
-        "strings": true
-    },
-    "files.exclude": {
-        "node_modules": true
-    },
-    "editor.formatOnSave": true,
-    "cSpell.words": [
-        "tailwindcss"
-    ],
-    "[typescriptreact]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.tabSize": 2
-    },
-    "[javascript]": {
-        "editor.tabSize": 2
-    },
-    "[typescript]": {
-        "editor.tabSize": 2
-    },
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "files.exclude": {
+    "node_modules": true
+  },
+  "editor.formatOnSave": true,
+  "cSpell.words": ["tailwindcss", "unmaximize"],
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[javascript]": {
+    "editor.tabSize": 2
+  },
+  "[typescript]": {
+    "editor.tabSize": 2
+  }
 }

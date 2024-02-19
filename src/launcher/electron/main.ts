@@ -18,32 +18,24 @@ const createWindow = () => {
     titleBarOverlay: {
       color: "#272727",
       symbolColor: "#dfdfdf",
-      height: 32, // todo: we might need another data for macOS and linux
+      height: 32, // looks good both for MacOS and Windows
     },
   });
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadURL("http://localhost:5012");
   console.log(app.getLocale());
   // mainWindow.webContents.toggleDevTools();
+  mainWindow.on("maximize", () => {
+    mainWindow.webContents.send("maximize");
+  });
+  mainWindow.on("unmaximize", () => {
+    mainWindow.webContents.send("unmaximize");
+  });
 };
 
 app.whenReady().then(() => {
   createWindow();
-  ipcMain.on("minimize", (event) => {
-    console.log(event);
-    const webContents = event.sender;
-    const win = BrowserWindow.fromWebContents(webContents);
-    if (win === null) return;
-    win.minimize();
-  });
-  ipcMain.on("set-title", (event, title) => {
-    console.log("set-title called: ", title);
-    const webContents = event.sender;
-    const win = BrowserWindow.fromWebContents(webContents);
-    if (win === null) return;
-    win.setTitle(title);
-  });
-  ipcMain.handle("toggle-dev-tools", (event) => {
+  ipcMain.on("toggle-dev-tools", (event) => {
     const webContents = event.sender;
     webContents.toggleDevTools();
   });

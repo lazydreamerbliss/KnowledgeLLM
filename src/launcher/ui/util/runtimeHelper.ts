@@ -3,7 +3,7 @@ export function initRuntime() {
     // capture F12 to open devtools
     // this is keydown instead of keypress since this key will stopPropagation in keydown so it will not trigger keypress
     if (ev.key === "F12") {
-      (window as any).toggleDevTools();
+      (window as any).toggleDevTools(); // this is provided in preload.ts
     }
   });
 
@@ -17,5 +17,19 @@ export function initRuntime() {
 }
 
 export function getTitleBarRect(): DOMRect {
-  return (window as any).navigator.windowControlsOverlay.getTitlebarAreaRect();
+  return (window as any).navigator.windowControlsOverlay.getTitlebarAreaRect(); // this is provided by electron
 }
+
+export const platform = (window as any).platform as string;
+
+export const windowEvents = (window as any).windowEvents as {
+  // this is defined in preload.ts
+  maximize: {
+    on: (listener: () => void) => void;
+    removeEventListener: (listener: () => void) => void;
+  };
+  unmaximize: {
+    on: (listener: () => void) => void;
+    removeEventListener: (listener: () => void) => void;
+  };
+};
