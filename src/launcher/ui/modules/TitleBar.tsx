@@ -15,41 +15,49 @@ export default function TitleBar() {
       setTitleBarRect(titleBarRect);
       console.log("resized: ", titleBarRect);
     };
-    const handelEnterEnterFullScreen = () => setIsFullScreen(true);
+    const handelEnterFullScreen = () => setIsFullScreen(true);
     const handelLeaveFullScreen = () => setIsFullScreen(false);
 
     windowEvents.sizeChanged.on(updateSize);
-    windowEvents.enterFullScreen.on(handelEnterEnterFullScreen);
+    windowEvents.enterFullScreen.on(handelEnterFullScreen);
     windowEvents.leaveFullScreen.on(handelLeaveFullScreen);
     return () => {
       windowEvents.sizeChanged.removeEventListener(updateSize);
-      windowEvents.enterFullScreen.removeEventListener(handelEnterEnterFullScreen);
+      windowEvents.enterFullScreen.removeEventListener(handelEnterFullScreen);
       windowEvents.leaveFullScreen.removeEventListener(handelLeaveFullScreen);
     };
   }, []);
 
-  const height = titleBarRect.height;
+  const titleBarHeightFullScreen = 32;
+  const height = isFullScreen ? titleBarHeightFullScreen : titleBarRect.height;
   const width = isFullScreen ? "100%" : titleBarRect.width;
 
   return (
     <header
-      className="app-drag px-1 bg-appBar flex flex-row text-xs justify-between items-center"
+      className="app-drag bg-appBar  text-xs "
       style={{
         height, // this make sure the title bar is the same height as the control overlay
-        width, // this avoids rendering contents behind control overlay
-        ...(isMac && { float: "right" }),
       }}
     >
-      <Label>Hello!</Label>
-      <TextInput className="py-0" placeholder="Search" />
-      <Button
-        className="py-0"
-        onClick={async () => {
-          console.log(await getAppSettings());
+      <div
+        className={
+          "app-no-drag-children h-full px-1 flex flex-row justify-between items-center" + (isMac ? " float-right" : "")
+        }
+        style={{
+          width, // this avoids rendering contents behind control overlay
         }}
       >
-        Button
-      </Button>
+        <Label>Hello!</Label>
+        <TextInput className="py-0" placeholder="Search" />
+        <Button
+          className="py-0"
+          onClick={async () => {
+            console.log(await getAppSettings());
+          }}
+        >
+          Button
+        </Button>
+      </div>
     </header>
   );
 }

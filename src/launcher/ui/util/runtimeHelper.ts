@@ -16,8 +16,8 @@ export function initRuntime() {
   });
 }
 
-export function getTitleBarRect(): DOMRect {
-  return (window as any).navigator.windowControlsOverlay.getTitlebarAreaRect(); // this is provided by electron
+export function getTitleBarRect() {
+  return (window as any).navigator.windowControlsOverlay.getTitlebarAreaRect() as DOMRect; // this is provided by electron
 }
 
 export const platform = (window as any).platform as string;
