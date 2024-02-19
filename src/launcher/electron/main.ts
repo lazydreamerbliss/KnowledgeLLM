@@ -1,14 +1,24 @@
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain, webContents } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { startServer } from "./serverDaemon";
+import windowStateKeeper from "electron-window-state";
 
-startServer();
+startServer(); //start backend server first
 
 const createWindow = () => {
+  const mainWindowStateKeeper = windowStateKeeper({
+    defaultWidth: 1366,
+    defaultHeight: 768,
+  });
+
   const mainWindow = new BrowserWindow({
-    minWidth: 1366,
-    minHeight: 768,
+    minWidth: 1280,
+    minHeight: 720,
+    width: mainWindowStateKeeper.width,
+    height: mainWindowStateKeeper.height,
+    x: mainWindowStateKeeper.x,
+    y: mainWindowStateKeeper.y,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
@@ -21,6 +31,7 @@ const createWindow = () => {
       height: 32, // looks good both for MacOS and Windows
     },
   });
+  mainWindowStateKeeper.manage(mainWindow);
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadURL("http://localhost:5012");
   console.log(app.getLocale());

@@ -28,6 +28,7 @@
     "concurrently": "^8.2.2",
     "copy-webpack-plugin": "^11.0.0",
     "electron": "^28.2.0",
+    "electron-window-state": "^5.0.3",
     "koa": "^2.15.0",
     "koa-cors": "^0.0.16",
     "koa-logger": "^3.2.1",

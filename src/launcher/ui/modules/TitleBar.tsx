@@ -7,7 +7,9 @@ import { getAppSettings } from "../api";
 
 export default function TitleBar() {
   const [titleBarRect, setTitleBarRect] = React.useState(getTitleBarRect);
-  const [isFullScreen, setIsFullScreen] = React.useState(false);
+  const [isFullScreen, setIsFullScreen] = React.useState(
+    window.innerWidth == screen.width && window.innerHeight == screen.height
+  );
   const isMac = platform === "darwin";
   React.useEffect(() => {
     const updateSize = () => {
