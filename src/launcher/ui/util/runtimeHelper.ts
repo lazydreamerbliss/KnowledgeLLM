@@ -22,7 +22,7 @@ export function getTitleBarRect(): DOMRect {
 
 export const platform = (window as any).platform as string;
 
-export const windowEvents = (window as any).windowEvents as {
+const windowEventsFromElectron = (window as any).windowEvents as {
   // this is defined in preload.ts
   maximize: {
     on: (listener: () => void) => void;
@@ -32,4 +32,33 @@ export const windowEvents = (window as any).windowEvents as {
     on: (listener: () => void) => void;
     removeEventListener: (listener: () => void) => void;
   };
+  enterFullScreen: {
+    on: (listener: () => void) => void;
+    removeEventListener: (listener: () => void) => void;
+  };
+  leaveFullScreen: {
+    on: (listener: () => void) => void;
+    removeEventListener: (listener: () => void) => void;
+  };
+};
+
+export const windowEvents = {
+  ...windowEventsFromElectron,
+
+  sizeChanged: {
+    on: (listener: () => void) => {
+      window.addEventListener("resize", listener);
+      windowEventsFromElectron.maximize.on(listener);
+      windowEventsFromElectron.unmaximize.on(listener);
+      windowEventsFromElectron.enterFullScreen.on(listener);
+      windowEventsFromElectron.leaveFullScreen.on(listener);
+    },
+    removeEventListener: (listener: () => void) => {
+      window.removeEventListener("resize", listener);
+      windowEventsFromElectron.maximize.removeEventListener(listener);
+      windowEventsFromElectron.unmaximize.removeEventListener(listener);
+      windowEventsFromElectron.enterFullScreen.removeEventListener(listener);
+      windowEventsFromElectron.leaveFullScreen.removeEventListener(listener);
+    },
+  },
 };

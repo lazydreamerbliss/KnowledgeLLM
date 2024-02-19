@@ -7,6 +7,7 @@ import { getAppSettings } from "../api";
 
 export default function TitleBar() {
   const [titleBarRect, setTitleBarRect] = React.useState(getTitleBarRect);
+  const [isFullScreen, setIsFullScreen] = React.useState(false);
   const isMac = platform === "darwin";
   React.useEffect(() => {
     const updateSize = () => {
@@ -14,30 +15,29 @@ export default function TitleBar() {
       setTitleBarRect(titleBarRect);
       console.log("resized: ", titleBarRect);
     };
-    window.addEventListener("resize", updateSize);
+    const handelEnterEnterFullScreen = () => setIsFullScreen(true);
+    const handelLeaveFullScreen = () => setIsFullScreen(false);
 
-    const onMaximize = () => {
-      console.log("maximized");
-    };
-    windowEvents.maximize.on(onMaximize);
-
-    const onUnmaximize = () => {
-      console.log("unmaximized");
-    };
-    windowEvents.unmaximize.on(onUnmaximize);
-    updateSize();
+    windowEvents.sizeChanged.on(updateSize);
+    windowEvents.enterFullScreen.on(handelEnterEnterFullScreen);
+    windowEvents.leaveFullScreen.on(handelLeaveFullScreen);
     return () => {
-      window.removeEventListener("resize", updateSize);
-      windowEvents.maximize.removeEventListener(onMaximize);
-      windowEvents.unmaximize.removeEventListener(onUnmaximize);
+      windowEvents.sizeChanged.removeEventListener(updateSize);
+      windowEvents.enterFullScreen.removeEventListener(handelEnterEnterFullScreen);
+      windowEvents.leaveFullScreen.removeEventListener(handelLeaveFullScreen);
     };
   }, []);
+
+  const height = titleBarRect.height;
+  const width = isFullScreen ? "100%" : titleBarRect.width;
+
   return (
     <header
       className="app-drag px-1 bg-appBar flex flex-row text-xs justify-between items-center"
       style={{
-        height: titleBarRect.height, // this make sure the title bar is the same height as the control overlay
-        width: titleBarRect.width, // this avoids rendering contents behind control overlay
+        height, // this make sure the title bar is the same height as the control overlay
+        width, // this avoids rendering contents behind control overlay
+        ...(isMac && { float: "right" }),
       }}
     >
       <Label>Hello!</Label>
