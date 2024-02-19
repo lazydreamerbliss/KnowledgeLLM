@@ -2,46 +2,57 @@ import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 import { startServer } from "./serverDaemon";
+import windowStateKeeper from "electron-window-state";
 
-startServer();
+startServer(); //start backend server first
 
 const createWindow = () => {
+  const mainWindowStateKeeper = windowStateKeeper({
+    defaultWidth: 1366,
+    defaultHeight: 768,
+  });
+
   const mainWindow = new BrowserWindow({
-    minWidth: 1366,
-    minHeight: 768,
+    minWidth: 1280,
+    minHeight: 720,
+    width: mainWindowStateKeeper.width,
+    height: mainWindowStateKeeper.height,
+    x: mainWindowStateKeeper.x,
+    y: mainWindowStateKeeper.y,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
     },
-    // titleBarStyle: "hidden",
-    // titleBarOverlay: {
-    //   color: "#1f1f1f",
-    //   symbolColor: "#dfdfdf",
-    //   height: 32,
-    // },
+    backgroundColor: "#000000",
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#272727",
+      symbolColor: "#dfdfdf",
+      height: 32, // looks good both for MacOS and Windows
+    },
   });
+  mainWindowStateKeeper.manage(mainWindow);
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadURL("http://localhost:5012");
   console.log(app.getLocale());
+  // mainWindow.webContents.toggleDevTools();
+  mainWindow.on("maximize", () => {
+    mainWindow.webContents.send("maximize");
+  });
+  mainWindow.on("unmaximize", () => {
+    mainWindow.webContents.send("unmaximize");
+  });
+  mainWindow.on("enter-full-screen", () => {
+    mainWindow.webContents.send("enter-full-screen");
+  });
+  mainWindow.on("leave-full-screen", () => {
+    mainWindow.webContents.send("leave-full-screen");
+  });
 };
 
 app.whenReady().then(() => {
   createWindow();
-  ipcMain.on("minimize", (event) => {
-    console.log(event);
-    const webContents = event.sender;
-    const win = BrowserWindow.fromWebContents(webContents);
-    if (win === null) return;
-    win.minimize();
-  });
-  ipcMain.on("set-title", (event, title) => {
-    console.log("set-title called: ", title);
-    const webContents = event.sender;
-    const win = BrowserWindow.fromWebContents(webContents);
-    if (win === null) return;
-    win.setTitle(title);
-  });
-  ipcMain.handle("toggle-dev-tools", (event) => {
+  ipcMain.on("toggle-dev-tools", (event) => {
     const webContents = event.sender;
     webContents.toggleDevTools();
   });
