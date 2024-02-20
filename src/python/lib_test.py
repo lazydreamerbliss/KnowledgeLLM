@@ -1,8 +1,6 @@
 import time
 from pathlib import Path
 
-from PIL import Image
-
 from knowledge_base.image.image_tagger import ImageTagger
 from lib_manager import LibInfoObj
 from library.document.doc_lib import DocumentLib
@@ -10,6 +8,7 @@ from library.document.doc_provider import DocProvider
 from library.document.wechat.wechat_history_provider import \
     WechatHistoryProvider
 from library.image.image_lib import ImageLib
+from PIL import Image
 from singleton import *
 
 TEST_DOC_LIB = '~/Documents/test_lib'
@@ -27,10 +26,10 @@ def test_doc_lib(lib_manager: LibraryManager):
     # task_id: str | None = lib_manager.get_ready(relative_path='群聊_small.txt', provider_type=WechatHistoryProvider, lite_mode=False)
     # while True:
     #     if not task_id or task_runner.is_task_done(task_id):
-    #         print(task_runner.get_task_state([task_id]))  # type: ignore
+    #         print(task_runner.get_task_state(task_id))  # type: ignore
     #         break
     #     else:
-    #         print(task_runner.get_task_state([task_id]))  # type: ignore
+    #         print(task_runner.get_task_state(task_id))  # type: ignore
     #     time.sleep(1)
 
     # if task_id and not task_runner.is_task_successful(task_id):
@@ -45,13 +44,13 @@ def test_doc_lib(lib_manager: LibraryManager):
     #     print(i)
     # print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
-    task_id: str | None = lib_manager.get_ready(relative_path='哈利波特.txt', provider_type=DocProvider)
+    task_id: str | None = lib_manager.make_library_ready(relative_path='哈利波特.txt', provider_type=DocProvider)
     while True:
         if not task_id or task_runner.is_task_done(task_id):
-            print(task_runner.get_task_state([task_id]))  # type: ignore
+            print(task_runner.get_task_state(task_id))  # type: ignore
             break
         else:
-            print(task_runner.get_task_state([task_id]))  # type: ignore
+            print(task_runner.get_task_state(task_id))  # type: ignore
         time.sleep(1)
 
     if task_id and not task_runner.is_task_successful(task_id):
@@ -63,13 +62,13 @@ def test_doc_lib(lib_manager: LibraryManager):
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
-    task_id: str | None = lib_manager.get_ready(relative_path='哈利波特.docx', provider_type=DocProvider)
+    task_id: str | None = lib_manager.make_library_ready(relative_path='哈利波特.docx', provider_type=DocProvider)
     while True:
         if not task_id or task_runner.is_task_done(task_id):
-            print(task_runner.get_task_state([task_id]))  # type: ignore
+            print(task_runner.get_task_state(task_id))  # type: ignore
             break
         else:
-            print(task_runner.get_task_state([task_id]))  # type: ignore
+            print(task_runner.get_task_state(task_id))  # type: ignore
         time.sleep(1)
 
     if task_id and not task_runner.is_task_successful(task_id):
@@ -81,13 +80,13 @@ def test_doc_lib(lib_manager: LibraryManager):
         print(i)
     print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
-    task_id: str | None = lib_manager.get_ready(relative_path='哈利波特.pdf', provider_type=DocProvider)
+    task_id: str | None = lib_manager.make_library_ready(relative_path='哈利波特.pdf', provider_type=DocProvider)
     while True:
         if not task_id or task_runner.is_task_done(task_id):
-            print(task_runner.get_task_state([task_id]))  # type: ignore
+            print(task_runner.get_task_state(task_id))  # type: ignore
             break
         else:
-            print(task_runner.get_task_state([task_id]))  # type: ignore
+            print(task_runner.get_task_state(task_id))  # type: ignore
         time.sleep(1)
 
     if task_id and not task_runner.is_task_successful(task_id):
@@ -104,13 +103,13 @@ def test_image_lib(lib_manager: LibraryManager, test_lib_manager: bool):
     if lib_manager.use_library(IMG_LIB_UUID):
         img_lib: ImageLib = lib_manager.instance  # type: ignore
         if test_lib_manager:
-            task_id: str | None = lib_manager.get_ready()
+            task_id: str | None = lib_manager.make_library_ready()
             while True:
                 if not task_id or task_runner.is_task_done(task_id):
-                    print(task_runner.get_task_state([task_id]))  # type: ignore
+                    print(task_runner.get_task_state(task_id))  # type: ignore
                     break
                 else:
-                    print(task_runner.get_task_state([task_id]))  # type: ignore
+                    print(task_runner.get_task_state(task_id))  # type: ignore
                 time.sleep(1)
 
             if task_id and not task_runner.is_task_successful(task_id):

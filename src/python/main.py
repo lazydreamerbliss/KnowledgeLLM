@@ -1,6 +1,6 @@
 import argparse
 
-from server.server import flask_app
+from python.server.grpc_server import flask_app
 
 
 def run_server():

@@ -1,14 +1,13 @@
 import os
 import pickle
 
-from tqdm import tqdm
-
 from env import CONFIG_FOLDER
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.image.image_embedder import ImageEmbedder
 from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
+from tqdm import tqdm
 from utils.exceptions.lib_errors import LibraryError, LibraryManagerException
 from utils.task_runner import TaskRunner
 from utils.tqdm_context import TqdmContext
@@ -62,7 +61,7 @@ class LibraryManager:
             if current_lib:
                 if current_lib not in self.__libraries:
                     raise LibraryManagerException('Config file corrupted')
-                self.instanize_lib(current_lib)
+                self.__instanize_lib(current_lib)
         except BaseException:
             raise LibraryManagerException('Config file corrupted')
 
@@ -78,7 +77,7 @@ class LibraryManager:
     Get current library information
     """
 
-    def get_lib_info(self) -> LibInfoObj | None:
+    def get_current_lib_info(self) -> LibInfoObj | None:
         """Get the general info of current library
         """
         if not self.instance:
@@ -88,11 +87,11 @@ class LibraryManager:
     def lib_exists(self, uuid: str) -> bool:
         return uuid in self.__libraries
 
-    def get_library_list(self) -> list[dict[str, str]]:
+    def get_library_list(self) -> list[LibInfoObj]:
         """Get the list of all existing libraries, sorted
         """
-        res: list[dict[str, str]] = [self.__libraries[uuid].to_dict() for uuid in self.__libraries]
-        res.sort(key=lambda x: x['name'])
+        res: list[LibInfoObj] = [self.__libraries[uuid] for uuid in self.__libraries]
+        res.sort(key=lambda x: x.name)
         return res
 
     def get_library_path_list(self) -> list[str]:
@@ -109,7 +108,7 @@ class LibraryManager:
         """Switch to another library with given UUID
         """
         if uuid and uuid in self.__libraries:
-            if self.instanize_lib(uuid):
+            if self.__instanize_lib(uuid):
                 self.__save()
                 return True
         return False
@@ -127,7 +126,7 @@ class LibraryManager:
 
         self.__libraries[new_lib.uuid] = new_lib
         if switch_to:
-            if self.instanize_lib(new_lib.uuid):
+            if self.__instanize_lib(new_lib.uuid):
                 self.__save()
         else:
             self.__save()
@@ -152,7 +151,7 @@ class LibraryManager:
         if not self.instance or not new_name:
             return
 
-        obj: LibInfoObj | None = self.get_lib_info()
+        obj: LibInfoObj | None = self.get_current_lib_info()
         if not obj:
             return
 
@@ -166,7 +165,7 @@ class LibraryManager:
         if not self.instance or not new_style:
             return
 
-        obj: LibInfoObj | None = self.get_lib_info()
+        obj: LibInfoObj | None = self.get_current_lib_info()
         if not obj:
             return
 
@@ -179,7 +178,7 @@ class LibraryManager:
         if not self.instance or not new_sorted_by:
             return
 
-        obj: LibInfoObj | None = self.get_lib_info()
+        obj: LibInfoObj | None = self.get_current_lib_info()
         if not obj:
             return
 
@@ -190,7 +189,7 @@ class LibraryManager:
     Library operations
     """
 
-    def instanize_lib(self, lib_uuid: str) -> bool:
+    def __instanize_lib(self, lib_uuid: str) -> bool:
         """Build instance for current active library and load library metadata
 
         Return True if the instanization is succeeded, otherwise False
@@ -216,7 +215,7 @@ class LibraryManager:
                 return False
         return False
 
-    def get_ready(self, **kwargs) -> str | None:
+    def make_library_ready(self, **kwargs) -> str:
         """Preheat the library instance to make it workable:
         - If the library is new, it will start initialization and load data
         - If the library is already initialized, it will load saved data to memory directly
@@ -234,6 +233,7 @@ class LibraryManager:
         if isinstance(self.instance, ImageLib):
             if self.instance.is_ready():
                 return UUID_EMPTY
+
             self.instance.set_embedder(ImageEmbedder())
             # The phase count is 1 for image library's initialization task
             task_id: str = self.task_runner.submit_task(self.instance.full_scan, None, True, True, 1,
@@ -242,8 +242,10 @@ class LibraryManager:
 
         # Document library case
         if isinstance(self.instance, DocumentLib):
-            if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs:
-                raise LibraryError('Invalid parameters for DocumentLib')
+            if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs \
+                    or not kwargs['relative_path'] or not kwargs['provider_type']:
+                raise LibraryManagerException('Invalid parameters for DocumentLib')
+
             if self.instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
                 return UUID_EMPTY
 
@@ -261,4 +263,4 @@ class LibraryManager:
         # And more...
         # TODO: Add more library types here
 
-        return None
+        raise LibraryManagerException('Library type not supported')

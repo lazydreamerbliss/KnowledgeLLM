@@ -189,17 +189,10 @@ class TaskRunner:
                     return True
         return False
 
-    def get_task_state(self, task_ids: list[str]) -> list[dict | None]:
+    def get_task_state(self, task_id: str) -> TaskObj | None:
         """Check the running state of given task IDs
         """
-        res: list[dict | None] = list()
-        for id in task_ids:
-            task: TaskObj | None = self.tasks.get(id, None)
-            if task:
-                res.append(task.to_dict())
-            else:
-                res.append(None)
-        return res
+        return self.tasks.get(task_id, None)
 
     def is_task_done(self, task_id: str) -> bool:
         """Check if a task is done, this includes all termination states like cancel, failure, etc.
