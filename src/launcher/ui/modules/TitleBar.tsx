@@ -4,6 +4,7 @@ import TextInput from "../components/TextInput";
 import Button from "../components/Button";
 import Label from "../components/Label";
 import { getAppSettings } from "../api";
+import { appName } from "../../common/appInfo";
 
 export default function TitleBar() {
   const [titleBarRect, setTitleBarRect] = React.useState(getTitleBarRect);
@@ -12,6 +13,9 @@ export default function TitleBar() {
   );
   const isMac = platform === "darwin";
   React.useEffect(() => {
+    // set window title
+    document.title = appName;
+
     const updateSize = () => {
       const titleBarRect = getTitleBarRect();
       setTitleBarRect(titleBarRect);
@@ -36,7 +40,7 @@ export default function TitleBar() {
 
   return (
     <header
-      className="app-drag bg-appBar  text-xs "
+      className="app-drag bg-appBar text-xs "
       style={{
         height, // this make sure the title bar is the same height as the control overlay
       }}
@@ -50,15 +54,8 @@ export default function TitleBar() {
         }}
       >
         <Label>Hello!</Label>
-        <TextInput className="py-0" placeholder="Search" />
-        <Button
-          className="py-0"
-          onClick={async () => {
-            console.log(await getAppSettings());
-          }}
-        >
-          Button
-        </Button>
+        <TextInput placeholder="Search" />
+        <div />
       </div>
     </header>
   );

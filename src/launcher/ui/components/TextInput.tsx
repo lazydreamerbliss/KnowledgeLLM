@@ -11,10 +11,7 @@ export default function TextInput(
 ) {
   return (
     <input
-      className={twMerge(
-        "bg-textArea text-base p-1 rounded outline-none focus:ring  focus:border-active",
-        props.className
-      )}
+      className={twMerge("bg-textArea text-base px-0.5 rounded", props.className)}
       type="text"
       placeholder="Input title"
       value={props.value}
