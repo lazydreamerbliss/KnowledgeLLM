@@ -1,15 +1,15 @@
 from PIL import Image
 
-from python.lib_manager import LibInfoObj, LibraryManager
-from python.library.document.doc_lib import DocumentLib
-from python.library.document.doc_provider_base import DocumentType
-from python.library.image.image_lib import ImageLib
-from python.library.lib_base import LibraryBase
-from python.server.grpc.backend_pb2_grpc import GrpcServerServicer
-from python.server.grpc.obj_basic_pb2 import *
-from python.server.grpc.obj_shared_pb2 import *
-from python.utils.exceptions.lib_errors import LibraryManagerException
-from python.utils.task_runner import TaskObj, TaskRunner
+from backend.lib_manager import LibInfoObj, LibraryManager
+from backend.library.document.doc_lib import DocumentLib
+from backend.library.document.doc_provider_base import DocumentType
+from backend.library.image.image_lib import ImageLib
+from backend.library.lib_base import LibraryBase
+from backend.server.grpc.backend_pb2_grpc import GrpcServerServicer
+from backend.server.grpc.obj_basic_pb2 import *
+from backend.server.grpc.obj_shared_pb2 import *
+from backend.utils.exceptions.lib_errors import LibraryManagerException
+from backend.utils.task_runner import TaskObj, TaskRunner
 
 
 class Servicer(GrpcServerServicer):

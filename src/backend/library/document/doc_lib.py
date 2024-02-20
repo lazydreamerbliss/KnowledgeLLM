@@ -15,7 +15,7 @@ from utils.exceptions.task_errors import TaskCancellationException
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
 
-from python.library.document.doc_provider_base import DocProviderBase
+from backend.library.document.doc_provider_base import DocProviderBase
 
 """
 from sentence_transformers import CrossEncoder, SentenceTransformer

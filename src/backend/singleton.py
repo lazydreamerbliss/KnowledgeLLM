@@ -4,7 +4,7 @@ from knowledge_base.image.image_tagger import ImageTagger
 from lib_manager import LibraryManager
 from utils.task_runner import TaskRunner
 
-from python.server.grpc_server import GrpcServer
+from backend.server.grpc_server import GrpcServer
 
 # img_embedder = ImageEmbedder()
 # doc_embedder = DocEmbedder()

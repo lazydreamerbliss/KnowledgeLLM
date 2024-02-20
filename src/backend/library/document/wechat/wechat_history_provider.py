@@ -7,7 +7,7 @@ from tqdm import tqdm
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
 
-from python.library.document.doc_provider_base import *
+from backend.library.document.doc_provider_base import *
 
 
 class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):

@@ -2,11 +2,11 @@ from concurrent import futures
 
 import grpc
 
-from python.lib_manager import LibraryManager
-from python.server.grpc.backend_pb2_grpc import \
+from backend.lib_manager import LibraryManager
+from backend.server.grpc.backend_pb2_grpc import \
     add_GrpcServerServicer_to_server
-from python.server.grpc_servicer import Servicer
-from python.utils.task_runner import TaskRunner
+from backend.server.grpc_servicer import Servicer
+from backend.utils.task_runner import TaskRunner
 
 
 class GrpcServer(Servicer):

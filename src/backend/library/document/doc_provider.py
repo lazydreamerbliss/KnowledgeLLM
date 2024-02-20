@@ -4,13 +4,13 @@ from typing import Any, Generator
 
 import docx
 from docx.document import Document
+from library.document.doc_lib_table import DocLibTable
 from pypdf import PdfReader
 from tqdm import tqdm
-
-from python.library.document.doc_provider_base import *
-from library.document.doc_lib_table import DocLibTable
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
+
+from backend.library.document.doc_provider_base import *
 
 TXT_EXTENSION: str = 'txt'
 PDF_EXTENSION: str = 'pdf'
