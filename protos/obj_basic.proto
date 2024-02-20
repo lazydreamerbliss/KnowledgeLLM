@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+// Represents the an empty object, used for calls that don't require any parameters
+message VoidObj
+{ }
+
+// Object for boolean
+message BooleanObj
+{
+    bool value = 1;
+};
+
+// Object for string
+message StringObj
+{
+    string value = 1;
+};
+message ListOfStrings
+{
+    repeated string value = 1;
+};
+
+// Object for integer
+message IntegerShortObj
+{
+    int32 value = 1;
+};
+message IntegerLongObj
+{
+    int64 value = 1;
+};

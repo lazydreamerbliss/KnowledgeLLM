@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+// Represents the summary info of a library object for creation or info fetch
+message RpcLibInfoObj {
+    string name = 1;
+    string uuid = 2;
+    string path = 3;
+    string type = 4;
+}
+message ListOfRpcLibInfoObj {
+    repeated RpcLibInfoObj value = 1;
+}
+
+// Represents the params that the library is required to get ready to use
+message LibGetReadyParams {
+    bool force_init = 1;
+    // For document library, image library does not need them
+    string relative_path = 2;
+    string provider_type = 3;
+}
+
+// Represents the structure of a submitted task
+message RpcTaskObj {
+    string id = 1;
+    string state = 2;
+    int32 phase_count = 3;
+    string phase_name = 4;
+    int32 current_phase = 5;
+    int32 progress = 6;
+    string error = 7;
+    google.protobuf.Timestamp submitted_on = 8;
+    google.protobuf.Timestamp completed_on = 9;
+    int32 duration = 10;
+}
+
+// Represents the query and response of a document library
+message DocLibQueryObj {
+    string text = 1;
+    int32 top_k = 2;
+    bool rerank = 3;
+}
+message DocLibQueryResponse {
+    google.protobuf.Timestamp timestamp = 1;
+    // For general document
+    string text = 2;
+    // For chat history
+    string sender = 3;
+    string message = 4;
+    string reply_to = 5;
+    string replied_message = 6;
+}
+message ListOfDocLibQueryResponse {
+    repeated DocLibQueryResponse value = 1;
+}
+
+// Represents the query and response of an image library
+message ImageLibQueryObj {
+    bytes image_data = 1;
+    int32 top_k = 2;
+    string text = 3;
+}
+message ImageLibQueryResponse {
+    string uuid = 1;
+    string path = 2;
+    string filename = 3;
+}
+message ListOfImageLibQueryResponse {
+    repeated ImageLibQueryResponse value = 1;
+}
+
+// Represents the response to auto-tagging an image
+message ImageTagObj {
+    string tag = 1;
+    float confidence = 2;
+}
+message ListOfImageTagObj {
+    repeated ImageTagObj value = 1;
+}
