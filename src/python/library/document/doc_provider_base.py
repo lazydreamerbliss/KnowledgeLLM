@@ -4,6 +4,14 @@ from typing import Callable, Generic, Type, TypeVar
 from db.sqlite.table import SqliteTable
 from utils.exceptions.lib_errors import *
 
+
+class DocumentType:
+    GENERAL = 'general'
+    WECHAT_HISTORY = 'wechat_history'
+    ARTICLE = 'article'
+    NOVEL = 'novel'
+
+
 # Generic type for SqliteTable
 T = TypeVar('T', bound=SqliteTable)
 
@@ -15,6 +23,8 @@ class DocProviderBase(Generic[T]):
 
     # Type for the table for this type of document provider
     TABLE_TYPE: type = SqliteTable
+    # Type for the document of this kind of provider
+    DOC_TYPE: str = DocumentType.GENERAL
 
     def __init__(self,
                  db_file: str,

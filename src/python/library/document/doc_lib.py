@@ -5,17 +5,17 @@ from uuid import uuid4
 
 import numpy as np
 import numpy.typing as npt
-from tqdm import tqdm
-
 from knowledge_base.document.doc_embedder import DocEmbedder
-from knowledge_base.document.doc_provider_base import DocProviderBase
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.sql import DB_NAME
 from library.lib_base import *
 from library.scan_record_tracker import UnfinishedScanRecordTrackerManager
+from tqdm import tqdm
 from utils.exceptions.task_errors import TaskCancellationException
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
+
+from python.library.document.doc_provider_base import DocProviderBase
 
 """
 from sentence_transformers import CrossEncoder, SentenceTransformer
@@ -62,6 +62,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
+        self.doc_type: str = ''  # The type of current active document
         self.path_db: str = os.path.join(self._path_lib_data, DB_NAME)
         self.__doc_provider: D | None = None
         self.__vector_db: DocLibVectorDb | None = None
@@ -219,8 +220,9 @@ class DocumentLib(Generic[D], LibraryBase):
 
         relative_path = relative_path.lstrip(os.path.sep)
         need_initialization: bool = force_init or not self._tracker.is_recorded(relative_path)  # type: ignore
-        # If no need to initialize, just switch to the doc and return
+
         if not need_initialization:
+            # If no need to initialize, just switch to the doc
             with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
                 uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
                 self.__doc_provider = provider_type(self.path_db,
@@ -228,20 +230,22 @@ class DocumentLib(Generic[D], LibraryBase):
                                                     doc_path=None,
                                                     progress_reporter=progress_reporter)
                 self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
-            return
+        else:
+            # Clean up existing embeddings or leftover if any when:
+            # - If this is a force init
+            # - If given doc is in unfinished list
+            if force_init or self._tracker.is_unfinished(relative_path):  # type: ignore
+                self.remove_doc_embeddings([relative_path], provider_type)
 
-        # Clean up existing embeddings or leftover if any when:
-        # - If this is a force init
-        # - If given doc is in unfinished list
-        if force_init or self._tracker.is_unfinished(relative_path):  # type: ignore
-            self.remove_doc_embeddings([relative_path], provider_type)
+            try:
+                uuid: str = str(uuid4())
+                self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
+            except TaskCancellationException:
+                # On cancel, clean this doc's leftover
+                self.remove_doc_embeddings([relative_path], provider_type)
 
-        try:
-            uuid: str = str(uuid4())
-            self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
-        except TaskCancellationException:
-            # On cancel, clean this doc's leftover
-            self.remove_doc_embeddings([relative_path], provider_type)
+        if self.__doc_provider:
+            self.doc_type = self.__doc_provider.DOC_TYPE
 
     def demolish(self):
         """Delete the doc library, it purges all library data
@@ -338,6 +342,7 @@ class DocumentLib(Generic[D], LibraryBase):
                     self.__doc_provider = None
                     self.__vector_db.delete_db()  # type: ignore
                     self.__vector_db = None
+                    self.doc_type = ''
 
             # Remove doc from embedding history after deletion if this doc is tracked
             self._tracker.remove_by_relative_path(relative_path)  # type: ignore

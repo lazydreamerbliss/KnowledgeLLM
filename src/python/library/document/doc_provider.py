@@ -7,7 +7,7 @@ from docx.document import Document
 from pypdf import PdfReader
 from tqdm import tqdm
 
-from knowledge_base.document.doc_provider_base import *
+from python.library.document.doc_provider_base import *
 from library.document.doc_lib_table import DocLibTable
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
@@ -23,8 +23,8 @@ class DocProvider(DocProviderBase[DocLibTable]):
     """A generic type of DocLibTable as the type of SQL table is needed
     """
 
-    # Type for the table for this type of document provider
     TABLE_TYPE: type = DocLibTable
+    DOC_TYPE: str = DocumentType.GENERAL
 
     def __init__(self,
                  db_path: str,

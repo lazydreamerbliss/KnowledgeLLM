@@ -2,7 +2,8 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import grpc_server_pb2 as grpc__server__pb2
+import obj_basic_pb2 as obj__basic__pb2
+import obj_shared_pb2 as obj__shared__pb2
 
 
 class GrpcServerStub(object):
@@ -17,78 +18,83 @@ class GrpcServerStub(object):
         """
         self.get_task_state = channel.unary_unary(
                 '/GrpcServer/get_task_state',
-                request_serializer=grpc__server__pb2.StringObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.RpcTaskObj.FromString,
+                request_serializer=obj__basic__pb2.StringObj.SerializeToString,
+                response_deserializer=obj__shared__pb2.RpcTaskObj.FromString,
                 )
         self.is_task_done = channel.unary_unary(
                 '/GrpcServer/is_task_done',
-                request_serializer=grpc__server__pb2.StringObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.BooleanObj.FromString,
+                request_serializer=obj__basic__pb2.StringObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.is_task_successful = channel.unary_unary(
                 '/GrpcServer/is_task_successful',
-                request_serializer=grpc__server__pb2.StringObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.BooleanObj.FromString,
+                request_serializer=obj__basic__pb2.StringObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
+                )
+        self.cancel_task = channel.unary_unary(
+                '/GrpcServer/cancel_task',
+                request_serializer=obj__basic__pb2.StringObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.create_library = channel.unary_unary(
                 '/GrpcServer/create_library',
-                request_serializer=grpc__server__pb2.RpcLibInfoObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.BooleanObj.FromString,
+                request_serializer=obj__shared__pb2.RpcLibInfoObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.use_library = channel.unary_unary(
                 '/GrpcServer/use_library',
-                request_serializer=grpc__server__pb2.VoidObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.BooleanObj.FromString,
+                request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.demolish_library = channel.unary_unary(
                 '/GrpcServer/demolish_library',
-                request_serializer=grpc__server__pb2.RpcLibInfoObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.BooleanObj.FromString,
+                request_serializer=obj__shared__pb2.RpcLibInfoObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.make_library_ready = channel.unary_unary(
                 '/GrpcServer/make_library_ready',
-                request_serializer=grpc__server__pb2.LibGetReadyParams.SerializeToString,
-                response_deserializer=grpc__server__pb2.StringObj.FromString,
+                request_serializer=obj__shared__pb2.LibGetReadyParams.SerializeToString,
+                response_deserializer=obj__basic__pb2.StringObj.FromString,
                 )
         self.get_current_lib_info = channel.unary_unary(
                 '/GrpcServer/get_current_lib_info',
-                request_serializer=grpc__server__pb2.VoidObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.RpcLibInfoObj.FromString,
+                request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
+                response_deserializer=obj__shared__pb2.RpcLibInfoObj.FromString,
                 )
         self.get_library_list = channel.unary_unary(
                 '/GrpcServer/get_library_list',
-                request_serializer=grpc__server__pb2.VoidObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.ListOfRpcLibInfoObj.FromString,
+                request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
+                response_deserializer=obj__shared__pb2.ListOfRpcLibInfoObj.FromString,
                 )
         self.get_library_path_list = channel.unary_unary(
                 '/GrpcServer/get_library_path_list',
-                request_serializer=grpc__server__pb2.VoidObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.ListOfStrings.FromString,
+                request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.ListOfStrings.FromString,
                 )
         self.lib_exists = channel.unary_unary(
                 '/GrpcServer/lib_exists',
-                request_serializer=grpc__server__pb2.StringObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.BooleanObj.FromString,
+                request_serializer=obj__basic__pb2.StringObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.query = channel.unary_unary(
                 '/GrpcServer/query',
-                request_serializer=grpc__server__pb2.DocLibQueryObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.ListOfStrings.FromString,
+                request_serializer=obj__shared__pb2.DocLibQueryObj.SerializeToString,
+                response_deserializer=obj__shared__pb2.ListOfDocLibQueryResponse.FromString,
                 )
         self.image_for_image_search = channel.unary_unary(
                 '/GrpcServer/image_for_image_search',
-                request_serializer=grpc__server__pb2.ImageLibQueryObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.ListOfStrings.FromString,
+                request_serializer=obj__shared__pb2.ImageLibQueryObj.SerializeToString,
+                response_deserializer=obj__shared__pb2.ListOfImageLibQueryResponse.FromString,
                 )
         self.text_for_image_search = channel.unary_unary(
                 '/GrpcServer/text_for_image_search',
-                request_serializer=grpc__server__pb2.ImageLibQueryObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.ListOfStrings.FromString,
+                request_serializer=obj__shared__pb2.ImageLibQueryObj.SerializeToString,
+                response_deserializer=obj__shared__pb2.ListOfImageLibQueryResponse.FromString,
                 )
         self.get_image_tags = channel.unary_unary(
                 '/GrpcServer/get_image_tags',
-                request_serializer=grpc__server__pb2.ImageLibQueryObj.SerializeToString,
-                response_deserializer=grpc__server__pb2.ListOfStrings.FromString,
+                request_serializer=obj__shared__pb2.ImageLibQueryObj.SerializeToString,
+                response_deserializer=obj__shared__pb2.ListOfImageTagObj.FromString,
                 )
 
 
@@ -110,6 +116,12 @@ class GrpcServerServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def is_task_successful(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def cancel_task(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -195,78 +207,83 @@ def add_GrpcServerServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'get_task_state': grpc.unary_unary_rpc_method_handler(
                     servicer.get_task_state,
-                    request_deserializer=grpc__server__pb2.StringObj.FromString,
-                    response_serializer=grpc__server__pb2.RpcTaskObj.SerializeToString,
+                    request_deserializer=obj__basic__pb2.StringObj.FromString,
+                    response_serializer=obj__shared__pb2.RpcTaskObj.SerializeToString,
             ),
             'is_task_done': grpc.unary_unary_rpc_method_handler(
                     servicer.is_task_done,
-                    request_deserializer=grpc__server__pb2.StringObj.FromString,
-                    response_serializer=grpc__server__pb2.BooleanObj.SerializeToString,
+                    request_deserializer=obj__basic__pb2.StringObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'is_task_successful': grpc.unary_unary_rpc_method_handler(
                     servicer.is_task_successful,
-                    request_deserializer=grpc__server__pb2.StringObj.FromString,
-                    response_serializer=grpc__server__pb2.BooleanObj.SerializeToString,
+                    request_deserializer=obj__basic__pb2.StringObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
+            ),
+            'cancel_task': grpc.unary_unary_rpc_method_handler(
+                    servicer.cancel_task,
+                    request_deserializer=obj__basic__pb2.StringObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'create_library': grpc.unary_unary_rpc_method_handler(
                     servicer.create_library,
-                    request_deserializer=grpc__server__pb2.RpcLibInfoObj.FromString,
-                    response_serializer=grpc__server__pb2.BooleanObj.SerializeToString,
+                    request_deserializer=obj__shared__pb2.RpcLibInfoObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'use_library': grpc.unary_unary_rpc_method_handler(
                     servicer.use_library,
-                    request_deserializer=grpc__server__pb2.VoidObj.FromString,
-                    response_serializer=grpc__server__pb2.BooleanObj.SerializeToString,
+                    request_deserializer=obj__basic__pb2.VoidObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'demolish_library': grpc.unary_unary_rpc_method_handler(
                     servicer.demolish_library,
-                    request_deserializer=grpc__server__pb2.RpcLibInfoObj.FromString,
-                    response_serializer=grpc__server__pb2.BooleanObj.SerializeToString,
+                    request_deserializer=obj__shared__pb2.RpcLibInfoObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'make_library_ready': grpc.unary_unary_rpc_method_handler(
                     servicer.make_library_ready,
-                    request_deserializer=grpc__server__pb2.LibGetReadyParams.FromString,
-                    response_serializer=grpc__server__pb2.StringObj.SerializeToString,
+                    request_deserializer=obj__shared__pb2.LibGetReadyParams.FromString,
+                    response_serializer=obj__basic__pb2.StringObj.SerializeToString,
             ),
             'get_current_lib_info': grpc.unary_unary_rpc_method_handler(
                     servicer.get_current_lib_info,
-                    request_deserializer=grpc__server__pb2.VoidObj.FromString,
-                    response_serializer=grpc__server__pb2.RpcLibInfoObj.SerializeToString,
+                    request_deserializer=obj__basic__pb2.VoidObj.FromString,
+                    response_serializer=obj__shared__pb2.RpcLibInfoObj.SerializeToString,
             ),
             'get_library_list': grpc.unary_unary_rpc_method_handler(
                     servicer.get_library_list,
-                    request_deserializer=grpc__server__pb2.VoidObj.FromString,
-                    response_serializer=grpc__server__pb2.ListOfRpcLibInfoObj.SerializeToString,
+                    request_deserializer=obj__basic__pb2.VoidObj.FromString,
+                    response_serializer=obj__shared__pb2.ListOfRpcLibInfoObj.SerializeToString,
             ),
             'get_library_path_list': grpc.unary_unary_rpc_method_handler(
                     servicer.get_library_path_list,
-                    request_deserializer=grpc__server__pb2.VoidObj.FromString,
-                    response_serializer=grpc__server__pb2.ListOfStrings.SerializeToString,
+                    request_deserializer=obj__basic__pb2.VoidObj.FromString,
+                    response_serializer=obj__basic__pb2.ListOfStrings.SerializeToString,
             ),
             'lib_exists': grpc.unary_unary_rpc_method_handler(
                     servicer.lib_exists,
-                    request_deserializer=grpc__server__pb2.StringObj.FromString,
-                    response_serializer=grpc__server__pb2.BooleanObj.SerializeToString,
+                    request_deserializer=obj__basic__pb2.StringObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'query': grpc.unary_unary_rpc_method_handler(
                     servicer.query,
-                    request_deserializer=grpc__server__pb2.DocLibQueryObj.FromString,
-                    response_serializer=grpc__server__pb2.ListOfStrings.SerializeToString,
+                    request_deserializer=obj__shared__pb2.DocLibQueryObj.FromString,
+                    response_serializer=obj__shared__pb2.ListOfDocLibQueryResponse.SerializeToString,
             ),
             'image_for_image_search': grpc.unary_unary_rpc_method_handler(
                     servicer.image_for_image_search,
-                    request_deserializer=grpc__server__pb2.ImageLibQueryObj.FromString,
-                    response_serializer=grpc__server__pb2.ListOfStrings.SerializeToString,
+                    request_deserializer=obj__shared__pb2.ImageLibQueryObj.FromString,
+                    response_serializer=obj__shared__pb2.ListOfImageLibQueryResponse.SerializeToString,
             ),
             'text_for_image_search': grpc.unary_unary_rpc_method_handler(
                     servicer.text_for_image_search,
-                    request_deserializer=grpc__server__pb2.ImageLibQueryObj.FromString,
-                    response_serializer=grpc__server__pb2.ListOfStrings.SerializeToString,
+                    request_deserializer=obj__shared__pb2.ImageLibQueryObj.FromString,
+                    response_serializer=obj__shared__pb2.ListOfImageLibQueryResponse.SerializeToString,
             ),
             'get_image_tags': grpc.unary_unary_rpc_method_handler(
                     servicer.get_image_tags,
-                    request_deserializer=grpc__server__pb2.ImageLibQueryObj.FromString,
-                    response_serializer=grpc__server__pb2.ListOfStrings.SerializeToString,
+                    request_deserializer=obj__shared__pb2.ImageLibQueryObj.FromString,
+                    response_serializer=obj__shared__pb2.ListOfImageTagObj.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -291,8 +308,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/get_task_state',
-            grpc__server__pb2.StringObj.SerializeToString,
-            grpc__server__pb2.RpcTaskObj.FromString,
+            obj__basic__pb2.StringObj.SerializeToString,
+            obj__shared__pb2.RpcTaskObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -308,8 +325,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/is_task_done',
-            grpc__server__pb2.StringObj.SerializeToString,
-            grpc__server__pb2.BooleanObj.FromString,
+            obj__basic__pb2.StringObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -325,8 +342,25 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/is_task_successful',
-            grpc__server__pb2.StringObj.SerializeToString,
-            grpc__server__pb2.BooleanObj.FromString,
+            obj__basic__pb2.StringObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def cancel_task(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/cancel_task',
+            obj__basic__pb2.StringObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -342,8 +376,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/create_library',
-            grpc__server__pb2.RpcLibInfoObj.SerializeToString,
-            grpc__server__pb2.BooleanObj.FromString,
+            obj__shared__pb2.RpcLibInfoObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -359,8 +393,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/use_library',
-            grpc__server__pb2.VoidObj.SerializeToString,
-            grpc__server__pb2.BooleanObj.FromString,
+            obj__basic__pb2.VoidObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -376,8 +410,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/demolish_library',
-            grpc__server__pb2.RpcLibInfoObj.SerializeToString,
-            grpc__server__pb2.BooleanObj.FromString,
+            obj__shared__pb2.RpcLibInfoObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -393,8 +427,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/make_library_ready',
-            grpc__server__pb2.LibGetReadyParams.SerializeToString,
-            grpc__server__pb2.StringObj.FromString,
+            obj__shared__pb2.LibGetReadyParams.SerializeToString,
+            obj__basic__pb2.StringObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -410,8 +444,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/get_current_lib_info',
-            grpc__server__pb2.VoidObj.SerializeToString,
-            grpc__server__pb2.RpcLibInfoObj.FromString,
+            obj__basic__pb2.VoidObj.SerializeToString,
+            obj__shared__pb2.RpcLibInfoObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -427,8 +461,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/get_library_list',
-            grpc__server__pb2.VoidObj.SerializeToString,
-            grpc__server__pb2.ListOfRpcLibInfoObj.FromString,
+            obj__basic__pb2.VoidObj.SerializeToString,
+            obj__shared__pb2.ListOfRpcLibInfoObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -444,8 +478,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/get_library_path_list',
-            grpc__server__pb2.VoidObj.SerializeToString,
-            grpc__server__pb2.ListOfStrings.FromString,
+            obj__basic__pb2.VoidObj.SerializeToString,
+            obj__basic__pb2.ListOfStrings.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -461,8 +495,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/lib_exists',
-            grpc__server__pb2.StringObj.SerializeToString,
-            grpc__server__pb2.BooleanObj.FromString,
+            obj__basic__pb2.StringObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -478,8 +512,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/query',
-            grpc__server__pb2.DocLibQueryObj.SerializeToString,
-            grpc__server__pb2.ListOfStrings.FromString,
+            obj__shared__pb2.DocLibQueryObj.SerializeToString,
+            obj__shared__pb2.ListOfDocLibQueryResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -495,8 +529,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/image_for_image_search',
-            grpc__server__pb2.ImageLibQueryObj.SerializeToString,
-            grpc__server__pb2.ListOfStrings.FromString,
+            obj__shared__pb2.ImageLibQueryObj.SerializeToString,
+            obj__shared__pb2.ListOfImageLibQueryResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -512,8 +546,8 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/text_for_image_search',
-            grpc__server__pb2.ImageLibQueryObj.SerializeToString,
-            grpc__server__pb2.ListOfStrings.FromString,
+            obj__shared__pb2.ImageLibQueryObj.SerializeToString,
+            obj__shared__pb2.ListOfImageLibQueryResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -529,7 +563,7 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/get_image_tags',
-            grpc__server__pb2.ImageLibQueryObj.SerializeToString,
-            grpc__server__pb2.ListOfStrings.FromString,
+            obj__shared__pb2.ImageLibQueryObj.SerializeToString,
+            obj__shared__pb2.ListOfImageTagObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

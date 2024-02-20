@@ -6,10 +6,6 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class VoidObj(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
 class RpcLibInfoObj(_message.Message):
     __slots__ = ("name", "uuid", "path", "type")
     NAME_FIELD_NUMBER: _ClassVar[int]
@@ -29,14 +25,14 @@ class ListOfRpcLibInfoObj(_message.Message):
     def __init__(self, value: _Optional[_Iterable[_Union[RpcLibInfoObj, _Mapping]]] = ...) -> None: ...
 
 class LibGetReadyParams(_message.Message):
-    __slots__ = ("relative_path", "force_init", "provider_type")
-    RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("force_init", "relative_path", "provider_type")
     FORCE_INIT_FIELD_NUMBER: _ClassVar[int]
+    RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
     PROVIDER_TYPE_FIELD_NUMBER: _ClassVar[int]
-    relative_path: str
     force_init: bool
+    relative_path: str
     provider_type: str
-    def __init__(self, relative_path: _Optional[str] = ..., force_init: bool = ..., provider_type: _Optional[str] = ...) -> None: ...
+    def __init__(self, force_init: bool = ..., relative_path: _Optional[str] = ..., provider_type: _Optional[str] = ...) -> None: ...
 
 class RpcTaskObj(_message.Message):
     __slots__ = ("id", "state", "phase_count", "phase_name", "current_phase", "progress", "error", "submitted_on", "completed_on", "duration")
@@ -72,6 +68,28 @@ class DocLibQueryObj(_message.Message):
     rerank: bool
     def __init__(self, text: _Optional[str] = ..., top_k: _Optional[int] = ..., rerank: bool = ...) -> None: ...
 
+class DocLibQueryResponse(_message.Message):
+    __slots__ = ("timestamp", "text", "sender", "message", "reply_to", "replied_message")
+    TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    SENDER_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    REPLY_TO_FIELD_NUMBER: _ClassVar[int]
+    REPLIED_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    timestamp: _timestamp_pb2.Timestamp
+    text: str
+    sender: str
+    message: str
+    reply_to: str
+    replied_message: str
+    def __init__(self, timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., text: _Optional[str] = ..., sender: _Optional[str] = ..., message: _Optional[str] = ..., reply_to: _Optional[str] = ..., replied_message: _Optional[str] = ...) -> None: ...
+
+class ListOfDocLibQueryResponse(_message.Message):
+    __slots__ = ("value",)
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    value: _containers.RepeatedCompositeFieldContainer[DocLibQueryResponse]
+    def __init__(self, value: _Optional[_Iterable[_Union[DocLibQueryResponse, _Mapping]]] = ...) -> None: ...
+
 class ImageLibQueryObj(_message.Message):
     __slots__ = ("image_data", "top_k", "text")
     IMAGE_DATA_FIELD_NUMBER: _ClassVar[int]
@@ -82,20 +100,32 @@ class ImageLibQueryObj(_message.Message):
     text: str
     def __init__(self, image_data: _Optional[bytes] = ..., top_k: _Optional[int] = ..., text: _Optional[str] = ...) -> None: ...
 
-class BooleanObj(_message.Message):
-    __slots__ = ("value",)
-    VALUE_FIELD_NUMBER: _ClassVar[int]
-    value: bool
-    def __init__(self, value: bool = ...) -> None: ...
+class ImageLibQueryResponse(_message.Message):
+    __slots__ = ("uuid", "path", "filename")
+    UUID_FIELD_NUMBER: _ClassVar[int]
+    PATH_FIELD_NUMBER: _ClassVar[int]
+    FILENAME_FIELD_NUMBER: _ClassVar[int]
+    uuid: str
+    path: str
+    filename: str
+    def __init__(self, uuid: _Optional[str] = ..., path: _Optional[str] = ..., filename: _Optional[str] = ...) -> None: ...
 
-class StringObj(_message.Message):
+class ListOfImageLibQueryResponse(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    value: str
-    def __init__(self, value: _Optional[str] = ...) -> None: ...
+    value: _containers.RepeatedCompositeFieldContainer[ImageLibQueryResponse]
+    def __init__(self, value: _Optional[_Iterable[_Union[ImageLibQueryResponse, _Mapping]]] = ...) -> None: ...
 
-class ListOfStrings(_message.Message):
+class ImageTagObj(_message.Message):
+    __slots__ = ("tag", "confidence")
+    TAG_FIELD_NUMBER: _ClassVar[int]
+    CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    tag: str
+    confidence: float
+    def __init__(self, tag: _Optional[str] = ..., confidence: _Optional[float] = ...) -> None: ...
+
+class ListOfImageTagObj(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    value: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, value: _Optional[_Iterable[str]] = ...) -> None: ...
+    value: _containers.RepeatedCompositeFieldContainer[ImageTagObj]
+    def __init__(self, value: _Optional[_Iterable[_Union[ImageTagObj, _Mapping]]] = ...) -> None: ...

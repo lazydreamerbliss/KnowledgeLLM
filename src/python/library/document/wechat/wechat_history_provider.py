@@ -2,20 +2,20 @@ import re
 from datetime import datetime, timedelta
 from sqlite3 import Cursor
 
-from tqdm import tqdm
-
-from knowledge_base.document.doc_provider_base import *
 from library.document.wechat.wechat_history_table import WechatHistoryTable
+from tqdm import tqdm
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
+
+from python.library.document.doc_provider_base import *
 
 
 class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
     """A generic type of WechatHistoryTable as the type of SQL table is needed
     """
 
-    # Type for the table for this type of document provider
     TABLE_TYPE: type = WechatHistoryTable
+    DOC_TYPE: str = DocumentType.WECHAT_HISTORY
 
     msg_pattern: re.Pattern = re.compile(
         r'(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)')
