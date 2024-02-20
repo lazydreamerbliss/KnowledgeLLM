@@ -6,7 +6,8 @@
     <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'"> -->
     <meta data-rh="true" name="viewport" content="width=device-width, initial-scale=1">
     <title>Knowledge LLM</title>
-    <style> /* this css is only used to make title bar draggable*/
+    <style>
+      /*make title bar draggable*/
       .app-drag {
         -webkit-app-region: drag;
       }
@@ -14,6 +15,14 @@
       .app-no-drag-children * {
         -webkit-app-region: no-drag;
       }
+
+      /* Override stupid electron default style */
+      :focus-visible {
+        --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+        --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+        box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+        outline: none;
+      } /* just focus-visible:ring */
     </style>
   </head>
   <body>

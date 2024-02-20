@@ -30,6 +30,10 @@ const createWindow = () => {
       symbolColor: "#dfdfdf",
       height: 32, // looks good both for MacOS and Windows
     },
+    show: false,
+  });
+  mainWindow.on("ready-to-show", () => {
+    mainWindow.show();
   });
   mainWindowStateKeeper.manage(mainWindow);
   mainWindow.setMenuBarVisibility(false);

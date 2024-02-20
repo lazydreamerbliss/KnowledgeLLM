@@ -1,7 +1,7 @@
 {
-  "name": "kl-launcher",
+  "name": "hyper-vault-launcher",
   "version": "0.0.1",
-  "description": "The launcher for KnowledgeLLM.",
+  "description": "The launcher for Hyper Vault.",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "watchWeb": "webpack-dev-server --config-name web --mode development",
