@@ -4,6 +4,9 @@ from pathlib import Path
 
 import torch
 
+# gRPC port
+GRPC_PORT: int = int(os.environ.get('GRPC_PORT', 50051))
+
 # Model info
 MODEL_FOLDER: str = f'{Path(__file__).parent.parent}/local_models'
 CLIP_MODEL: str = 'openai--clip-vit-base-patch16'
@@ -15,6 +18,7 @@ CROSS_ENCODER_MODEL: str = 'tuhailong--cross_encoder_roberta-wwm-ext_v2'
 # Device and OS
 DEVICE: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 IS_WINDOWS: bool = 'win32' in sys.platform or 'win64' in sys.platform
+IS_LINUX: bool = 'linux' in sys.platform
 
 # Config folder
 CONFIG_FOLDER: str = f'{Path(__file__).parent.parent}/samples'
