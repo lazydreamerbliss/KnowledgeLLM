@@ -7,17 +7,17 @@ from typing import Generator
 from uuid import uuid4
 
 import numpy as np
-from PIL import Image
-from redis.commands.search.document import Document
-from torch import Tensor
-from tqdm import tqdm
-
+from constants.lib_constants import LibTypes
 from db.vector.redis_client import BatchedPipeline
 from knowledge_base.image.image_embedder import ImageEmbedder
 from library.image.image_lib_table import ImageLibTable
 from library.image.image_lib_vector_db import ImageLibVectorDb
 from library.image.sql import DB_NAME
 from library.lib_base import *
+from PIL import Image
+from redis.commands.search.document import Document
+from torch import Tensor
+from tqdm import tqdm
 from utils.exceptions.task_errors import (LockAcquisitionFailure,
                                           TaskCancellationException)
 from utils.lock_context import LockContext
@@ -49,7 +49,7 @@ class ImageLib(LibraryBase):
         with TqdmContext('Loading library metadata...', 'Loaded'):
             if not self._metadata_exists():
                 initial_metadata: dict = BASIC_METADATA | {
-                    'type': 'image',
+                    'type': LibTypes.IMAGE,
                     'uuid': uuid,
                     'name': lib_name,
                     'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

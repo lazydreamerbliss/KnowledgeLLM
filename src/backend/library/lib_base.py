@@ -6,10 +6,10 @@ from functools import wraps
 from threading import Event
 from typing import Any, Callable
 
+from constants.lib_constants import (SORTED_BY_LABELS, SUPPORTED_EXTENSIONS,
+                                     VIEW_STYLES)
 from library.lib_item import *
 from library.scan_record_tracker import ScanRecordTracker
-from utils.constants.lib_constants import (SORTED_BY_LABELS,
-                                           SUPPORTED_EXTENSIONS, VIEW_STYLES)
 from utils.exceptions.lib_errors import LibraryError
 
 LIB_DATA_FOLDER: str = '__library_data__'

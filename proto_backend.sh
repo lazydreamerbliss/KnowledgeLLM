@@ -5,7 +5,7 @@
 # "--python_out" defines the result output path
 # Doc: https://developers.google.com/protocol-buffers/docs/proto3
 
-OUTPUT_DIR=./src/python/server/grpc
+OUTPUT_DIR=./src/backend/server/grpc
 PROTO_DIR=./protos
 
 python -m grpc_tools.protoc \

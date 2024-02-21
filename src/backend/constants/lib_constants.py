@@ -12,10 +12,19 @@ VIEW_STYLES: list[str] = ['grid', 'list']
 SUPPORTED_EXTENSIONS: set[str] = {'mp4', "webm", "opgg", 'mp3', 'pdf', 'txt', 'html', 'css', 'svg', 'js', 'png', 'jpg'}
 
 
-LIBRARY_TYPES: set[str] = {'image', 'video', 'document', 'general'}
+class LibTypes:
+    """Define library types
+    """
+    IMAGE: str = 'image'
+    VIDEO: str = 'video'
+    DOCUMENT: str = 'document'
+    GENERAL: str = 'general'
+
+
+LIBRARY_TYPES: set[str] = {LibTypes.IMAGE, LibTypes.VIDEO, LibTypes.DOCUMENT, LibTypes.GENERAL}
 LIBRARY_TYPES_CN: list[dict] = [
-    {'name': 'image', 'cn_name': '图片库'},
-    {'name': 'video', 'cn_name': '媒体库'},
-    {'name': 'document', 'cn_name': '文档库'},
-    {'name': 'general', 'cn_name': '综合仓库'},
+    {'name': LibTypes.IMAGE, 'cn_name': '图片库'},
+    {'name': LibTypes.VIDEO, 'cn_name': '媒体库'},
+    {'name': LibTypes.VIDEO, 'cn_name': '文档库'},
+    {'name': LibTypes.GENERAL, 'cn_name': '综合仓库'},
 ]

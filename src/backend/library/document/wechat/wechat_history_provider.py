@@ -2,12 +2,11 @@ import re
 from datetime import datetime, timedelta
 from sqlite3 import Cursor
 
+from library.document.doc_provider_base import *
 from library.document.wechat.wechat_history_table import WechatHistoryTable
 from tqdm import tqdm
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
-
-from backend.library.document.doc_provider_base import *
 
 
 class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):

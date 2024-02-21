@@ -1,7 +1,8 @@
 import os
 import pickle
 
-from env import CONFIG_FOLDER
+from constants.env import CONFIG_FOLDER
+from constants.lib_constants import LibTypes
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.image.image_embedder import ImageEmbedder
 from library.document.doc_lib import DocumentLib
@@ -16,7 +17,7 @@ UUID_EMPTY: str = '00000000-0000-0000-0000-000000000000'
 CONFIG_FILE: str = 'librarian.cfg'
 
 
-class LibInfoObj:
+class LibInfo:
     """Define a library object for server side to create and use
     """
 
@@ -46,7 +47,7 @@ class LibraryManager:
         self.task_runner: TaskRunner = task_runner
         self.__path_config: str = os.path.join(CONFIG_FOLDER, CONFIG_FILE)
         # KV: uuid -> Library
-        self.__libraries: dict[str, LibInfoObj] = dict()
+        self.__libraries: dict[str, LibInfo] = dict()
         # Current library instance
         self.instance: LibraryBase | None = None
 
@@ -77,7 +78,7 @@ class LibraryManager:
     Get current library information
     """
 
-    def get_current_lib_info(self) -> LibInfoObj | None:
+    def get_current_lib_info(self) -> LibInfo | None:
         """Get the general info of current library
         """
         if not self.instance:
@@ -87,10 +88,10 @@ class LibraryManager:
     def lib_exists(self, uuid: str) -> bool:
         return uuid in self.__libraries
 
-    def get_library_list(self) -> list[LibInfoObj]:
+    def get_library_list(self) -> list[LibInfo]:
         """Get the list of all existing libraries, sorted
         """
-        res: list[LibInfoObj] = [self.__libraries[uuid] for uuid in self.__libraries]
+        res: list[LibInfo] = [self.__libraries[uuid] for uuid in self.__libraries]
         res.sort(key=lambda x: x.name)
         return res
 
@@ -113,7 +114,7 @@ class LibraryManager:
                 return True
         return False
 
-    def create_library(self, new_lib: LibInfoObj, switch_to: bool = False):
+    def create_library(self, new_lib: LibInfo, switch_to: bool = False):
         """Add a library to the manager, this only write the library info to config file unless the switch_to flag is set
         - Pre check to params must be done before calling this method
         """
@@ -151,7 +152,7 @@ class LibraryManager:
         if not self.instance or not new_name:
             return
 
-        obj: LibInfoObj | None = self.get_current_lib_info()
+        obj: LibInfo | None = self.get_current_lib_info()
         if not obj:
             return
 
@@ -165,7 +166,7 @@ class LibraryManager:
         if not self.instance or not new_style:
             return
 
-        obj: LibInfoObj | None = self.get_current_lib_info()
+        obj: LibInfo | None = self.get_current_lib_info()
         if not obj:
             return
 
@@ -178,7 +179,7 @@ class LibraryManager:
         if not self.instance or not new_sorted_by:
             return
 
-        obj: LibInfoObj | None = self.get_current_lib_info()
+        obj: LibInfo | None = self.get_current_lib_info()
         if not obj:
             return
 
@@ -200,15 +201,15 @@ class LibraryManager:
         self.instance = None
         if lib_uuid in self.__libraries:
             try:
-                obj: LibInfoObj = self.__libraries[lib_uuid]
-                if obj.type == 'image':
+                obj: LibInfo = self.__libraries[lib_uuid]
+                if obj.type == LibTypes.IMAGE:
                     self.instance = ImageLib(obj.path, obj.name, obj.uuid, local_mode=True)
-                elif obj.type == 'video':
-                    pass
-                elif obj.type == 'document':
+                elif obj.type == LibTypes.VIDEO:
+                    raise LibraryError('Video library is not supported yet')
+                elif obj.type == LibTypes.DOCUMENT:
                     self.instance = DocumentLib(obj.path, obj.name, obj.uuid)
-                elif obj.type == 'general':
-                    pass
+                elif obj.type == LibTypes.GENERAL:
+                    raise LibraryError('General library is not supported yet')
                 return True
             except Exception as e:
                 tqdm.write(f'Library instanization failed, error: {e}')

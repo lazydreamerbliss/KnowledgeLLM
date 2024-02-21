@@ -5,8 +5,10 @@ from uuid import uuid4
 
 import numpy as np
 import numpy.typing as npt
+from constants.lib_constants import LibTypes
 from knowledge_base.document.doc_embedder import DocEmbedder
 from library.document.doc_lib_vector_db import DocLibVectorDb
+from library.document.doc_provider_base import DocProviderBase
 from library.document.sql import DB_NAME
 from library.lib_base import *
 from library.scan_record_tracker import UnfinishedScanRecordTrackerManager
@@ -14,8 +16,6 @@ from tqdm import tqdm
 from utils.exceptions.task_errors import TaskCancellationException
 from utils.task_runner import report_progress
 from utils.tqdm_context import TqdmContext
-
-from backend.library.document.doc_provider_base import DocProviderBase
 
 """
 from sentence_transformers import CrossEncoder, SentenceTransformer
@@ -52,7 +52,7 @@ class DocumentLib(Generic[D], LibraryBase):
         with TqdmContext('Loading library metadata...', 'Loaded'):
             if not self._metadata_exists():
                 initial_metadata: dict = BASIC_METADATA | {
-                    'type': 'document',
+                    'type': LibTypes.DOCUMENT,
                     'uuid': uuid,
                     'name': lib_name,
                 }

@@ -2,7 +2,6 @@ import time
 from pathlib import Path
 
 from knowledge_base.image.image_tagger import ImageTagger
-from lib_manager import LibInfoObj
 from library.document.doc_lib import DocumentLib
 from library.document.doc_provider import DocProvider
 from library.document.wechat.wechat_history_provider import \
@@ -10,6 +9,7 @@ from library.document.wechat.wechat_history_provider import \
 from library.image.image_lib import ImageLib
 from PIL import Image
 from singleton import *
+from utils.lib_manager import LibInfo
 
 TEST_DOC_LIB = '~/Documents/test_lib'
 TEST_IMG_LIB = '~/Pictures/test_lib'
@@ -165,12 +165,12 @@ def test_llm():
 
 
 def test_library_manager():
-    doc_lib_creation = LibInfoObj()
+    doc_lib_creation = LibInfo()
     doc_lib_creation.type = 'document'
     doc_lib_creation.name = 'test_doc_lib'
     doc_lib_creation.uuid = DOC_LIB_UUID
     doc_lib_creation.path = TEST_DOC_LIB
-    img_lib_creation = LibInfoObj()
+    img_lib_creation = LibInfo()
     img_lib_creation.type = 'image'
     img_lib_creation.name = 'test_img_lib'
     img_lib_creation.uuid = IMG_LIB_UUID

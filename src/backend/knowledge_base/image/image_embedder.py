@@ -2,14 +2,13 @@ import os
 
 import numpy as np
 import torch
+from constants.env import CLIP_MODEL, CLIP_MODEL_CHN, MODEL_FOLDER
 from PIL import Image
 from torch import FloatTensor, Tensor
 from transformers import (ChineseCLIPModel, ChineseCLIPProcessor, CLIPModel,
                           CLIPProcessor, CLIPTokenizer)
 from transformers.models.clip.modeling_clip import CLIPOutput
 from transformers.tokenization_utils_base import BatchEncoding
-
-from env import CLIP_MODEL, CLIP_MODEL_CHN, MODEL_FOLDER
 from utils.tqdm_context import TqdmContext
 
 
