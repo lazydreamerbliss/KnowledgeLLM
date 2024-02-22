@@ -3,13 +3,14 @@ import pickle
 import shutil
 from datetime import datetime
 from functools import wraps
-from threading import Event
+from threading import Event, Lock
 from typing import Any, Callable
 
 from constants.lib_constants import (SORTED_BY_LABELS, SUPPORTED_EXTENSIONS,
                                      VIEW_STYLES)
 from library.lib_item import *
 from library.scan_record_tracker import ScanRecordTracker
+from loggers import logger as LOGGER
 from utils.exceptions.lib_errors import LibraryError
 
 LIB_DATA_FOLDER: str = '__library_data__'
@@ -66,6 +67,8 @@ class LibraryBase:
     METADATA_FILE: str = 'metadata.bin'
 
     def __init__(self, lib_path: str):
+        LOGGER.info(f'Instanizing library: {lib_path}')
+
         # Expand the lib path to absolute path
         lib_path = os.path.expanduser(lib_path)
         if not os.path.isdir(lib_path):
@@ -88,6 +91,9 @@ class LibraryBase:
         self._metadata: dict = dict()
         # Scan tracker to track embedded files under the library
         self._tracker: ScanRecordTracker | None = None
+
+        # File scan is mutually exclusive, use a lock to prevent concurrent operations
+        self._scan_lock = Lock()
 
         # Ensure the library's data folder exists
         if not os.path.isdir(self._path_lib_data):
@@ -169,14 +175,18 @@ class LibraryBase:
         if not relative_path or not new_relative_path:
             raise LibraryError('Invalid relative path')
 
+        LOGGER.info(f'Moving file: {relative_path} -> {new_relative_path}')
+
         relative_path = relative_path.lstrip(os.path.sep)
         doc_path: str = os.path.join(self.path_lib, relative_path)
         if not os.path.isfile(doc_path):
+            LOGGER.error(f'File not exists on source: {doc_path}')
             raise LibraryError('Invalid doc path')
 
         new_relative_path = new_relative_path.lstrip(os.path.sep)
         new_doc_path: str = os.path.join(self.path_lib, new_relative_path)
         if os.path.isfile(new_doc_path):
+            LOGGER.error(f'File already exists on target: {new_doc_path}')
             raise LibraryError('Filename already exists')
 
         # Move the file
@@ -200,6 +210,7 @@ class LibraryBase:
         if filename == new_name:
             return
 
+        LOGGER.info(f'Renaming file: {relative_path} -> {new_name}')
         relative_path = relative_path.lstrip(os.path.sep)
         new_name = new_name.strip()
         new_relative_path = os.path.join(os.path.dirname(relative_path), new_name)
@@ -224,6 +235,7 @@ class LibraryBase:
         if not os.path.isdir(folder_full_path):
             return dir_list, file_list
 
+        LOGGER.info(f'Listing folder content: {folder_relative_path}')
         for item_name in os.listdir(folder_full_path):
             item_path: str = os.path.join(folder_full_path, item_name)
 
@@ -270,6 +282,7 @@ class LibraryBase:
                     f_item.size_b = -1
                 file_list.append(f_item)
 
+        LOGGER.info(f'Folder content listed, found: {len(dir_list)} folders, {len(file_list)} files')
         return dir_list, file_list
 
     def is_accessible(self, relative_path: str) -> bool:
@@ -282,6 +295,7 @@ class LibraryBase:
         if not relative_path:
             return True
 
+        LOGGER.info(f'Checking accessibility: {relative_path}')
         exclusion_list: set[str] = self.get_exclusion_list()
         if exclusion_list:
             file_or_folder_name: str = os.path.basename(relative_path)
@@ -299,6 +313,8 @@ class LibraryBase:
         """
         if not os.path.isfile(self.__path_metadata):
             raise LibraryError(f'Metadata file missing: {self.__path_metadata}')
+
+        LOGGER.info('Saving metadata...')
         pickle.dump(self._metadata, open(self.__path_metadata, 'wb'))
 
     def _metadata_exists(self) -> bool:
@@ -314,6 +330,7 @@ class LibraryBase:
         if not initial or not initial.get('uuid'):
             raise LibraryError('Invalid initial data')
 
+        LOGGER.info('Initializing metadata...')
         self._metadata = initial
         self.uuid = initial['uuid']
         pickle.dump(initial, open(self.__path_metadata, 'wb'))
@@ -321,6 +338,7 @@ class LibraryBase:
     def load_metadata(self, given_uuid: str, given_name: str):
         """Load the metadata of the library
         """
+        LOGGER.info('Loading metadata...')
         try:
             content: dict = pickle.load(open(self.__path_metadata, 'rb'))
         except BaseException:
@@ -329,6 +347,7 @@ class LibraryBase:
             raise LibraryError(f'Invalid metadata file: {self.__path_metadata}')
         if not content.get('uuid', None) or content['uuid'] != given_uuid:
             raise LibraryError(f'Metadata UUID mismatched: {self.__path_metadata}')
+
         self._metadata = content
         self.uuid = content['uuid']
         if content['name'] != given_name:
@@ -338,6 +357,7 @@ class LibraryBase:
         """Delete the metadata file of the library
         - Can only call on the deletion of current library
         """
+        LOGGER.info('Deleting metadata...')
         if os.path.isfile(self.__path_metadata):
             os.remove(self.__path_metadata)
 
@@ -380,6 +400,8 @@ class LibraryBase:
     def change_lib_name(self, new_name: str):
         if not new_name or new_name == self._metadata['name']:
             return
+
+        LOGGER.info(f'Changing library name: {self._metadata["name"]} -> {new_name}')
         self._metadata['name'] = new_name
         self._save_metadata()
 
@@ -387,6 +409,8 @@ class LibraryBase:
     def change_view_style(self, new_style: str):
         if not new_style or new_style not in VIEW_STYLES:
             return
+
+        LOGGER.info(f'Changing view style: {self._metadata["view_style"]} -> {new_style}')
         self._metadata['view_style'] = new_style
         self._save_metadata()
 
@@ -394,10 +418,7 @@ class LibraryBase:
     def change_sorted_by(self, new_sorted_by: str):
         if not new_sorted_by or new_sorted_by not in SORTED_BY_LABELS:
             return
-        self._metadata['sorted_by'] = new_sorted_by
-        self._save_metadata()
 
-    @ensure_metadata_ready
-    def change_favorite_list(self, new_list: set[str]):
-        self._metadata['favorite_list'] = new_list
+        LOGGER.info(f'Changing sorted by: {self._metadata["sorted_by"]} -> {new_sorted_by}')
+        self._metadata['sorted_by'] = new_sorted_by
         self._save_metadata()

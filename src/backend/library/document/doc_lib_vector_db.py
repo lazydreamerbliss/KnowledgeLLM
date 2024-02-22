@@ -2,9 +2,9 @@ import os
 from functools import wraps
 
 import numpy as np
-
 from db.vector.mem_vector_db import InMemoryVectorDb
 from db.vector.redis_client import BatchedPipeline
+from loggers import vector_db_logger as LOGGER
 from utils.exceptions.db_errors import LibraryVectorDbError, VectorDbCoreError
 
 
@@ -31,6 +31,7 @@ class DocLibVectorDb:
         idx_path: str = os.path.join(data_folder, self.INDEX_FOLDER)
         idx_file: str = f'{db_name}.idx'
         # No need to check if path and file are valid, InMemoryVectorDb will do it
+        LOGGER.info(f'Connecting to in-memory vector DB in path: {data_folder}')
         self.mem_vector_db: InMemoryVectorDb = InMemoryVectorDb(data_folder=idx_path,
                                                                 index_filename=idx_file)
 
@@ -76,6 +77,7 @@ class DocLibVectorDb:
         if embedding is None or not top_k or top_k <= 0:
             return list()
 
+        LOGGER.info(f'Querying vector DB for top {top_k} similar entries under current document...')
         try:
             return self.mem_vector_db.query(embedding, top_k)
         except VectorDbCoreError:

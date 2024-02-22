@@ -1,12 +1,12 @@
 import re
 from datetime import datetime, timedelta
 from sqlite3 import Cursor
+from time import time
 
 from library.document.doc_provider_base import *
 from library.document.wechat.wechat_history_table import WechatHistoryTable
-from tqdm import tqdm
+from loggers import doc_lib_logger as LOGGER
 from utils.task_runner import report_progress
-from utils.tqdm_context import TqdmContext
 
 
 class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
@@ -14,7 +14,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
     """
 
     TABLE_TYPE: type = WechatHistoryTable
-    DOC_TYPE: str = DocumentType.WECHAT_HISTORY
+    DOC_TYPE: str = DocumentType.WECHAT_HISTORY.value
 
     msg_pattern: re.Pattern = re.compile(
         r'(?P<username>\S+?)\s*\((?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\)\s*:\s*(?P<message>.+)')
@@ -36,8 +36,8 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         if not self._table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
-            with TqdmContext(f'Initializing chat history table: {uuid}...', 'Loaded'):
-                self.initialize(doc_path)
+            LOGGER.info(f'Document table is empty, initializing chat history: {doc_path}...')
+            self.initialize(doc_path)
 
     def __msg_clean_up(self, msg: str) -> str:
         """Unify punctuations and clean up ignore patterns from given message
@@ -113,8 +113,9 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
         total: int = len(all_lines)
         previous_progress: int = -1
-        # for i, line in tqdm(enumerate(all_lines), desc=f'Loading chat to DB,
-        # {len(all_lines)} lines in total', unit='line', ascii=' |'):
+        start: float = time()
+
+        LOGGER.info(f'Processing chat history: {chat_filepath}, total lines: {total}...')
         for i, line in enumerate(all_lines):
             line = line.strip()
             if not line:
@@ -141,13 +142,13 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                         # - Sender is missed in reply message, use empty string instead
                         self._table.insert_row((reply_time, '', r_message, reply_to, replied_message))
 
-                time, username, message = self.__process_message(message_match)
-                if not time:
+                timestamp, username, message = self.__process_message(message_match)
+                if not timestamp:
                     continue
 
-                reply_time = time + timedelta(seconds=1)
+                reply_time = timestamp + timedelta(seconds=1)
                 # (timestamp, sender, message, reply_to, replied_message)
-                self._table.insert_row((time, username, message, '', ''))
+                self._table.insert_row((timestamp, username, message, '', ''))
                 continue
 
             # Reply message case
@@ -186,6 +187,9 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                 # (timestamp, sender, message, reply_to, replied_message)
                 # - Sender is missed in reply message, use empty string instead
                 self._table.insert_row((reply_time, '', message, reply_to, replied_message))
+
+        time_taken: float = time() - start
+        LOGGER.info(f'Finished processing chat history: {chat_filepath}, cost: {time_taken:.2f}s')
 
     """
     Basic operations

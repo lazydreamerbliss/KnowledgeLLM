@@ -181,3 +181,6 @@ local_models/
 
 # nohup.out file
 *.out
+
+# Log files
+logs/

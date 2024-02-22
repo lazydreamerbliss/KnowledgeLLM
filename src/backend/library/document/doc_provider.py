@@ -1,15 +1,15 @@
 import os
 from datetime import datetime
+from time import time
 from typing import Any, Generator
 
 import docx
 from docx.document import Document
 from library.document.doc_lib_table import DocLibTable
 from library.document.doc_provider_base import *
+from loggers import doc_lib_logger as LOGGER
 from pypdf import PdfReader
-from tqdm import tqdm
 from utils.task_runner import report_progress
-from utils.tqdm_context import TqdmContext
 
 TXT_EXTENSION: str = 'txt'
 PDF_EXTENSION: str = 'pdf'
@@ -23,7 +23,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
     """
 
     TABLE_TYPE: type = DocLibTable
-    DOC_TYPE: str = DocumentType.GENERAL
+    DOC_TYPE: str = DocumentType.GENERAL.value
 
     def __init__(self,
                  db_path: str,
@@ -36,8 +36,8 @@ class DocProvider(DocProviderBase[DocLibTable]):
         if not self._table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
-            with TqdmContext(f'Initializing doc table for {doc_path}, table name: {uuid}...', 'Loaded'):
-                self.initialize(doc_path)
+            LOGGER.info(f'Document table is empty, initializing document: {doc_path}...')
+            self.initialize(doc_path)
 
     def __reader_pdf(self, doc_path: str) -> Generator[tuple[str, int], Any, None]:
         """Reader for .pdf document
@@ -48,8 +48,6 @@ class DocProvider(DocProviderBase[DocLibTable]):
         try:
             reader: PdfReader = PdfReader(doc_path)
             total: int = len(reader.pages)
-            # for i, page in tqdm(enumerate(reader.pages), desc=f'Loading PDF content
-            # to DB...', unit='page', ascii=' |'):
             for i, page in enumerate(reader.pages):
                 page_text: str = page.extract_text()
                 page_text = page_text.strip()
@@ -65,7 +63,9 @@ class DocProvider(DocProviderBase[DocLibTable]):
                     yield line, int(i / total * 100)
             return
         except Exception as e:
-            raise DocProviderError(f'Failed to read PDF content: {doc_path}, error: {e}')
+            msg: str = f'Failed to read PDF content: {doc_path}, error: {e}'
+            LOGGER.error(msg)
+            raise DocProviderError(msg)
 
     def __reader_docx(self, doc_path: str) -> Generator[tuple[str, int], Any, None]:
         """Reader for .docx document
@@ -76,8 +76,6 @@ class DocProvider(DocProviderBase[DocLibTable]):
         try:
             doc: Document = docx.Document(doc_path)
             total: int = len(doc.paragraphs)
-            # for i, paragraph in tqdm(enumerate(doc.paragraphs), desc=f'Loading
-            # DOC/DOCX content to DB...', unit='paragraph', ascii=' |'):
             for i, paragraph in enumerate(doc.paragraphs):
                 line = paragraph.text.strip()
                 if not line:
@@ -85,7 +83,9 @@ class DocProvider(DocProviderBase[DocLibTable]):
                 yield line, int(i / total * 100)
             return
         except Exception as e:
-            raise DocProviderError(f'Failed to read DOC/DOCX content: {doc_path}, error: {e}')
+            msg: str = f'Failed to read DOC/DOCX content: {doc_path}, error: {e}'
+            LOGGER.error(msg)
+            raise DocProviderError(msg)
 
     def __reader_ebook(self, doc_path: str) -> Generator[tuple[str, int], Any, None]:
         """Reader for EBook document
@@ -105,15 +105,15 @@ class DocProvider(DocProviderBase[DocLibTable]):
             with open(doc_path, 'r', encoding='utf-8') as f:
                 all_lines: list[str] = f.readlines()
             total: int = len(all_lines)
-            # for i, line in tqdm(enumerate(all_lines), desc=f'Loading plain text
-            # content to DB...', unit='line', ascii=' |'):
             for i, line in enumerate(all_lines):
                 line = line.strip()
                 if not line:
                     continue
                 yield line, int(i / total * 100)
         except Exception as e:
-            raise DocProviderError(f'Failed to read plain text content: {doc_path}, error: {e}')
+            msg: str = f'Failed to read plain text content: {doc_path}, error: {e}'
+            LOGGER.error(msg)
+            raise DocProviderError(msg)
 
     def initialize(self, doc_path: str) -> None:
         if not doc_path:
@@ -121,9 +121,13 @@ class DocProvider(DocProviderBase[DocLibTable]):
 
         _, extension = os.path.splitext(doc_path)
         if not extension:
-            raise DocProviderError(f'Unknown document type: {doc_path}')
+            msg: str = f'Unknown document type: {doc_path}'
+            LOGGER.error(msg)
+            raise DocProviderError(msg)
         extension = extension.lower()[1:]
+        start: float = time()
 
+        LOGGER.info(f'Reading document: {doc_path}...')
         reader: Callable[[str], Generator[tuple[str, int], Any, None]] | None = None
         if extension == PDF_EXTENSION:
             reader = self.__reader_pdf
@@ -151,6 +155,9 @@ class DocProvider(DocProviderBase[DocLibTable]):
                 report_progress(self._progress_reporter, current_progress, current_phase=1, phase_name='DUMP')
 
             self._table.insert_row((timestamp, line))
+
+        time_taken: float = time() - start
+        LOGGER.info(f'Finished processing document: {doc_path}, cost: {time_taken:.2f}s')
 
     def get_key_text_from_record(self, row: tuple) -> str:
         # The text column ['text', 'TEXT'] is the 3rd column of document table, so row[2] is the key info

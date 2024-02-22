@@ -1,3 +1,5 @@
+from utils.containable_enum import ContainableEnum
+
 SORTED_BY_LABELS: set[str] = {'Name', 'Date Created', 'Date Modified', 'Size'}
 SORTED_BY_LABELS_ORDERED: list[str] = ['Name', 'Date Created', 'Date Modified', 'Size']
 SORTED_BY_LABELS_CN: dict[str, str] = {
@@ -12,19 +14,21 @@ VIEW_STYLES: list[str] = ['grid', 'list']
 SUPPORTED_EXTENSIONS: set[str] = {'mp4', "webm", "opgg", 'mp3', 'pdf', 'txt', 'html', 'css', 'svg', 'js', 'png', 'jpg'}
 
 
-class LibTypes:
+class LibTypes(ContainableEnum):
     """Define library types
     """
-    IMAGE: str = 'image'
-    VIDEO: str = 'video'
-    DOCUMENT: str = 'document'
-    GENERAL: str = 'general'
+    IMAGE = 'image'
+    VIDEO = 'video'
+    DOCUMENT = 'document'
+    GENERAL = 'general'
 
 
-LIBRARY_TYPES: set[str] = {LibTypes.IMAGE, LibTypes.VIDEO, LibTypes.DOCUMENT, LibTypes.GENERAL}
+LIBRARY_TYPES: set[str] = {
+    LibTypes.IMAGE.value, LibTypes.VIDEO.value, LibTypes.DOCUMENT.value, LibTypes.GENERAL.value
+}
 LIBRARY_TYPES_CN: list[dict] = [
-    {'name': LibTypes.IMAGE, 'cn_name': '图片库'},
-    {'name': LibTypes.VIDEO, 'cn_name': '媒体库'},
-    {'name': LibTypes.VIDEO, 'cn_name': '文档库'},
-    {'name': LibTypes.GENERAL, 'cn_name': '综合仓库'},
+    {'name': LibTypes.IMAGE.value, 'cn_name': '图片库'},
+    {'name': LibTypes.VIDEO.value, 'cn_name': '媒体库'},
+    {'name': LibTypes.VIDEO.value, 'cn_name': '文档库'},
+    {'name': LibTypes.GENERAL.value, 'cn_name': '综合仓库'},
 ]

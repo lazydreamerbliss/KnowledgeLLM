@@ -2,7 +2,7 @@ from concurrent import futures
 
 import grpc
 from server.grpc.backend_pb2_grpc import add_GrpcServerServicer_to_server
-from server.grpc_servicer import Servicer
+from server.servicer import Servicer
 from utils.lib_manager import LibraryManager
 from utils.task_runner import TaskRunner
 

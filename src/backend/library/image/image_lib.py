@@ -2,7 +2,6 @@ import os
 import shutil
 import time
 from datetime import datetime
-from threading import Lock
 from typing import Generator
 from uuid import uuid4
 
@@ -14,15 +13,14 @@ from library.image.image_lib_table import ImageLibTable
 from library.image.image_lib_vector_db import ImageLibVectorDb
 from library.image.sql import DB_NAME
 from library.lib_base import *
+from loggers import image_lib_logger as LOGGER
 from PIL import Image
 from redis.commands.search.document import Document
 from torch import Tensor
-from tqdm import tqdm
 from utils.exceptions.task_errors import (LockAcquisitionFailure,
                                           TaskCancellationException)
 from utils.lock_context import LockContext
 from utils.task_runner import report_progress
-from utils.tqdm_context import TqdmContext
 
 
 class ImageLib(LibraryBase):
@@ -46,17 +44,18 @@ class ImageLib(LibraryBase):
         super().__init__(lib_path)
 
         # Load metadata
-        with TqdmContext('Loading library metadata...', 'Loaded'):
-            if not self._metadata_exists():
-                initial_metadata: dict = BASIC_METADATA | {
-                    'type': LibTypes.IMAGE,
-                    'uuid': uuid,
-                    'name': lib_name,
-                    'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                }
-                self.initialize_metadata(initial_metadata)
-            else:
-                self.load_metadata(uuid, lib_name)
+        LOGGER.info(f'Loading library metadata: {lib_name}')
+        if not self._metadata_exists():
+            initial_metadata: dict = BASIC_METADATA | {
+                'type': LibTypes.IMAGE.value,
+                'uuid': uuid,
+                'name': lib_name,
+                'last_scanned': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            }
+            self.initialize_metadata(initial_metadata)
+        else:
+            self.load_metadata(uuid, lib_name)
+
         if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
@@ -65,9 +64,6 @@ class ImageLib(LibraryBase):
         self.__vector_db: ImageLibVectorDb | None = None
         self.__embedder: ImageEmbedder | None = None
         self._tracker = ScanRecordTracker(self._path_lib_data, DB_NAME)
-
-        # File scan is mutually exclusive, use a lock to prevent concurrent scan
-        self.__scan_lock = Lock()
 
     """
     Private methods
@@ -80,6 +76,7 @@ class ImageLib(LibraryBase):
         will be purged afterwards, and for force init case index error are allowed
         - Set `ignore_index_error` to the value of `force_init` to ignore index error if force init is provided
         """
+        LOGGER.info(f'Instanize DB for library: {self.path_lib}')
         if not self.__table:
             self.__table = ImageLibTable(self._path_lib_data)
         if not self.__vector_db:
@@ -97,6 +94,8 @@ class ImageLib(LibraryBase):
         uuid: str = str(uuid4())
         parent_folder: str = os.path.dirname(relative_path)
         filename: str = os.path.basename(relative_path)
+        LOGGER.info(f'Write embedding entry for: {relative_path}, UUID: {uuid}')
+
         # (timestamp, uuid, path, filename)
         self.__table.insert_row((timestamp, uuid, parent_folder, filename))  # type: ignore
         self.__vector_db.add(uuid, embedding, save_pipeline)  # type: ignore
@@ -121,6 +120,7 @@ class ImageLib(LibraryBase):
         to_be_embedded: set[str] = set()
 
         # Get all files under current library
+        LOGGER.info(f'Fetching all files under current library')
         lib_data_folder_abs_path: str = os.path.join(self.path_lib, LIB_DATA_FOLDER)
         for root, _, filenames in os.walk(self.path_lib):
             if root == lib_data_folder_abs_path:
@@ -132,6 +132,7 @@ class ImageLib(LibraryBase):
                 all_files.add(file_relative_path)
                 if incremental:
                     if self._tracker.is_recorded(file_relative_path):  # type: ignore
+                        LOGGER.info(f'File already embedded: {file_relative_path}, skip for incremental scan')
                         continue
                     to_be_embedded.add(file_relative_path)
 
@@ -140,23 +141,23 @@ class ImageLib(LibraryBase):
         if self._tracker.get_record_count() > 0:  # type: ignore
             to_be_deleted: set[str] = set(self._tracker.get_all_relative_paths()) - all_files  # type: ignore
             if to_be_deleted:
-                tqdm.write(f'Incremental scan, found {len(to_be_deleted)} leftover items')
+                LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers...')
                 self.remove_embeddings(list(to_be_deleted))
 
         if incremental:
             all_files.clear()
             if len(to_be_embedded):
-                tqdm.write(f'Incremental scan, found {len(to_be_embedded)} new files')
+                LOGGER.info(f'Library incremental scanned, found {len(to_be_embedded)} new files')
             else:
-                tqdm.write(f'Incremental scan, no new file found')
+                LOGGER.info(f'Library incremental scanned, no new file found')
         else:
             to_be_embedded = all_files
-            tqdm.write(f'Library scanned, found {len(all_files)} files')
+            LOGGER.info(f'Library scanned, found {len(all_files)} files')
 
         # Start to process each image
+        LOGGER.info(f'Start to embed scanned images')
         total: int = len(to_be_embedded)
         previous_progress: int = -1
-        # for i, relative_path in tqdm(enumerate(to_be_embedded), desc=f'Processing images', unit='item', ascii=' |'):
         for i, relative_path in enumerate(to_be_embedded):
             try:
                 # Validate if the file is an image and insert it into the table
@@ -165,7 +166,7 @@ class ImageLib(LibraryBase):
                 img.verify()
                 img = Image.open(os.path.join(self.path_lib, relative_path))
             except BaseException:
-                tqdm.write(f'Invalid image: {relative_path}, skip')
+                LOGGER.info(f'Invalid image: {relative_path}, skip')
                 continue
 
             # If reporter is given, report progress to task manager
@@ -175,11 +176,12 @@ class ImageLib(LibraryBase):
                 previous_progress = current_progress
                 report_progress(progress_reporter, current_progress)
 
+            LOGGER.info(f'Processing image: {relative_path}')
             if not scan_only:
                 start_time: float = time.time()
                 embedding: list[float] = self.__embedder.embed_image_as_list(img)  # type: ignore
                 time_taken: float = time.time() - start_time
-                tqdm.write(f'Image embedded: {relative_path}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
+                LOGGER.info(f'Image embedded: {relative_path}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
                 yield relative_path, embedding
             else:
                 yield relative_path, None
@@ -206,7 +208,6 @@ class ImageLib(LibraryBase):
                                                               incremental=incremental,
                                                               scan_only=scan_only):
             if cancel_event is not None and cancel_event.is_set():
-                tqdm.write(f'Library initialization cancelled')
                 raise TaskCancellationException('Library initialization cancelled')
 
             if not scan_only:
@@ -219,9 +220,9 @@ class ImageLib(LibraryBase):
                 # needs to build an index before adding data
                 if self.local_mode:
                     if first_run:
-                        with TqdmContext('Creating index...', 'Index created'):
-                            self.__vector_db.initialize_index(dimension)  # type: ignore
-                            first_run = False
+                        LOGGER.info(f'Creating index for the first time, dimension: {dimension}')
+                        self.__vector_db.initialize_index(dimension)  # type: ignore
+                        first_run = False
                 self.__write_embedding_entry(relative_path, embedding, save_pipeline)
 
     def __scan(self,
@@ -243,10 +244,11 @@ class ImageLib(LibraryBase):
         if (incremental and first_run) or (scan_only and first_run):
             raise LibraryError('Invalid scan param')
 
-        with LockContext(self.__scan_lock) as lock:
+        with LockContext(self._scan_lock) as lock:
             if not lock.acquired:
                 raise LockAcquisitionFailure('There is already a scan task running')
 
+            LOGGER.info(f'Library scan started, incremental: {incremental}, scan only: {scan_only}')
             try:
                 self._metadata['last_scanned'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 self._save_metadata()
@@ -257,6 +259,7 @@ class ImageLib(LibraryBase):
                 except NotImplementedError:
                     pass
 
+                start: float = time.time()
                 if save_pipeline:
                     with save_pipeline:
                         self.__do_scan(save_pipeline,
@@ -276,17 +279,20 @@ class ImageLib(LibraryBase):
                 if not scan_only:
                     # On scan finished, persist index and save scan history
                     self.__vector_db.persist()  # type: ignore
+
+                time_taken: float = time.time() - start
                 if not incremental:
-                    tqdm.write(f'Image library scanned')
+                    LOGGER.info(f'Image library scanned successfully, cost: {time_taken:.2f}s')
                 else:
-                    tqdm.write(f'Image library incrementally scanned')
+                    LOGGER.info(f'Image library incrementally scanned successfully, cost: {time_taken:.2f}s')
 
             except Exception as e:
                 # On cancel or failure, persist current progress
                 self.__vector_db.persist()  # type: ignore
                 if isinstance(e, TaskCancellationException):
-                    tqdm.write('Library scan cancelled, progress saved')
+                    LOGGER.warn('Library scan cancelled, progress saved')
                 else:
+                    LOGGER.error(f'Library scan failed: {e}')
                     raise LibraryError(f'Library scan failed: {e}')
 
     """
@@ -302,8 +308,11 @@ class ImageLib(LibraryBase):
                   force_init: bool = False,
                   progress_reporter: Callable[[int, int, str | None], None] | None = None,
                   cancel_event: Event | None = None):
+        LOGGER.info(f'Prepare to do full scan for library: {self.path_lib}')
+
         ready: bool = self.is_ready()
         if ready and not force_init:
+            LOGGER.info(f'Library is already ready, abort operation')
             return
 
         # Load SQL DB and vector DB, and "not ready" has 2 cases:
@@ -312,10 +321,12 @@ class ImageLib(LibraryBase):
         if not ready:
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
+            LOGGER.info(f'Library not ready, try to load DBs')
             self.__instanize_db(force_init)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
         if not force_init and self.__table.row_count() > 0 and self.__vector_db.db_is_ready():  # type: ignore
+            LOGGER.info(f'Library is already ready after DB loading, abort operation')
             return
 
         # Refresh ready status, initialize the library for 3 cases:
@@ -329,12 +340,12 @@ class ImageLib(LibraryBase):
                 msg: str = f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...'
             else:
                 msg: str = f'Vector DB corrupted, forcibly re-initializing library: {self.path_lib}, purging existing library data...'
-            with TqdmContext(msg, 'Cleaned'):
+                LOGGER.info(msg)
                 self.__vector_db.clean_all_data()  # type: ignore
                 self.__table.clean_all_data()  # type: ignore
                 self._tracker.clean_all_data()  # type: ignore
         else:
-            tqdm.write(f'Initialize library DB: {self.path_lib} for new library')
+            LOGGER.info(f'Initialize library: {self.path_lib}, this is a new library')
 
         self.__scan(progress_reporter, cancel_event, first_run=True, incremental=False)
 
@@ -346,7 +357,8 @@ class ImageLib(LibraryBase):
 
         Simply purge the library data folder
         """
-        with LockContext(self.__scan_lock) as lock:
+        LOGGER.warning(f'Demolish library: {self.path_lib}')
+        with LockContext(self._scan_lock) as lock:
             if not lock.acquired:
                 raise LockAcquisitionFailure('There is already a scan task running, cancel the task and try again')
 
@@ -360,6 +372,7 @@ class ImageLib(LibraryBase):
             self.__vector_db = None
             self._tracker = None
             shutil.rmtree(self._path_lib_data)
+            LOGGER.warning(f'Library demolished: {self.path_lib}')
 
     def add_file(self, folder_relative_path: str, source_file: str):
         pass
@@ -372,6 +385,7 @@ class ImageLib(LibraryBase):
             if not relative_path:
                 continue
 
+            LOGGER.warn(f'Remove file: {relative_path}')
             relative_path = relative_path.lstrip(os.path.sep)
             image_path: str = os.path.join(self.path_lib, relative_path)
             if os.path.isfile(image_path):
@@ -396,6 +410,7 @@ class ImageLib(LibraryBase):
             if not relative_path:
                 continue
 
+            LOGGER.warn(f'Remove embedding for: {relative_path}')
             relative_path = relative_path.lstrip(os.path.sep)
             if self._tracker.is_recorded(relative_path):  # type: ignore
                 uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
@@ -417,14 +432,18 @@ class ImageLib(LibraryBase):
         - Only embed and record the new images that are newly added to the library but not embedded yet, and add them to the DB
         - If an embedded image is deleted but its leftover remains, then remove embedding entry from the DB
         """
+        LOGGER.info(f'Prepare to do incremental scan for library: {self.path_lib}')
+
         # Load DB content if not ready
         if not self.is_ready():
             if not self.__embedder:
                 raise LibraryError('Embedder not set')
+            LOGGER.info(f'Library not ready, do full scan and initialization')
             self.__instanize_db()
 
         # If there is no single embedded image, do full scan directly
         if not self._tracker.get_record_count():  # type: ignore
+            LOGGER.info(f'No embedded image found, do full scan and initialization')
             self.full_scan(force_init=True,
                            progress_reporter=progress_reporter,
                            cancel_event=cancel_event)
@@ -433,12 +452,14 @@ class ImageLib(LibraryBase):
         # Something is wrong here which should not happen, but just in case:
         # - Embedding record table has records but vector DB is not ready, do force initialization instead
         if not self.__vector_db.db_is_ready():  # type: ignore
+            LOGGER.info(f'Vector DB is not loaded, do full scan and initialization')
             self.full_scan(force_init=True,
                            progress_reporter=progress_reporter,
                            cancel_event=cancel_event)
             return
 
         # Do incremental scan
+        LOGGER.info(f'Start incremental scan for library: {self.path_lib}')
         self.__scan(progress_reporter, cancel_event, first_run=False, incremental=True)
 
     """
@@ -450,11 +471,12 @@ class ImageLib(LibraryBase):
         if not img or not top_k or top_k <= 0:
             return list()
 
+        LOGGER.info(f'Image search with image similarity')
         start: float = time.time()
         image_embedding: np.ndarray = self.__embedder.embed_image(img)  # type: ignore
         docs: list = self.__vector_db.query(np.asarray([image_embedding]), top_k)  # type: ignore
         time_taken: float = time.time() - start
-        tqdm.write(f'Image search with image similarity completed, cost: {time_taken:.2f}s')
+        LOGGER.info(f'Image search with image similarity completed, cost: {time_taken:.2f}s, start to parse result')
 
         # Parse the result, get file data from DB
         # - The local key of an image is `uuid` or `id` of the vector in the index
@@ -483,12 +505,13 @@ class ImageLib(LibraryBase):
         if not text or not top_k or top_k <= 0:
             return list()
 
+        LOGGER.info(f'Image search with text similarity for: {text}')
         start: float = time.time()
         # Text embedding is a 2D array, the first element is the embedding of the text
         text_embedding: np.ndarray = self.__embedder.embed_text(text)[0]  # type: ignore
         docs: list = self.__vector_db.query(np.asarray([text_embedding]), top_k)  # type: ignore
         time_taken: float = time.time() - start
-        tqdm.write(f'Image search with text similarity completed, cost: {time_taken:.2f}s')
+        LOGGER.info(f'Image search with text similarity completed, cost: {time_taken:.2f}s, start to parse result')
 
         # Parse the result, get file data from DB
         # - The local key of an image is `uuid` or `id` of the vector in the index
@@ -517,6 +540,7 @@ class ImageLib(LibraryBase):
         if not tokens or not img:
             return dict()
 
+        LOGGER.info(f'Computing text-image similarity for tokens: {tokens}')
         probs: Tensor = self.__embedder.compute_text_image_similarity(tokens, img)  # type: ignore
         res: dict[str, float] = dict()
         for i in range(len(tokens)):

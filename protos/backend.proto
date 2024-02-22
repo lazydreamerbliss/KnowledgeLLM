@@ -7,6 +7,9 @@ import "obj_shared.proto";
 // Server APIs
 service GrpcServer
 {
+    // Heartbeat API
+    rpc heartbeat (VoidObj) returns (BooleanObj) {}
+
     // Task APIs
     rpc get_task_state (StringObj) returns (TaskInfoObj) {}
     rpc is_task_done (StringObj) returns (BooleanObj) {}

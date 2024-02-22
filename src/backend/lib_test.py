@@ -8,7 +8,7 @@ from library.document.wechat.wechat_history_provider import \
     WechatHistoryProvider
 from library.image.image_lib import ImageLib
 from PIL import Image
-from singleton import *
+from singletons import *
 from utils.lib_manager import LibInfo
 
 TEST_DOC_LIB = '~/Documents/test_lib'

@@ -7,8 +7,8 @@ from tests.grpc_client_test import GrpcClientForServerTest
 
 def run_test_server_in_new_process() -> int:
     server_file: str = f'{Path(__file__).parent}/run_grpc_server.py'
-    # process = subprocess.Popen(['/Users/chengjia/anaconda3/envs/llm_general/bin/python', server_file])
-    process = subprocess.Popen(['nohup', '/home/chengjia/anaconda3/envs/llm_general/bin/python', server_file])
+    process = subprocess.Popen(['nohup', '/Users/chengjia/anaconda3/envs/llm_general/bin/python', server_file])
+    # process = subprocess.Popen(['nohup', '/home/chengjia/anaconda3/envs/llm_general/bin/python', server_file])
     return process.pid
 
 
@@ -20,11 +20,12 @@ if __name__ == '__main__':
     # connect to remote host: Connection refuse" might occur
     time.sleep(3)
 
-    test_client: GrpcClientForServerTest = GrpcClientForServerTest()
-    test_client.test_get_current_lib_info()
-    test_client.test_get_library_list()
-
-    # Kill the server on test completion, wait for some time to allow possible pending requests to complete
-    time.sleep(2)
-    subprocess.Popen(['kill', str(pid)])
-    print(f'killed gRPC server with pid: {pid}')
+    try:
+        test_client: GrpcClientForServerTest = GrpcClientForServerTest()
+        test_client.test_heartbeat()
+        test_client.test_create_and_demolish_doc_lib()
+    finally:
+        # Kill the server on test completion, wait for some time to allow possible pending requests to complete
+        time.sleep(2)
+        subprocess.Popen(['kill', str(pid)])
+        print(f'gRPC server killed successfully with pid: {pid}')

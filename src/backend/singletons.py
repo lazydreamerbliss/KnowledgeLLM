@@ -1,3 +1,5 @@
+from logging import Logger
+
 from knowledge_base.document.doc_embedder import DocEmbedder
 from knowledge_base.image.image_embedder import ImageEmbedder
 from knowledge_base.image.image_tagger import ImageTagger

@@ -3,13 +3,13 @@ import os
 import numpy as np
 import torch
 from constants.env import CLIP_MODEL, CLIP_MODEL_CHN, MODEL_FOLDER
+from loggers import img_embedder_logger as LOGGER
 from PIL import Image
 from torch import FloatTensor, Tensor
 from transformers import (ChineseCLIPModel, ChineseCLIPProcessor, CLIPModel,
                           CLIPProcessor, CLIPTokenizer)
 from transformers.models.clip.modeling_clip import CLIPOutput
 from transformers.tokenization_utils_base import BatchEncoding
-from utils.tqdm_context import TqdmContext
 
 
 class ImageEmbedder:
@@ -20,14 +20,14 @@ class ImageEmbedder:
         model_path: str = os.path.join(MODEL_FOLDER, CLIP_MODEL)
         model_path_cn: str = os.path.join(MODEL_FOLDER, CLIP_MODEL_CHN)
 
-        with TqdmContext('Initializing image embedder, loading CLIP models...', 'Loaded'):
-            # Use CLIP to embed images
-            # - https://huggingface.co/docs/transformers/model_doc/clip
-            self.encoder: CLIPProcessor = CLIPProcessor.from_pretrained(model_path)
-            self.encoder_cn: ChineseCLIPProcessor = ChineseCLIPProcessor.from_pretrained(model_path_cn)
-            self.model: CLIPModel = CLIPModel.from_pretrained(model_path)  # type: ignore
-            self.tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(model_path)
-            self.model_cn: ChineseCLIPModel = ChineseCLIPModel.from_pretrained(model_path_cn)  # type: ignore
+        LOGGER.info(f'Initializing image embedder, loading CLIP models...')
+        # Use CLIP to embed images
+        # - https://huggingface.co/docs/transformers/model_doc/clip
+        self.encoder: CLIPProcessor = CLIPProcessor.from_pretrained(model_path)
+        self.encoder_cn: ChineseCLIPProcessor = ChineseCLIPProcessor.from_pretrained(model_path_cn)
+        self.model: CLIPModel = CLIPModel.from_pretrained(model_path)  # type: ignore
+        self.tokenizer: CLIPTokenizer = CLIPTokenizer.from_pretrained(model_path)
+        self.model_cn: ChineseCLIPModel = ChineseCLIPModel.from_pretrained(model_path_cn)  # type: ignore
 
     def __embed_image(self, img: Image.Image) -> np.ndarray:
         # The batch size is set to 1, so the first element of the output is the embedding of the image
@@ -44,6 +44,7 @@ class ImageEmbedder:
         """Embed the given image
         - About use_grad(): https://datascience.stackexchange.com/questions/32651/what-is-the-use-of-torch-no-grad-in-pytorch
         """
+        LOGGER.info('Embedding image with CLIP...')
         if not use_grad:
             with torch.no_grad():
                 return self.__embed_image(img)
@@ -65,6 +66,7 @@ class ImageEmbedder:
     def embed_text(self, text: str, use_grad: bool = False) -> np.ndarray:
         """Embed the given text with CLIP model
         """
+        LOGGER.info('Embedding text with CLIP...')
         encoded: BatchEncoding = self.encoder(text, return_tensors="pt", padding=True)
         text_features: FloatTensor = self.model.get_text_features(**encoded)  # type: ignore
 
@@ -78,6 +80,8 @@ class ImageEmbedder:
     def compute_text_image_similarity(self, text_list: list[str], img: Image.Image) -> Tensor:
         """Query the given text and image against the CLIP model for similarity
         """
+        LOGGER.info(f'Computing text-image similarity with CLIP for tokens: {text_list}', )
+
         # Use encoder to encode text+image as input for CLIP model, to get hybrid features
         encoded: BatchEncoding = self.encoder(text=text_list, images=img, return_tensors="pt", padding=True)
         # Unpack the batched encoding and feed it to the CLIP model directly to process both text and image

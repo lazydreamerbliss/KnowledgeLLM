@@ -32,6 +32,13 @@ class Servicer(GrpcServerServicer):
         return libInfo
 
     """
+    Heat beat API
+    """
+
+    def heartbeat(self, request: VoidObj, context) -> BooleanObj:
+        return BooleanObj(value=True)
+
+    """
     Task APIs
     """
 
@@ -175,11 +182,13 @@ class Servicer(GrpcServerServicer):
         for res in query_result:
             # Check if the data is from general document or chat history
             r: DocLibQueryResponseObj = DocLibQueryResponseObj()
-            if doc_type == DocumentType.GENERAL:
+            if doc_type == DocumentType.GENERAL.value:
                 # The text column ['text', 'TEXT'] is the 3rd column of document table, so row[2] is the key info
                 r.text = res[2]
-            elif doc_type == DocumentType.WECHAT_HISTORY:
-                # The message & replied message column ['message', 'TEXT'] and ['replied_message', 'TEXT'] are 4th and 6th columns of chat history table
+            elif doc_type == DocumentType.WECHAT_HISTORY.value:
+                # The message & replied message column ['message', 'TEXT'] and
+                # ['replied_message', 'TEXT'] are 4th and 6th columns of chat history
+                # table
                 r.sender = res[2]
                 r.message = res[3]
                 r.reply_to = res[4]
