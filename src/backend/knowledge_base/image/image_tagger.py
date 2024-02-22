@@ -1,15 +1,14 @@
-import time
 from pathlib import Path
+from time import time
 
 import numpy as np
 import torch
 import torch.amp.autocast_mode
 import torchvision.transforms.functional as TVF
+from knowledge_base.image.__tagger_model import TaggerModel
+from loggers import img_embedder_logger as LOGGER
 from PIL import Image
 from torch import Tensor
-from tqdm import tqdm
-
-from knowledge_base.image.__tagger_model import TaggerModel
 
 
 class ImageTagger:
@@ -56,15 +55,15 @@ class ImageTagger:
 
     def __predict_tags(self, img: Image.Image, use_grad: bool = False) -> np.ndarray:
         image_features: Tensor = self.__embed_image(img)
-        start: float = time.time()
+        start: float = time()
 
         # Use autocast() and bfloat16 to speed up inference
         # - bfloat16 is a special float type for ML that is 2X faster than normal float32 and more accurate than float16
         with torch.amp.autocast_mode.autocast(self.device_type, dtype=torch.bfloat16, enabled=True):
             res: dict[str, Tensor] = self.model({'image': image_features.unsqueeze(0)})
 
-        time_taken: float = time.time() - start
-        tqdm.write(f'Image tag predicted, cost: {time_taken:.2f}s')
+        time_taken: float = time() - start
+        LOGGER.info(f'Image tag predicted, cost: {time_taken:.2f}s')
 
         # Convert bfloat16 to float32 otherwise type conversion error will occur
         # - https://blog.csdn.net/caroline_wendy/article/details/132665807
@@ -86,6 +85,7 @@ class ImageTagger:
         Returns:
             list[tuple[str, float]]: _description_
         """
+        LOGGER.info(f'Getting tags for image, top K: {top_k}, language: {"EN" if en else "CN"}')
         res: np.ndarray = self.__predict_tags(img)
         score_array: np.ndarray = res[0]
         from_tag_list: list[str] = self.tag_list if en else self.tag_list_cn

@@ -7,29 +7,32 @@ import "obj_shared.proto";
 // Server APIs
 service GrpcServer
 {
+    // Heartbeat API
+    rpc heartbeat (VoidObj) returns (BooleanObj) {}
+
     // Task APIs
-    rpc get_task_state (StringObj) returns (RpcTaskObj) {}
+    rpc get_task_state (StringObj) returns (TaskInfoObj) {}
     rpc is_task_done (StringObj) returns (BooleanObj) {}
     rpc is_task_successful (StringObj) returns (BooleanObj) {}
     rpc cancel_task (StringObj) returns (BooleanObj) {}
 
     // Library manager APIs for library control
-    rpc create_library (RpcLibInfoObj) returns (BooleanObj) {}
+    rpc create_library (LibInfoObj) returns (BooleanObj) {}
     rpc use_library (VoidObj) returns (BooleanObj) {}
-    rpc demolish_library (RpcLibInfoObj) returns (BooleanObj) {}
-    rpc make_library_ready (LibGetReadyParams) returns (StringObj) {}
+    rpc demolish_library (LibInfoObj) returns (BooleanObj) {}
+    rpc make_library_ready (LibGetReadyParamObj) returns (StringObj) {}
 
-    rpc get_current_lib_info (VoidObj) returns (RpcLibInfoObj) {}
-    rpc get_library_list (VoidObj) returns (ListOfRpcLibInfoObj) {}
-    rpc get_library_path_list (VoidObj) returns (ListOfStrings) {}
+    rpc get_current_lib_info (VoidObj) returns (LibInfoObj) {}
+    rpc get_library_list (VoidObj) returns (ListOfLibInfoObj) {}
+    rpc get_library_path_list (VoidObj) returns (ListOfStringObj) {}
     rpc lib_exists (StringObj) returns (BooleanObj) {}
 
     // Document library APIs
-    rpc query (DocLibQueryObj) returns (ListOfDocLibQueryResponse) {}
+    rpc query (DocLibQueryObj) returns (ListOfDocLibQueryResponseObj) {}
 
     // Image library APIs
-    rpc image_for_image_search (ImageLibQueryObj) returns (ListOfImageLibQueryResponse) {}
-    rpc text_for_image_search (ImageLibQueryObj) returns (ListOfImageLibQueryResponse) {}
+    rpc image_for_image_search (ImageLibQueryObj) returns (ListOfImageLibQueryResponseObj) {}
+    rpc text_for_image_search (ImageLibQueryObj) returns (ListOfImageLibQueryResponseObj) {}
     rpc get_image_tags (ImageLibQueryObj) returns (ListOfImageTagObj) {}
 
     // TODO: add manual incremental scan, file operation, etc.

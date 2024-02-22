@@ -1,15 +1,14 @@
+from library.document.doc_lib import DocumentLib
+from library.document.doc_provider_base import DocumentType
+from library.image.image_lib import ImageLib
+from library.lib_base import LibraryBase
 from PIL import Image
-
-from backend.lib_manager import LibInfoObj, LibraryManager
-from backend.library.document.doc_lib import DocumentLib
-from backend.library.document.doc_provider_base import DocumentType
-from backend.library.image.image_lib import ImageLib
-from backend.library.lib_base import LibraryBase
-from backend.server.grpc.backend_pb2_grpc import GrpcServerServicer
-from backend.server.grpc.obj_basic_pb2 import *
-from backend.server.grpc.obj_shared_pb2 import *
-from backend.utils.exceptions.lib_errors import LibraryManagerException
-from backend.utils.task_runner import TaskObj, TaskRunner
+from server.grpc.backend_pb2_grpc import GrpcServerServicer
+from server.grpc.obj_basic_pb2 import *
+from server.grpc.obj_shared_pb2 import *
+from utils.exceptions.lib_errors import LibraryManagerException
+from utils.lib_manager import LibInfo, LibraryManager
+from utils.task_runner import TaskInfo, TaskRunner
 
 
 class Servicer(GrpcServerServicer):
@@ -17,7 +16,7 @@ class Servicer(GrpcServerServicer):
         self.__task_runner: TaskRunner = task_runner
         self.__lib_manager: LibraryManager = lib_manager
 
-    def __process_lib_obj(self, request: RpcLibInfoObj) -> LibInfoObj | None:
+    def __process_lib_obj(self, request: LibInfoObj) -> LibInfo | None:
         name: str = request.name
         uuid: str = request.uuid
         path: str = request.path
@@ -25,7 +24,7 @@ class Servicer(GrpcServerServicer):
         if not name or not uuid or not path or not type:
             return None
 
-        libInfo: LibInfoObj = LibInfoObj()
+        libInfo: LibInfo = LibInfo()
         libInfo.name = name
         libInfo.uuid = uuid
         libInfo.path = path
@@ -33,14 +32,21 @@ class Servicer(GrpcServerServicer):
         return libInfo
 
     """
+    Heat beat API
+    """
+
+    def heartbeat(self, request: VoidObj, context) -> BooleanObj:
+        return BooleanObj(value=True)
+
+    """
     Task APIs
     """
 
-    def get_task_state(self, request: StringObj, context) -> RpcTaskObj:
-        response: RpcTaskObj = RpcTaskObj()
+    def get_task_state(self, request: StringObj, context) -> TaskInfoObj:
+        response: TaskInfoObj = TaskInfoObj()
         if not request.value:
             return response
-        state: TaskObj | None = self.__task_runner.get_task_state(request.value)
+        state: TaskInfo | None = self.__task_runner.get_task_state(request.value)
         if not state:
             return response
 
@@ -87,8 +93,8 @@ class Servicer(GrpcServerServicer):
     Library APIs for general purpose
     """
 
-    def create_library(self, request: RpcLibInfoObj, context) -> BooleanObj:
-        libInfo: LibInfoObj | None = self.__process_lib_obj(request)
+    def create_library(self, request: LibInfoObj, context) -> BooleanObj:
+        libInfo: LibInfo | None = self.__process_lib_obj(request)
         if not libInfo:
             return BooleanObj(value=False)
 
@@ -98,8 +104,8 @@ class Servicer(GrpcServerServicer):
         except LibraryManagerException:
             return BooleanObj(value=False)
 
-    def use_library(self, request: RpcLibInfoObj, context) -> BooleanObj:
-        targetLibInfo: LibInfoObj | None = self.__process_lib_obj(request)
+    def use_library(self, request: LibInfoObj, context) -> BooleanObj:
+        targetLibInfo: LibInfo | None = self.__process_lib_obj(request)
         if not targetLibInfo:
             return BooleanObj(value=False)
 
@@ -112,7 +118,7 @@ class Servicer(GrpcServerServicer):
         except LibraryManagerException:
             return BooleanObj(value=False)
 
-    def make_library_ready(self, request: LibGetReadyParams, context) -> StringObj:
+    def make_library_ready(self, request: LibGetReadyParamObj, context) -> StringObj:
         try:
             potential_provider: type | None = globals().get(request.provider_type, None)
             task_id: str = self.__lib_manager.make_library_ready(
@@ -123,23 +129,23 @@ class Servicer(GrpcServerServicer):
         except LibraryManagerException:
             return StringObj(value='')
 
-    def get_current_lib_info(self, request: VoidObj, context) -> RpcLibInfoObj:
-        libInfo: LibInfoObj | None = self.__lib_manager.get_current_lib_info()
+    def get_current_lib_info(self, request: VoidObj, context) -> LibInfoObj:
+        libInfo: LibInfo | None = self.__lib_manager.get_current_lib_info()
         if not libInfo:
-            return RpcLibInfoObj()
+            return LibInfoObj()
 
-        response: RpcLibInfoObj = RpcLibInfoObj()
+        response: LibInfoObj = LibInfoObj()
         response.name = libInfo.name
         response.uuid = libInfo.uuid
         response.path = libInfo.path
         response.type = libInfo.type
         return response
 
-    def get_library_list(self, request: VoidObj, context) -> ListOfRpcLibInfoObj:
-        libList: list[LibInfoObj] = self.__lib_manager.get_library_list()
-        response: ListOfRpcLibInfoObj = ListOfRpcLibInfoObj()
+    def get_library_list(self, request: VoidObj, context) -> ListOfLibInfoObj:
+        libList: list[LibInfo] = self.__lib_manager.get_library_list()
+        response: ListOfLibInfoObj = ListOfLibInfoObj()
         for libInfo in libList:
-            rpcLibInfo: RpcLibInfoObj = RpcLibInfoObj()
+            rpcLibInfo: LibInfoObj = LibInfoObj()
             rpcLibInfo.name = libInfo.name
             rpcLibInfo.uuid = libInfo.uuid
             rpcLibInfo.path = libInfo.path
@@ -147,14 +153,14 @@ class Servicer(GrpcServerServicer):
             response.value.append(rpcLibInfo)
         return response
 
-    def get_library_path_list(self, request: VoidObj, context) -> ListOfStrings:
+    def get_library_path_list(self, request: VoidObj, context) -> ListOfStringObj:
         libPathList: list[str] = self.__lib_manager.get_library_path_list()
-        response: ListOfStrings = ListOfStrings()
+        response: ListOfStringObj = ListOfStringObj()
         response.value.extend(libPathList)
         return response
 
-    def lib_exists(self, request: RpcLibInfoObj, context) -> BooleanObj:
-        libInfo: LibInfoObj | None = self.__process_lib_obj(request)
+    def lib_exists(self, request: LibInfoObj, context) -> BooleanObj:
+        libInfo: LibInfo | None = self.__process_lib_obj(request)
         if not libInfo:
             return BooleanObj(value=False)
 
@@ -164,8 +170,8 @@ class Servicer(GrpcServerServicer):
     Document library APIs
     """
 
-    def query(self, request: DocLibQueryObj, context) -> ListOfDocLibQueryResponse:
-        response: ListOfDocLibQueryResponse = ListOfDocLibQueryResponse()
+    def query(self, request: DocLibQueryObj, context) -> ListOfDocLibQueryResponseObj:
+        response: ListOfDocLibQueryResponseObj = ListOfDocLibQueryResponseObj()
         instance: LibraryBase | None = self.__lib_manager.instance
         if not instance or not isinstance(instance, DocumentLib) or not request.text:
             return response
@@ -175,12 +181,14 @@ class Servicer(GrpcServerServicer):
         query_result: list[tuple] = casted_instance.query(request.text, request.top_k, request.rerank)
         for res in query_result:
             # Check if the data is from general document or chat history
-            r: DocLibQueryResponse = DocLibQueryResponse()
-            if doc_type == DocumentType.GENERAL:
+            r: DocLibQueryResponseObj = DocLibQueryResponseObj()
+            if doc_type == DocumentType.GENERAL.value:
                 # The text column ['text', 'TEXT'] is the 3rd column of document table, so row[2] is the key info
                 r.text = res[2]
-            elif doc_type == DocumentType.WECHAT_HISTORY:
-                # The message & replied message column ['message', 'TEXT'] and ['replied_message', 'TEXT'] are 4th and 6th columns of chat history table
+            elif doc_type == DocumentType.WECHAT_HISTORY.value:
+                # The message & replied message column ['message', 'TEXT'] and
+                # ['replied_message', 'TEXT'] are 4th and 6th columns of chat history
+                # table
                 r.sender = res[2]
                 r.message = res[3]
                 r.reply_to = res[4]
@@ -193,8 +201,8 @@ class Servicer(GrpcServerServicer):
     Document library APIs
     """
 
-    def image_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponse:
-        response: ListOfImageLibQueryResponse = ListOfImageLibQueryResponse()
+    def image_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponseObj:
+        response: ListOfImageLibQueryResponseObj = ListOfImageLibQueryResponseObj()
         image_data: bytes = request.image_data
         if not image_data:
             return response
@@ -208,7 +216,7 @@ class Servicer(GrpcServerServicer):
             casted_instance: ImageLib = instance
             query_result: list[tuple] = casted_instance.image_for_image_search(image, request.top_k)
             for res in query_result:
-                r: ImageLibQueryResponse = ImageLibQueryResponse()
+                r: ImageLibQueryResponseObj = ImageLibQueryResponseObj()
                 r.uuid = res[2]
                 r.path = res[3]
                 r.filename = res[4]
@@ -217,8 +225,8 @@ class Servicer(GrpcServerServicer):
         except Exception:
             return response
 
-    def text_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponse:
-        response: ListOfImageLibQueryResponse = ListOfImageLibQueryResponse()
+    def text_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponseObj:
+        response: ListOfImageLibQueryResponseObj = ListOfImageLibQueryResponseObj()
         instance: LibraryBase | None = self.__lib_manager.instance
         if not instance or not isinstance(instance, ImageLib) or not request.text:
             return response
@@ -226,7 +234,7 @@ class Servicer(GrpcServerServicer):
         casted_instance: ImageLib = instance
         query_result: list[tuple] = casted_instance.text_for_image_search(request.text, request.top_k)
         for res in query_result:
-            r: ImageLibQueryResponse = ImageLibQueryResponse()
+            r: ImageLibQueryResponseObj = ImageLibQueryResponseObj()
             r.uuid = res[2]
             r.path = res[3]
             r.filename = res[4]

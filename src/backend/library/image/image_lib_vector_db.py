@@ -2,12 +2,12 @@ import os
 from functools import wraps
 
 import numpy as np
-from redis.commands.search.query import Query
-from redis.commands.search.result import Result
-
 from db.vector.mem_vector_db import InMemoryVectorDb
 from db.vector.redis_client import BatchedPipeline
 from db.vector.redis_vector_db import RedisVectorDb
+from loggers import vector_db_logger as LOGGER
+from redis.commands.search.query import Query
+from redis.commands.search.result import Result
 from utils.exceptions.db_errors import LibraryVectorDbError
 
 
@@ -41,8 +41,10 @@ class ImageLibVectorDb:
         self.redis_vector_db: RedisVectorDb | None = None
         self.mem_vector_db: InMemoryVectorDb | None = None
         if use_redis:
+            LOGGER.info(f'Connecting to Redis vector DB for library: {lib_uuid}')
             self.redis_vector_db = RedisVectorDb(namespace=lib_uuid, index_name=f'v_idx:{lib_uuid}')  # type: ignore
         else:
+            LOGGER.info(f'Connecting to in-memory vector DB in path: {data_folder}')
             self.mem_vector_db = InMemoryVectorDb(data_folder=data_folder,
                                                   index_filename=ImageLibVectorDb.IDX_FILENAME,
                                                   ignore_index_error=ignore_index_error)
@@ -99,6 +101,7 @@ class ImageLibVectorDb:
     def delete_mem_db_file(lib_path: str):
         """Delete the in-memory vector DB file
         """
+        LOGGER.info(f'Deleting in-memory vector DB file: {ImageLibVectorDb.IDX_FILENAME}')
         file_path: str = os.path.join(lib_path, ImageLibVectorDb.IDX_FILENAME)
         if os.path.isfile(file_path):
             os.remove(file_path)
@@ -117,6 +120,7 @@ class ImageLibVectorDb:
         if embedding is None or not top_k or top_k <= 0:
             return list()
 
+        LOGGER.debug(f'Querying vector DB for top {top_k} similar images')
         if self.redis_vector_db:
             embedding_as_bytes: bytes = embedding.tobytes()
             param: dict = {"query_vector": embedding_as_bytes} if not extra_params else \

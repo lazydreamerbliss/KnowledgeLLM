@@ -15,7 +15,7 @@ message StringObj
 {
     string value = 1;
 };
-message ListOfStrings
+message ListOfStringObj
 {
     repeated string value = 1;
 };

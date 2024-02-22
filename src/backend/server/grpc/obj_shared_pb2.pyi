@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class RpcLibInfoObj(_message.Message):
+class LibInfoObj(_message.Message):
     __slots__ = ("name", "uuid", "path", "type")
     NAME_FIELD_NUMBER: _ClassVar[int]
     UUID_FIELD_NUMBER: _ClassVar[int]
@@ -18,13 +18,13 @@ class RpcLibInfoObj(_message.Message):
     type: str
     def __init__(self, name: _Optional[str] = ..., uuid: _Optional[str] = ..., path: _Optional[str] = ..., type: _Optional[str] = ...) -> None: ...
 
-class ListOfRpcLibInfoObj(_message.Message):
+class ListOfLibInfoObj(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    value: _containers.RepeatedCompositeFieldContainer[RpcLibInfoObj]
-    def __init__(self, value: _Optional[_Iterable[_Union[RpcLibInfoObj, _Mapping]]] = ...) -> None: ...
+    value: _containers.RepeatedCompositeFieldContainer[LibInfoObj]
+    def __init__(self, value: _Optional[_Iterable[_Union[LibInfoObj, _Mapping]]] = ...) -> None: ...
 
-class LibGetReadyParams(_message.Message):
+class LibGetReadyParamObj(_message.Message):
     __slots__ = ("force_init", "relative_path", "provider_type")
     FORCE_INIT_FIELD_NUMBER: _ClassVar[int]
     RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
@@ -34,7 +34,7 @@ class LibGetReadyParams(_message.Message):
     provider_type: str
     def __init__(self, force_init: bool = ..., relative_path: _Optional[str] = ..., provider_type: _Optional[str] = ...) -> None: ...
 
-class RpcTaskObj(_message.Message):
+class TaskInfoObj(_message.Message):
     __slots__ = ("id", "state", "phase_count", "phase_name", "current_phase", "progress", "error", "submitted_on", "completed_on", "duration")
     ID_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
@@ -68,7 +68,7 @@ class DocLibQueryObj(_message.Message):
     rerank: bool
     def __init__(self, text: _Optional[str] = ..., top_k: _Optional[int] = ..., rerank: bool = ...) -> None: ...
 
-class DocLibQueryResponse(_message.Message):
+class DocLibQueryResponseObj(_message.Message):
     __slots__ = ("timestamp", "text", "sender", "message", "reply_to", "replied_message")
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
@@ -84,11 +84,11 @@ class DocLibQueryResponse(_message.Message):
     replied_message: str
     def __init__(self, timestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., text: _Optional[str] = ..., sender: _Optional[str] = ..., message: _Optional[str] = ..., reply_to: _Optional[str] = ..., replied_message: _Optional[str] = ...) -> None: ...
 
-class ListOfDocLibQueryResponse(_message.Message):
+class ListOfDocLibQueryResponseObj(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    value: _containers.RepeatedCompositeFieldContainer[DocLibQueryResponse]
-    def __init__(self, value: _Optional[_Iterable[_Union[DocLibQueryResponse, _Mapping]]] = ...) -> None: ...
+    value: _containers.RepeatedCompositeFieldContainer[DocLibQueryResponseObj]
+    def __init__(self, value: _Optional[_Iterable[_Union[DocLibQueryResponseObj, _Mapping]]] = ...) -> None: ...
 
 class ImageLibQueryObj(_message.Message):
     __slots__ = ("image_data", "top_k", "text")
@@ -100,7 +100,7 @@ class ImageLibQueryObj(_message.Message):
     text: str
     def __init__(self, image_data: _Optional[bytes] = ..., top_k: _Optional[int] = ..., text: _Optional[str] = ...) -> None: ...
 
-class ImageLibQueryResponse(_message.Message):
+class ImageLibQueryResponseObj(_message.Message):
     __slots__ = ("uuid", "path", "filename")
     UUID_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
@@ -110,11 +110,11 @@ class ImageLibQueryResponse(_message.Message):
     filename: str
     def __init__(self, uuid: _Optional[str] = ..., path: _Optional[str] = ..., filename: _Optional[str] = ...) -> None: ...
 
-class ListOfImageLibQueryResponse(_message.Message):
+class ListOfImageLibQueryResponseObj(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    value: _containers.RepeatedCompositeFieldContainer[ImageLibQueryResponse]
-    def __init__(self, value: _Optional[_Iterable[_Union[ImageLibQueryResponse, _Mapping]]] = ...) -> None: ...
+    value: _containers.RepeatedCompositeFieldContainer[ImageLibQueryResponseObj]
+    def __init__(self, value: _Optional[_Iterable[_Union[ImageLibQueryResponseObj, _Mapping]]] = ...) -> None: ...
 
 class ImageTagObj(_message.Message):
     __slots__ = ("tag", "confidence")

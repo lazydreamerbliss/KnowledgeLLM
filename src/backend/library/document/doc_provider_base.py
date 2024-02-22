@@ -2,10 +2,12 @@ from sqlite3 import Cursor
 from typing import Callable, Generic, Type, TypeVar
 
 from db.sqlite.table import SqliteTable
+from loggers import doc_lib_logger as LOGGER
+from utils.containable_enum import ContainableEnum
 from utils.exceptions.lib_errors import *
 
 
-class DocumentType:
+class DocumentType(ContainableEnum):
     GENERAL = 'general'
     WECHAT_HISTORY = 'wechat_history'
     ARTICLE = 'article'
@@ -24,7 +26,7 @@ class DocProviderBase(Generic[T]):
     # Type for the table for this type of document provider
     TABLE_TYPE: type = SqliteTable
     # Type for the document of this kind of provider
-    DOC_TYPE: str = DocumentType.GENERAL
+    DOC_TYPE: str = DocumentType.GENERAL.value
 
     def __init__(self,
                  db_file: str,
@@ -39,6 +41,7 @@ class DocProviderBase(Generic[T]):
             table_name (str): _description_
             table_type (Type[T]): Generic type constructor for SqliteTable
         """
+        LOGGER.info(f'Initializing document provider on {table_name}, table type: {table_type}...')
         self._table: T = table_type(db_file, table_name)
         self._progress_reporter: Callable[[int, int, str | None], None] | None = progress_reporter
 

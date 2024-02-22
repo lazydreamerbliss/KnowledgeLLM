@@ -1,11 +1,10 @@
+from db.vector.redis_client import BatchedPipeline, RedisClient
+from loggers import vector_db_logger as LOGGER
 from redis import ResponseError
 from redis.commands.search import Search
 from redis.commands.search.field import VectorField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
-
-from db.vector.redis_client import BatchedPipeline, RedisClient
 from utils.exceptions.db_errors import VectorDbCoreError
-from utils.tqdm_context import TqdmContext
 
 
 class RedisVectorDb:
@@ -16,14 +15,16 @@ class RedisVectorDb:
         if not namespace or not index_name:
             raise VectorDbCoreError('Namespace and index name are mandatory for using redis as vector DB')
 
-        with TqdmContext('Connecting to Redis vector DB...', 'Connected'):
-            self.__redis: RedisClient = RedisClient()
-            self.namespace: str = namespace
-            self.index_name: str = index_name
+        LOGGER.info(f'Connecting to Redis vector DB, namespace: {namespace}, index name: {index_name}')
+        self.__redis: RedisClient = RedisClient()
+        self.namespace: str = namespace
+        self.index_name: str = index_name
 
     def initialize_index(self, vector_dimension: int):
         """Create index for current image library only
         """
+        LOGGER.info(f'Initializing index for Redis vector DB, namespace: {self.namespace}, index name: {self.index_name}')
+
         # Define redis index schema
         # - https://redis.io/docs/get-started/vector-database/
         schema = (
@@ -69,6 +70,7 @@ class RedisVectorDb:
     def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
         """Remove given embedding from vector DB
         """
+        LOGGER.info(f'Removing vector entry from Redis vector DB, namespace: {self.namespace}, uuid: {uuid}')
         if pipeline:
             pipeline.json_delete(f'{self.namespace}:{uuid}')
         else:
@@ -78,6 +80,7 @@ class RedisVectorDb:
         """Fully clean the library data for reset
         - Remove all keys in vector DB within the namespace
         """
+        LOGGER.warning(f'Cleaning Redis vector DB for namespace: {self.namespace}')
         self.__redis.delete_by_prefix(f'{self.namespace}:')
         self.__redis.snapshot()
 
@@ -86,6 +89,7 @@ class RedisVectorDb:
         1. Remove all keys in vector DB
         2. Delete the index
         """
+        LOGGER.warning(f'Deleting Redis vector DB for namespace: {self.namespace}')
         self.clean_all_data()
         self.__redis.client().ft(self.index_name).dropindex()
         self.__redis.save()
@@ -93,6 +97,7 @@ class RedisVectorDb:
     def persist(self):
         """Persist index to disk
         """
+        LOGGER.info(f'Persisting Redis vector DB for namespace: {self.namespace}')
         self.__redis.save()
 
     def get_search(self) -> Search:

@@ -32,7 +32,7 @@ class TaskState:
     CANCELLED = 'CANCELLED'
 
 
-class TaskObj:
+class TaskInfo:
     """Define an executed task
     """
 
@@ -67,7 +67,7 @@ class TaskObj:
 
 class TaskRunner:
     def __init__(self, max_parallel_tasks: int = 5):
-        self.tasks: dict[str, TaskObj] = dict()
+        self.tasks: dict[str, TaskInfo] = dict()
         self.max_parallel_tasks: int = max_parallel_tasks
         self.__thread_pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_parallel_tasks)
 
@@ -143,7 +143,7 @@ class TaskRunner:
         if self.__get_active_task_count() >= self.max_parallel_tasks:
             raise TaskCreationFailureException('Maximum number of parallel tasks exceeded')
 
-        task: TaskObj = TaskObj(str(uuid.uuid4()))
+        task: TaskInfo = TaskInfo(str(uuid.uuid4()))
         task.phase_count = phase_count if phase_count >= 1 else 1
         if support_cancel:
             task.cancel_event = Event()
@@ -153,7 +153,7 @@ class TaskRunner:
             def progress_reporter(progress: int,
                                   current_phase: int = 1,
                                   phase_name: str | None = None):
-                t: TaskObj = self.tasks[task.id]
+                t: TaskInfo = self.tasks[task.id]
                 t.progress = progress
                 t.current_phase = current_phase
                 t.phase_name = phase_name
@@ -189,7 +189,7 @@ class TaskRunner:
                     return True
         return False
 
-    def get_task_state(self, task_id: str) -> TaskObj | None:
+    def get_task_state(self, task_id: str) -> TaskInfo | None:
         """Check the running state of given task IDs
         """
         return self.tasks.get(task_id, None)

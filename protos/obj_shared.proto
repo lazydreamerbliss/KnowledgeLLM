@@ -3,18 +3,18 @@ syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 
 // Represents the summary info of a library object for creation or info fetch
-message RpcLibInfoObj {
+message LibInfoObj {
     string name = 1;
     string uuid = 2;
     string path = 3;
     string type = 4;
 }
-message ListOfRpcLibInfoObj {
-    repeated RpcLibInfoObj value = 1;
+message ListOfLibInfoObj {
+    repeated LibInfoObj value = 1;
 }
 
 // Represents the params that the library is required to get ready to use
-message LibGetReadyParams {
+message LibGetReadyParamObj {
     bool force_init = 1;
     // For document library, image library does not need them
     string relative_path = 2;
@@ -22,7 +22,7 @@ message LibGetReadyParams {
 }
 
 // Represents the structure of a submitted task
-message RpcTaskObj {
+message TaskInfoObj {
     string id = 1;
     string state = 2;
     int32 phase_count = 3;
@@ -41,7 +41,7 @@ message DocLibQueryObj {
     int32 top_k = 2;
     bool rerank = 3;
 }
-message DocLibQueryResponse {
+message DocLibQueryResponseObj {
     google.protobuf.Timestamp timestamp = 1;
     // For general document
     string text = 2;
@@ -51,8 +51,8 @@ message DocLibQueryResponse {
     string reply_to = 5;
     string replied_message = 6;
 }
-message ListOfDocLibQueryResponse {
-    repeated DocLibQueryResponse value = 1;
+message ListOfDocLibQueryResponseObj {
+    repeated DocLibQueryResponseObj value = 1;
 }
 
 // Represents the query and response of an image library
@@ -61,13 +61,13 @@ message ImageLibQueryObj {
     int32 top_k = 2;
     string text = 3;
 }
-message ImageLibQueryResponse {
+message ImageLibQueryResponseObj {
     string uuid = 1;
     string path = 2;
     string filename = 3;
 }
-message ListOfImageLibQueryResponse {
-    repeated ImageLibQueryResponse value = 1;
+message ListOfImageLibQueryResponseObj {
+    repeated ImageLibQueryResponseObj value = 1;
 }
 
 // Represents the response to auto-tagging an image

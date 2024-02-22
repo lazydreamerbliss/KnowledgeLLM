@@ -1,21 +1,23 @@
 import os
 import shutil
+from time import time
 from typing import Callable, Generic, Type, TypeVar
 from uuid import uuid4
 
 import numpy as np
 import numpy.typing as npt
+from constants.lib_constants import LibTypes
 from knowledge_base.document.doc_embedder import DocEmbedder
 from library.document.doc_lib_vector_db import DocLibVectorDb
+from library.document.doc_provider_base import DocProviderBase
 from library.document.sql import DB_NAME
 from library.lib_base import *
 from library.scan_record_tracker import UnfinishedScanRecordTrackerManager
-from tqdm import tqdm
-from utils.exceptions.task_errors import TaskCancellationException
+from loggers import doc_lib_logger as LOGGER
+from utils.exceptions.task_errors import (LockAcquisitionFailure,
+                                          TaskCancellationException)
+from utils.lock_context import LockContext
 from utils.task_runner import report_progress
-from utils.tqdm_context import TqdmContext
-
-from backend.library.document.doc_provider_base import DocProviderBase
 
 """
 from sentence_transformers import CrossEncoder, SentenceTransformer
@@ -49,16 +51,17 @@ class DocumentLib(Generic[D], LibraryBase):
         super().__init__(lib_path)
 
         # Load metadata
-        with TqdmContext('Loading library metadata...', 'Loaded'):
-            if not self._metadata_exists():
-                initial_metadata: dict = BASIC_METADATA | {
-                    'type': 'document',
-                    'uuid': uuid,
-                    'name': lib_name,
-                }
-                self.initialize_metadata(initial_metadata)
-            else:
-                self.load_metadata(uuid, lib_name)
+        LOGGER.info(f'Loading metadata for {lib_name}...')
+        if not self._metadata_exists():
+            initial_metadata: dict = BASIC_METADATA | {
+                'type': LibTypes.DOCUMENT.value,
+                'uuid': uuid,
+                'name': lib_name,
+            }
+            self.initialize_metadata(initial_metadata)
+        else:
+            self.load_metadata(uuid, lib_name)
+
         if not self._metadata or not self.uuid:
             raise LibraryError('Library metadata not initialized')
 
@@ -92,67 +95,77 @@ class DocumentLib(Generic[D], LibraryBase):
         if not os.path.isfile(doc_path):
             raise LibraryError(f'Invalid doc path: {doc_path}')
 
-        # Start to track embedding and progress
-        with UnfinishedScanRecordTrackerManager(self._tracker, relative_path, uuid):  # type: ignore
-            # Create doc provider for this doc
-            self.__doc_provider = provider_type(self.path_db,
-                                                uuid,
-                                                doc_path=doc_path,
-                                                progress_reporter=progress_reporter)
-            total: int = self.__doc_provider.get_record_count()
+        with LockContext(self._scan_lock) as lock:
+            if not lock.acquired:
+                raise LockAcquisitionFailure('There is already a scan task running')
 
-            # Do embedding, and create vector DB for this doc
-            # - The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
-            use_IVF: bool = total > 7020
-            self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
+            # Start to track embedding and progress
+            with UnfinishedScanRecordTrackerManager(self._tracker, relative_path, uuid):  # type: ignore
+                # Create doc provider for this doc
+                LOGGER.info(f'Document initialization started for {relative_path}')
+                self.__doc_provider = provider_type(self.path_db,
+                                                    uuid,
+                                                    doc_path=doc_path,
+                                                    progress_reporter=progress_reporter)
+                total: int = self.__doc_provider.get_record_count()
 
-            embedding_list: list[npt.ArrayLike] = list()
-            previous_progress: int = -1
-            first_round: bool = True
-            # for i, row in tqdm(enumerate(self.__doc_provider.get_all_records()), desc='Embedding data', ascii=' |'):
-            for i, row in enumerate(self.__doc_provider.get_all_records()):
-                if cancel_event and cancel_event.is_set():
-                    tqdm.write('Embedding cancelled')
-                    raise TaskCancellationException('Library initialization cancelled')
+                # Do embedding, and create vector DB for this doc
+                # - The threshold "7020" is from IVF's warning message "WARNING clustering 2081 points to 180 centroids: please provide at least 7020 training points"
+                use_IVF: bool = total > 7020
+                self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
 
-                # If reporter is given, report progress to task manager
-                # - Reduce report frequency, only report when progress changes
-                current_progress: int = int(i / total * 100)
-                if current_progress > previous_progress:
-                    previous_progress = current_progress
-                    report_progress(progress_reporter, current_progress, current_phase=2, phase_name='EMBEDDING')
+                embedding_list: list[npt.ArrayLike] = list()
+                previous_progress: int = -1
+                first_round: bool = True
+                start: float = time()
 
-                key_text: str = self.__doc_provider.get_key_text_from_record(row)
-                embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
+                LOGGER.info(f'Total records: {total}, start embedding...')
+                for i, row in enumerate(self.__doc_provider.get_all_records()):
+                    if cancel_event and cancel_event.is_set():
+                        LOGGER.info('Embedding cancelled')
+                        raise TaskCancellationException('Library initialization cancelled')
 
-                # For IVF case, save all embeddings for further training
+                    # If reporter is given, report progress to task manager
+                    # - Reduce report frequency, only report when progress changes
+                    current_progress: int = int(i / total * 100)
+                    if current_progress > previous_progress:
+                        previous_progress = current_progress
+                        report_progress(progress_reporter, current_progress, current_phase=2, phase_name='EMBEDDING')
+
+                    key_text: str = self.__doc_provider.get_key_text_from_record(row)
+                    embedding: np.ndarray = self.__embedder.embed_text(key_text)  # type: ignore
+
+                    # For IVF case, save all embeddings for further training
+                    if use_IVF:
+                        embedding_list.append(embedding)  # type: ignore
+                        continue
+
+                    # For non-IVF (Flat) case, add embedding to index directly
+                    if first_round:
+                        first_round = False
+                        dimension: int = embedding.size
+                        self.__vector_db.initialize_index(dimension, training_set=None)
+                    self.__vector_db.add(None, embedding.tolist())
+
                 if use_IVF:
-                    embedding_list.append(embedding)  # type: ignore
-                    continue
+                    embeddings: np.ndarray = np.asarray(embedding_list)
 
-                # For non-IVF (Flat) case, add embedding to index directly
-                if first_round:
-                    first_round = False
-                    dimension: int = embedding.size
-                    self.__vector_db.initialize_index(dimension, training_set=None)
-                self.__vector_db.add(None, embedding.tolist())
+                    # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
+                    # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
+                    # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
+                    # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
+                    text_count: int = embeddings.shape[0]
+                    dimension: int = embeddings.shape[1]
 
-            if use_IVF:
-                embeddings: np.ndarray = np.asarray(embedding_list)
-
-                # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
-                # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
-                # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
-                # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
-                text_count: int = embeddings.shape[0]
-                dimension: int = embeddings.shape[1]
-                with TqdmContext(f'Building index with dimension {dimension}...', 'Done'):
+                    LOGGER.info(f'Building index with dimension {dimension}...')
                     self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
+                    LOGGER.info('Index built')
+                self.__vector_db.persist()
 
-            self.__vector_db.persist()
-
-        # Record info in metadata after finished embedding
-        self._tracker.add_record(relative_path, uuid)  # type: ignore
+            # Record info in metadata after finished embedding
+            self._tracker.add_record(relative_path, uuid)  # type: ignore
+            time_taken: float = time.time() - start
+            LOGGER.info(f'Document initialization finished for {relative_path}, cost: {time_taken:.2f}s')
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
         """Get top_k most similar candidates under the given document (relative path)
@@ -164,6 +177,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.__doc_provider or not self.__vector_db:
             raise LibraryError('No active document, please switch to a document first')
 
+        LOGGER.info(f'Retrieving {top_k} candidates for {text}...')
         query_embedding: np.ndarray = self.__embedder.embed_text(text)  # type: ignore
         ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
         res: list[tuple] = list()
@@ -184,7 +198,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.__doc_provider:
             raise LibraryError('No active document, please switch to a document first')
 
-        tqdm.write(f'Reranking {len(candidate_rows)} candidates...')
+        LOGGER.info(f'Reranking {len(candidate_rows)} candidates for {text}...')
         candidates_str: list[str] = [
             self.__doc_provider.get_key_text_from_record(c) for c in candidate_rows
         ]  # type: ignore
@@ -221,28 +235,37 @@ class DocumentLib(Generic[D], LibraryBase):
         relative_path = relative_path.lstrip(os.path.sep)
         need_initialization: bool = force_init or not self._tracker.is_recorded(relative_path)  # type: ignore
 
+        LOGGER.info(f'Switching to document {relative_path}, force init: {force_init}')
         if not need_initialization:
             # If no need to initialize, just switch to the doc
-            with TqdmContext(f'Switching to doc {relative_path}, loading data...', 'Done'):
-                uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
-                self.__doc_provider = provider_type(self.path_db,
-                                                    uuid,
-                                                    doc_path=None,
-                                                    progress_reporter=progress_reporter)
-                self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
+            LOGGER.info(f'Target document already initialized, load data from disk')
+            uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
+            self.__doc_provider = provider_type(self.path_db,
+                                                uuid,
+                                                doc_path=None,
+                                                progress_reporter=progress_reporter)
+            self.__vector_db = DocLibVectorDb(self._path_lib_data, uuid)
         else:
             # Clean up existing embeddings or leftover if any when:
             # - If this is a force init
             # - If given doc is in unfinished list
             if force_init or self._tracker.is_unfinished(relative_path):  # type: ignore
+                LOGGER.info(
+                    f'Clean up existing embeddings for {relative_path} because of force init or target doc is in unfinished list')
                 self.remove_doc_embeddings([relative_path], provider_type)
 
             try:
+                LOGGER.info(f'Document initialization started for {relative_path}...')
                 uuid: str = str(uuid4())
                 self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
-            except TaskCancellationException:
+            except Exception as e:
                 # On cancel, clean this doc's leftover
                 self.remove_doc_embeddings([relative_path], provider_type)
+                if isinstance(e, TaskCancellationException):
+                    LOGGER.warn('Document initialization cancelled, progress abandoned')
+                else:
+                    LOGGER.error(f'Document initialization failed: {e}')
+                    raise LibraryError(f'Document initialization failed: {e}')
 
         if self.__doc_provider:
             self.doc_type = self.__doc_provider.DOC_TYPE
@@ -255,11 +278,17 @@ class DocumentLib(Generic[D], LibraryBase):
 
         Simply purge the library data folder
         """
-        self.__embedder = None
-        self.__doc_provider = None
-        self.__vector_db = None
-        self._tracker = None
-        shutil.rmtree(self._path_lib_data)
+        LOGGER.warning(f'Demolish library: {self.path_lib}')
+        with LockContext(self._scan_lock) as lock:
+            if not lock.acquired:
+                raise LockAcquisitionFailure('There is already a scan task running, cancel the task and try again')
+
+            self.__embedder = None
+            self.__doc_provider = None
+            self.__vector_db = None
+            self._tracker = None
+            shutil.rmtree(self._path_lib_data)
+            LOGGER.warning(f'Library demolished: {self.path_lib}')
 
     def add_file(self, folder_relative_path: str, source_file: str):
         pass
@@ -275,6 +304,7 @@ class DocumentLib(Generic[D], LibraryBase):
             if not relative_path:
                 continue
 
+            LOGGER.warn(f'Remove file: {relative_path}')
             relative_path = relative_path.lstrip(os.path.sep)
             doc_path: str = os.path.join(self.path_lib, relative_path)
             if os.path.isfile(doc_path):
@@ -329,20 +359,21 @@ class DocumentLib(Generic[D], LibraryBase):
             if self.__doc_provider:
                 is_active_doc = self.__doc_provider.get_table_name() == uuid
 
-            with TqdmContext(f'Removing embedding data for {uuid}...', 'Done'):
-                if not is_active_doc:
-                    # For non-active doc, create temp provider and temp vector DB to delete leftover
-                    tmp_provider: DocProviderBase = provider_type(self.path_db,
-                                                                  uuid)
-                    tmp_provider.delete_table()
-                    tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
-                    tmp_vector_db.delete_db()
-                else:
-                    self.__doc_provider.delete_table()  # type: ignore
-                    self.__doc_provider = None
-                    self.__vector_db.delete_db()  # type: ignore
-                    self.__vector_db = None
-                    self.doc_type = ''
+            if not is_active_doc:
+                # For non-active doc, create temp provider and temp vector DB to delete leftover
+                LOGGER.warn(f'Remove embedding for: {relative_path}, UUID: {uuid}, this document is not active')
+                tmp_provider: DocProviderBase = provider_type(self.path_db,
+                                                              uuid)
+                tmp_provider.delete_table()
+                tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
+                tmp_vector_db.delete_db()
+            else:
+                LOGGER.warn(f'Remove embedding for: {relative_path}, UUID: {uuid}, this document is active')
+                self.__doc_provider.delete_table()  # type: ignore
+                self.__doc_provider = None
+                self.__vector_db.delete_db()  # type: ignore
+                self.__vector_db = None
+                self.doc_type = ''
 
             # Remove doc from embedding history after deletion if this doc is tracked
             self._tracker.remove_by_relative_path(relative_path)  # type: ignore
@@ -362,7 +393,7 @@ class DocumentLib(Generic[D], LibraryBase):
             rerank_lambda (int, optional): The function used to fetch specific data from a row for rerank.
             It needs to accept a tuple (the row data) and return a string. Defaults to None.
         """
-        tqdm.write(f'Q: {query_text}, get top {top_k} matches...')
+        LOGGER.info(f'Querying {query_text} with top {top_k} matches...')
         if rerank:
             candidates: list[tuple] = self.__retrieve(query_text, top_k * 10)
             reranked: list[tuple] = self.__rerank(query_text, candidates)

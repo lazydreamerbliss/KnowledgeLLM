@@ -2,11 +2,10 @@ import os
 from datetime import datetime
 from sqlite3 import Cursor
 
-from tqdm import tqdm
-
 from db.sqlite.sql_basic import create_index_sql, create_unique_index_sql
 from db.sqlite.table import SqliteTable, ensure_db
 from library.sql import *
+from loggers import logger as LOGGER
 
 
 class ScanRecordTable(SqliteTable):
@@ -158,6 +157,7 @@ class ScanRecordTracker:
     def add_record(self, relative_path: str, uuid: str) -> int | None:
         """Add one scan history record
         """
+        LOGGER.info(f'Adding embedded record: {relative_path} - {uuid}')
         # (timestamp, relative_path, uuid, unfinished=0)
         return self.__table.insert_row((datetime.now(), relative_path, uuid, 0))
 
@@ -196,16 +196,19 @@ class ScanRecordTracker:
     def update_record_path(self, new_relative_path: str, old_relative_path: str) -> bool:
         """Update one existing record's relative path with a new one
         """
+        LOGGER.info(f'Moving embedded record path: {old_relative_path} -> {new_relative_path}')
         return self.__table.update_record(new_relative_path, old_relative_path)
 
     def remove_record_by_relative_path(self, relative_path: str) -> bool:
         """Delete one record by relative path
         """
+        LOGGER.info(f'Removing embedded record: {relative_path}')
         return self.__table.delete_record_by_relative_path(relative_path, unfinished=False)
 
     def remove_record_by_uuid(self, uuid: str) -> bool:
         """Delete one record by uuid
         """
+        LOGGER.info(f'Removing embedded record: {uuid}')
         return self.__table.delete_record_by_uuid(uuid, unfinished=False)
 
     """
@@ -215,6 +218,7 @@ class ScanRecordTracker:
     def add_unfinished(self, relative_path: str, uuid: str) -> int | None:
         """Add one unfinished scan history record
         """
+        LOGGER.info(f'Adding unfinished record: {relative_path} - {uuid}')
         # (timestamp, relative_path, uuid, unfinished=1)
         return self.__table.insert_row((datetime.now(), relative_path, uuid, 1))
 
@@ -241,11 +245,13 @@ class ScanRecordTracker:
     def remove_unfinished_by_relative_path(self, relative_path: str) -> bool:
         """Delete one unfinished record by relative path
         """
+        LOGGER.info(f'Removing unfinished record: {relative_path}')
         return self.__table.delete_record_by_relative_path(relative_path, unfinished=True)
 
     def remove_unfinished_by_uuid(self, uuid: str) -> bool:
         """Delete one unfinished record by uuid
         """
+        LOGGER.info(f'Removing unfinished record: {uuid}')
         return self.__table.delete_record_by_uuid(uuid, unfinished=True)
 
 
@@ -260,12 +266,10 @@ class UnfinishedScanRecordTrackerManager:
 
     def __enter__(self):
         # On enter, add the given relative path and uuid to unfinished records
-        tqdm.write(f'Adding unfinished record: {self.__relative_path} - {self.__uuid}')
         self.__tracker.add_unfinished(self.__relative_path, self.__uuid)
 
     def __exit__(self, exc_type, exc_value, traceback):
         # On exit, remove the given relative path and uuid from unfinished records
-        tqdm.write(f'Removing unfinished record: {self.__relative_path} - {self.__uuid}')
         if self.__relative_path:
             self.__tracker.remove_unfinished_by_relative_path(self.__relative_path)
         elif self.__uuid:

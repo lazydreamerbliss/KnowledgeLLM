@@ -178,3 +178,9 @@ cython_debug/
 
 # Local model path
 local_models/
+
+# nohup.out file
+*.out
+
+# Log files
+logs/

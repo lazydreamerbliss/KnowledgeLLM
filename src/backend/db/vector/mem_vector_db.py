@@ -5,8 +5,7 @@ from functools import wraps
 
 import numpy as np
 from faiss import IndexFlatL2, IndexIDMap2, IndexIVFFlat
-from tqdm import tqdm
-
+from loggers import vector_db_logger as LOGGER
 from utils.exceptions.db_errors import VectorDbCoreError
 
 
@@ -33,11 +32,11 @@ class InMemoryVectorDb:
             raise VectorDbCoreError(
                 'A folder path is mandatory for using in-memory vector DB, index file will be created in the folder')
 
-        tqdm.write(f'Loading vector index from disk...', end=' ')
         data_folder = os.path.expanduser(data_folder)
         if not os.path.isdir(data_folder):
             os.makedirs(data_folder)
 
+        LOGGER.info(f'Loading vector index from disk, path: {data_folder}, index file: {index_filename}')
         index_filename = index_filename or InMemoryVectorDb.IDX_FILENAME
         index_file_path: str = os.path.join(data_folder, index_filename)
         self.mem_index_path: str = index_file_path
@@ -57,22 +56,26 @@ class InMemoryVectorDb:
                 self.__mem_index_ivf = obj['index_ivf']  # IndexIVFFlat
 
                 if not self.__mem_index_flat and not self.__mem_index_ivf:
-                    raise VectorDbCoreError(f'Corrupted index file: index not loaded')
+                    msg: str = 'Corrupted index file: index not loaded'
+                    LOGGER.error(msg)
+                    raise VectorDbCoreError(msg)
                 if self.__id_mapping:
                     index_size: int = self.__mem_index_flat.ntotal if self.__mem_index_flat else self.__mem_index_ivf.ntotal
                     # If we are not ignoring index error, raise exception on length mismatch
                     if not ignore_index_error \
                             and (len(self.__id_mapping) != index_size or len(self.__id_mapping_reverse) != index_size):
-                        raise VectorDbCoreError(
-                            f'Corrupted index file: ID mapping size {len(self.__id_mapping)} does not match index size {index_size}')
+                        msg: str = f'Corrupted index file: ID mapping size {len(self.__id_mapping)} does not match index size {index_size}'
+                        LOGGER.error(msg)
+                        raise VectorDbCoreError(msg)
 
-                tqdm.write(f'Loaded index from {index_file_path}')
+                LOGGER.info(f'Index file {index_file_path} loaded successfully')
             except VectorDbCoreError:
                 raise
             except Exception as e:
-                raise VectorDbCoreError(f'Corrupted index file: {e}')
+                LOGGER.error(f'Failed to load index file: {e}')
+                raise VectorDbCoreError(f'Failed to load index file: {e}')
         else:
-            tqdm.write(f'Index file {index_file_path} not found, this is a new vector database')
+            LOGGER.info(f'Index file {index_file_path} not found, this is a new vector database')
 
     def __get_index(self) -> IndexFlatL2 | IndexIDMap2 | IndexIVFFlat:
         if self.__mem_index_flat:
@@ -99,9 +102,12 @@ class InMemoryVectorDb:
             training_set_uuid_list (list[str] | None, optional): IVF index param, whether to track ID. Defaults to None.
             expected_dataset_size (int, optional): IVF index param. Defaults to 0.
         """
+        LOGGER.info(f'Initializing index for in-memory vector DB, vector dimension: {vector_dimension}, track ID: {track_id}')
+
         # FLAT index case
-        # - If no training set is given
+        # - If no training set is given using flat index, and return directly
         if training_set is None:
+            LOGGER.info('Using flat index for in-memory vector DB, no training data provided')
             index: IndexFlatL2 = IndexFlatL2(vector_dimension)
             if track_id:
                 self.__mem_index_flat = IndexIDMap2(index)
@@ -110,14 +116,18 @@ class InMemoryVectorDb:
             return
 
         # IVF index case
+        LOGGER.info('Using IVF index for in-memory vector DB, training data provided')
         if training_set_uuid_list and len(training_set) != len(training_set_uuid_list):
-            raise VectorDbCoreError('Training set and UUID list have different lengths')
+            msg: str = 'Training set and UUID list have different lengths'
+            LOGGER.error(msg)
+            raise VectorDbCoreError(msg)
 
         # The threshold "7020" is from IVF's warning message "WARNING clustering
         # 2081 points to 180 centroids: please provide at least 7020 training
         # points"
         if expected_dataset_size <= 7020:
-            tqdm.write(f'Dataset size {expected_dataset_size} is too small for IVF, suggest using flat index instead')
+            LOGGER.warning(
+                f'Dataset size {expected_dataset_size} is too small for IVF, suggest using flat index instead')
 
         # Calculation of a fair number of clusters and training set size for IVF
         # - https://github.com/facebookresearch/faiss/wiki/Guidelines-to-choose-an-index#how-big-is-the-dataset
@@ -125,7 +135,7 @@ class InMemoryVectorDb:
         cluster_count = 4 * int(math.sqrt(expected_dataset_size))
         expected_training_set_size = 30 * cluster_count
         if len(training_set) < expected_training_set_size:
-            tqdm.write(
+            LOGGER.warning(
                 f'Training set {len(training_set)} is too small for the expected dataset size: {expected_dataset_size}, this will lower the accuracy of the index. Expected size: {expected_training_set_size}')
 
         quantizer: IndexFlatL2 = IndexFlatL2(vector_dimension)
@@ -134,6 +144,7 @@ class InMemoryVectorDb:
 
         self.__mem_index_ivf.train(training_set)  # type: ignore
         self.index_size_since_last_training = len(training_set)
+        LOGGER.info(f'IVF index trained')
 
         # Track vector ID only when the embedding is added with a UUID
         if training_set_uuid_list:
@@ -141,6 +152,7 @@ class InMemoryVectorDb:
             self.__mem_index_ivf.add_with_ids(training_set, np.asarray(range(len(training_set))))  # type: ignore
         else:
             self.__mem_index_ivf.add(training_set)  # type: ignore
+        LOGGER.info(f'IVF index trained data added')
 
     @ensure_index
     def add(self, uuid: str | None, embedding: list[float]):
@@ -181,6 +193,7 @@ class InMemoryVectorDb:
         if uuids and not ids and not self.__id_mapping:
             raise VectorDbCoreError('ID mapping is required for removing by UUID')
 
+        LOGGER.info(f'Removing vector entries from in-memory vector DB, UUIDs: {uuids}, IDs: {ids}')
         to_be_removed_ids: list[int] | None = None
         if ids:
             to_be_removed_ids = ids
@@ -202,6 +215,7 @@ class InMemoryVectorDb:
         - Remove all keys in vector DB
         - Does not need to ensure index, since it could be called before index is initialized
         """
+        LOGGER.warning(f'Cleaning in-memory vector DB, path: {self.mem_index_path}')
         if self.__mem_index_flat:
             self.__mem_index_flat.reset()
         if self.__mem_index_ivf:
@@ -216,6 +230,7 @@ class InMemoryVectorDb:
         1. Remove all keys in vector DB
         2. Delete the index file
         """
+        LOGGER.warning(f'Deleting vector DB and index file, path: {self.mem_index_path}')
         self.clean_all_data()
         if os.path.isfile(self.mem_index_path):
             os.remove(self.mem_index_path)
@@ -223,6 +238,7 @@ class InMemoryVectorDb:
     def persist(self):
         """Persist index to disk
         """
+        LOGGER.info(f'Persisting vector index to disk, path: {self.mem_index_path}')
         pickle.dump({
             'id_mapping': self.__id_mapping,
             'id_mapping_reverse': self.__id_mapping_reverse,

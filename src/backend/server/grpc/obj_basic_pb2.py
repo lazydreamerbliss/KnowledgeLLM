@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0fobj_basic.proto\"\t\n\x07VoidObj\"\x1b\n\nBooleanObj\x12\r\n\x05value\x18\x01 \x01(\x08\"\x1a\n\tStringObj\x12\r\n\x05value\x18\x01 \x01(\t\"\x1e\n\rListOfStrings\x12\r\n\x05value\x18\x01 \x03(\t\" \n\x0fIntegerShortObj\x12\r\n\x05value\x18\x01 \x01(\x05\"\x1f\n\x0eIntegerLongObj\x12\r\n\x05value\x18\x01 \x01(\x03\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0fobj_basic.proto\"\t\n\x07VoidObj\"\x1b\n\nBooleanObj\x12\r\n\x05value\x18\x01 \x01(\x08\"\x1a\n\tStringObj\x12\r\n\x05value\x18\x01 \x01(\t\" \n\x0fListOfStringObj\x12\r\n\x05value\x18\x01 \x03(\t\" \n\x0fIntegerShortObj\x12\r\n\x05value\x18\x01 \x01(\x05\"\x1f\n\x0eIntegerLongObj\x12\r\n\x05value\x18\x01 \x01(\x03\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -27,10 +27,10 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_BOOLEANOBJ']._serialized_end=57
   _globals['_STRINGOBJ']._serialized_start=59
   _globals['_STRINGOBJ']._serialized_end=85
-  _globals['_LISTOFSTRINGS']._serialized_start=87
-  _globals['_LISTOFSTRINGS']._serialized_end=117
-  _globals['_INTEGERSHORTOBJ']._serialized_start=119
-  _globals['_INTEGERSHORTOBJ']._serialized_end=151
-  _globals['_INTEGERLONGOBJ']._serialized_start=153
-  _globals['_INTEGERLONGOBJ']._serialized_end=184
+  _globals['_LISTOFSTRINGOBJ']._serialized_start=87
+  _globals['_LISTOFSTRINGOBJ']._serialized_end=119
+  _globals['_INTEGERSHORTOBJ']._serialized_start=121
+  _globals['_INTEGERSHORTOBJ']._serialized_end=153
+  _globals['_INTEGERLONGOBJ']._serialized_start=155
+  _globals['_INTEGERLONGOBJ']._serialized_end=186
 # @@protoc_insertion_point(module_scope)
