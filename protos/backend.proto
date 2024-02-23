@@ -18,7 +18,7 @@ service GrpcServer
 
     // Library manager APIs for library control
     rpc create_library (LibInfoObj) returns (BooleanObj) {}
-    rpc use_library (VoidObj) returns (BooleanObj) {}
+    rpc use_library (StringObj) returns (BooleanObj) {}
     rpc demolish_library (LibInfoObj) returns (BooleanObj) {}
     rpc make_library_ready (LibGetReadyParamObj) returns (StringObj) {}
 

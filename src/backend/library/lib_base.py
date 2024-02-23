@@ -10,7 +10,7 @@ from constants.lib_constants import (SORTED_BY_LABELS, SUPPORTED_EXTENSIONS,
                                      VIEW_STYLES)
 from library.lib_item import *
 from library.scan_record_tracker import ScanRecordTracker
-from loggers import logger as LOGGER
+from loggers import lib_logger as LOGGER
 from utils.exceptions.lib_errors import LibraryError
 
 LIB_DATA_FOLDER: str = '__library_data__'

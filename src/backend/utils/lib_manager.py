@@ -108,9 +108,13 @@ class LibraryManager:
         """Switch to another library with given UUID
         """
         if uuid and uuid in self.__libraries:
+            lib: LibInfo = self.__libraries[uuid]
+            logger.info(f'Switch to library, name: {lib.name}, UUID: {uuid}')
             if self.__instanize_lib(uuid):
                 self.__save()
                 return True
+
+        logger.info(f'Switch to library but target not found, UUID: {uuid}')
         return False
 
     def create_library(self, new_lib: LibInfo, switch_to: bool = False):
@@ -119,12 +123,15 @@ class LibraryManager:
         """
         if new_lib.uuid in self.__libraries or new_lib.path in self.get_library_path_list():
             if new_lib.uuid in self.__libraries and new_lib.path == self.__libraries[new_lib.uuid].path:
-                # If the new library's same UUID and and same path all matched, just do instanize and return
-                logger.info(f'Library with same UUID and path already created, library name: {new_lib.name}')
-                return
-            raise LibraryManagerException('Library with same UUID or path already exists')
+                # If the new library's same UUID and and same path all matched, do nothing
+                logger.info(
+                    f'A library with same UUID and path already exists, name: {new_lib.name}, UUID: {new_lib.uuid}')
+            else:
+                raise LibraryManagerException('Library with same UUID or path already exists')
+        else:
+            logger.info(f'Creating new library, name: {new_lib.name}, UUID: {new_lib.uuid}')
+            self.__libraries[new_lib.uuid] = new_lib
 
-        self.__libraries[new_lib.uuid] = new_lib
         if switch_to:
             if self.__instanize_lib(new_lib.uuid):
                 self.__save()

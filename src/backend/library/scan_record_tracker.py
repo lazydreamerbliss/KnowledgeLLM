@@ -5,7 +5,7 @@ from sqlite3 import Cursor
 from db.sqlite.sql_basic import create_index_sql, create_unique_index_sql
 from db.sqlite.table import SqliteTable, ensure_db
 from library.sql import *
-from loggers import logger as LOGGER
+from loggers import lib_logger as LOGGER
 
 
 class ScanRecordTable(SqliteTable):

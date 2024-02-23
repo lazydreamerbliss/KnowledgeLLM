@@ -10,16 +10,20 @@ class VoidObj(_message.Message):
     def __init__(self) -> None: ...
 
 class BooleanObj(_message.Message):
-    __slots__ = ("value",)
+    __slots__ = ("value", "error")
     VALUE_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
     value: bool
-    def __init__(self, value: bool = ...) -> None: ...
+    error: str
+    def __init__(self, value: bool = ..., error: _Optional[str] = ...) -> None: ...
 
 class StringObj(_message.Message):
-    __slots__ = ("value",)
+    __slots__ = ("value", "error")
     VALUE_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
     value: str
-    def __init__(self, value: _Optional[str] = ...) -> None: ...
+    error: str
+    def __init__(self, value: _Optional[str] = ..., error: _Optional[str] = ...) -> None: ...
 
 class ListOfStringObj(_message.Message):
     __slots__ = ("value",)

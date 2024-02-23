@@ -164,7 +164,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
             # Record info in metadata after finished embedding
             self._tracker.add_record(relative_path, uuid)  # type: ignore
-            time_taken: float = time.time() - start
+            time_taken: float = time() - start
             LOGGER.info(f'Document initialization finished for {relative_path}, cost: {time_taken:.2f}s')
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:

@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 import torch
-
 from utils.containable_enum import ContainableEnum
 
 
@@ -36,7 +35,7 @@ CROSS_ENCODER_MODEL: str = 'tuhailong--cross_encoder_roberta-wwm-ext_v2'
 
 # Config folder, logging folder, etc.
 # - TODO: Change folders to installation path
-CONFIG_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/samples'
+CONFIG_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}'
 LOGGING_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/logs'
 
 REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')

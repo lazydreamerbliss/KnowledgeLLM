@@ -1,5 +1,8 @@
+import time
+
 import grpc
 from constants.env import GRPC_PORT
+from loggers import logger as TEST_LOGGER
 from server.grpc.backend_pb2_grpc import GrpcServerStub
 from server.grpc.obj_basic_pb2 import *
 from server.grpc.obj_shared_pb2 import *
@@ -21,14 +24,46 @@ class GrpcClientForServerTest:
         print(response)
 
     def test_create_and_demolish_doc_lib(self):
-        request: LibInfoObj = LibInfoObj()
+        # Create library
+        request = LibInfoObj()
         request.name = doc_lib1.name
         request.uuid = doc_lib1.uuid
         request.path = doc_lib1.path
         request.type = doc_lib1.type
-
         r1: BooleanObj = self.stub.create_library(request)
         assert r1.value, True
+
+        # Switch to library
+        request = StringObj()
+        request.value = '1234'
+        r2: BooleanObj = self.stub.use_library(request)
+        assert r2.value == False
+        request.value = doc_lib1.uuid
+        r2: BooleanObj = self.stub.use_library(request)
+        assert r2.value
+
+        # Use a document
+        request = LibGetReadyParamObj()
+        request.relative_path = '/sample1.txt'
+        request.provider_type = 'DocProvider'
+        r3: StringObj = self.stub.make_library_ready(request)
+        task_id: str = r3.value
+        error: str = r3.error
+        assert bool(task_id)
+
+        task_request = StringObj()
+        task_request.value = task_id
+        while True:
+            p: TaskInfoObj = self.stub.get_task_state(task_request)
+            TEST_LOGGER.info(f'Task in progress, state: {p.state}, phase_count: {p.phase_count}, phase_name: {p.phase_name}, progress: {p.progress}, duration: {p.duration}')
+            r: BooleanObj = self.stub.is_task_done(task_request)
+            if r.value:
+                TEST_LOGGER.info(f'Task done, task ID: {task_id}')
+                break
+            time.sleep(1)
+
+        # Switch to another document
+        request.relative_path = '/sample2.txt'
 
     def test_get_library_list(self):
         response = self.stub.get_library_list(VoidObj())

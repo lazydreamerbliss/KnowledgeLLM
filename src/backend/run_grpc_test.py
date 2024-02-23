@@ -2,9 +2,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from constants.env import IS_LINUX, IS_OSX
 from tests.grpc_client_test import GrpcClientForServerTest
-
-from backend.constants.env import IS_LINUX, IS_OSX
 
 
 def run_test_server_in_new_process() -> int:
@@ -29,6 +28,6 @@ if __name__ == '__main__':
         test_client.test_create_and_demolish_doc_lib()
     finally:
         # Kill the server on test completion, wait for some time to allow possible pending requests to complete
-        time.sleep(2)
+        time.sleep(10)
         subprocess.Popen(['kill', str(pid)])
         print(f'gRPC server killed successfully with pid: {pid}')
