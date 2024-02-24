@@ -28,7 +28,7 @@ service GrpcServer
     rpc lib_exists (StringObj) returns (BooleanObj) {}
 
     // Document library APIs
-    rpc query (DocLibQueryObj) returns (ListOfDocLibQueryResponseObj) {}
+    rpc query_text (DocLibQueryObj) returns (ListOfDocLibQueryResponseObj) {}
 
     // Image library APIs
     rpc image_for_image_search (ImageLibQueryObj) returns (ListOfImageLibQueryResponseObj) {}

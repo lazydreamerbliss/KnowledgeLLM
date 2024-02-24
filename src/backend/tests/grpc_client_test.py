@@ -66,7 +66,20 @@ class GrpcClientForServerTest:
                 break
             time.sleep(1)
 
+        # Do query
+        request = DocLibQueryObj()
+        request.text = '有意义的文字'
+        request.top_k = 10
+        response: ListOfDocLibQueryResponseObj = self.stub.query_text(request)
+        for i, r4 in enumerate(response.value):
+            TEST_LOGGER.info(f'Query result {i + 1}: {r4.text}')
+        request.text = 'meaningful text'
+        response: ListOfDocLibQueryResponseObj = self.stub.query_text(request)
+        for i, r4 in enumerate(response.value):
+            TEST_LOGGER.info(f'Query result {i + 1}: {r4.text}')
+
         # Switch to another document
+        request = LibGetReadyParamObj()
         request.relative_path = '/sample2.txt'
 
     def test_get_library_list(self):

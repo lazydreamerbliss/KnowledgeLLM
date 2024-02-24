@@ -1,4 +1,5 @@
 import importlib
+from datetime import datetime
 from functools import wraps
 from time import time
 from types import ModuleType
@@ -225,7 +226,7 @@ class Servicer(GrpcServerServicer):
     Document library APIs
     """
     @log_rpc_call
-    def query(self, request: DocLibQueryObj, context) -> ListOfDocLibQueryResponseObj:
+    def query_text(self, request: DocLibQueryObj, context) -> ListOfDocLibQueryResponseObj:
         response: ListOfDocLibQueryResponseObj = ListOfDocLibQueryResponseObj()
         instance: LibraryBase | None = self.__lib_manager.instance
         if not instance or not isinstance(instance, DocumentLib) or not request.text:
@@ -237,7 +238,10 @@ class Servicer(GrpcServerServicer):
         for res in query_result:
             # Check if the data is from general document or chat history
             r: DocLibQueryResponseObj = DocLibQueryResponseObj()
-            r.timestamp.FromDatetime(res[1])
+            # Sample timestamp: 2024-02-24 13:20:03.123508
+            timestamp_str: str = res[1]
+            timestamp: datetime = datetime.fromisoformat(timestamp_str)
+            r.timestamp.FromDatetime(timestamp)
             if doc_type == DocumentType.GENERAL.value:
                 # (id, timestamp, text)
                 r.text = res[2]

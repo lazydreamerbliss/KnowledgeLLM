@@ -80,8 +80,8 @@ class GrpcServerStub(object):
                 request_serializer=obj__basic__pb2.StringObj.SerializeToString,
                 response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
-        self.query = channel.unary_unary(
-                '/GrpcServer/query',
+        self.query_text = channel.unary_unary(
+                '/GrpcServer/query_text',
                 request_serializer=obj__shared__pb2.DocLibQueryObj.SerializeToString,
                 response_deserializer=obj__shared__pb2.ListOfDocLibQueryResponseObj.FromString,
                 )
@@ -187,7 +187,7 @@ class GrpcServerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def query(self, request, context):
+    def query_text(self, request, context):
         """Document library APIs
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -281,8 +281,8 @@ def add_GrpcServerServicer_to_server(servicer, server):
                     request_deserializer=obj__basic__pb2.StringObj.FromString,
                     response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
-            'query': grpc.unary_unary_rpc_method_handler(
-                    servicer.query,
+            'query_text': grpc.unary_unary_rpc_method_handler(
+                    servicer.query_text,
                     request_deserializer=obj__shared__pb2.DocLibQueryObj.FromString,
                     response_serializer=obj__shared__pb2.ListOfDocLibQueryResponseObj.SerializeToString,
             ),
@@ -534,7 +534,7 @@ class GrpcServer(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def query(request,
+    def query_text(request,
             target,
             options=(),
             channel_credentials=None,
@@ -544,7 +544,7 @@ class GrpcServer(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/GrpcServer/query',
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/query_text',
             obj__shared__pb2.DocLibQueryObj.SerializeToString,
             obj__shared__pb2.ListOfDocLibQueryResponseObj.FromString,
             options, channel_credentials,
