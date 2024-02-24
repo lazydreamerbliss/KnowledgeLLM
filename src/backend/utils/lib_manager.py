@@ -145,7 +145,7 @@ class LibraryManager:
             raise LibraryManagerException('Only an active library can be deleted')
 
         uuid: str = self.instance.uuid
-        logger.info(f'Demolishing library: {self.__libraries[uuid]}...')
+        logger.info(f'Demolishing library: {self.__libraries[uuid]}')
         self.instance.demolish()
         self.instance = None
         self.__libraries.pop(uuid)
@@ -251,7 +251,7 @@ class LibraryManager:
         if isinstance(self.instance, DocumentLib):
             if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs \
                     or not kwargs['relative_path'] or not kwargs['provider_type']:
-                raise LibraryManagerException('Invalid parameters for DocumentLib')
+                raise LibraryManagerException(f'Invalid parameters for DocumentLib, kwargs: {kwargs}')
 
             if self.instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
                 return UUID_EMPTY

@@ -141,7 +141,7 @@ class ImageLib(LibraryBase):
         if self._tracker.get_record_count() > 0:  # type: ignore
             to_be_deleted: set[str] = set(self._tracker.get_all_relative_paths()) - all_files  # type: ignore
             if to_be_deleted:
-                LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers...')
+                LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers')
                 self.remove_embeddings(list(to_be_deleted))
 
         if incremental:

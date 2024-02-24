@@ -36,7 +36,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         if not self._table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
-            LOGGER.info(f'Document table is empty, initializing chat history: {doc_path}...')
+            LOGGER.info(f'Document table is empty, initializing chat history: {doc_path}')
             self.initialize(doc_path)
 
     def __msg_clean_up(self, msg: str) -> str:
@@ -115,7 +115,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         previous_progress: int = -1
         start: float = time()
 
-        LOGGER.info(f'Processing chat history: {chat_filepath}, total lines: {total}...')
+        LOGGER.info(f'Processing chat history: {chat_filepath}, total lines: {total}')
         for i, line in enumerate(all_lines):
             line = line.strip()
             if not line:

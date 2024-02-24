@@ -1,7 +1,10 @@
+import importlib
 from functools import wraps
 from time import time
+from types import ModuleType
 from typing import Any
 
+from google.protobuf.timestamp_pb2 import Timestamp
 from library.document.doc_lib import DocumentLib
 from library.document.doc_provider_base import DocumentType
 from library.image.image_lib import ImageLib
@@ -15,8 +18,13 @@ from utils.exceptions.lib_errors import LibraryManagerException
 from utils.lib_manager import LibInfo, LibraryManager
 from utils.task_runner import TaskInfo, TaskRunner
 
+DOC_PROVIDER_MODULE_NAME: str = 'library.document.doc_provider'
+WECHAT_PROVIDER_MODULE_NAME: str = 'library.document.wechat.wechat_history_provider'
+DOC_PROVIDER_MODULE: ModuleType = importlib.import_module(DOC_PROVIDER_MODULE_NAME)
+WECHAT_PROVIDER_MODULE: ModuleType = importlib.import_module(WECHAT_PROVIDER_MODULE_NAME)
 
-def log_on_called(func):
+
+def log_rpc_call(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         LOGGER.info(f'RPC call started: {func.__name__}')
@@ -57,19 +65,20 @@ class Servicer(GrpcServerServicer):
     Heat beat API
     """
 
-    @log_on_called
+    @log_rpc_call
     def heartbeat(self, request: VoidObj, context) -> BooleanObj:
         return BooleanObj(value=True)
 
     """
     Task APIs
     """
-    @log_on_called
+    @log_rpc_call
     def get_task_state(self, request: StringObj, context) -> TaskInfoObj:
         response: TaskInfoObj = TaskInfoObj()
-        if not request.value:
+        task_id: str = request.value
+        if not task_id:
             return response
-        state: TaskInfo | None = self.__task_runner.get_task_state(request.value)
+        state: TaskInfo | None = self.__task_runner.get_task_state(task_id)
         if not state:
             return response
 
@@ -80,12 +89,12 @@ class Servicer(GrpcServerServicer):
         response.current_phase = state.current_phase
         response.progress = state.progress
         response.error = state.error  # type: ignore
-        response.submitted_on = state.submitted_on  # type: ignore
-        response.completed_on = state.completed_on  # type: ignore
+        response.submitted_on.FromDatetime(state.submitted_on)  # Note: proto Timestamp cannot be directly assigned
+        response.completed_on.FromDatetime(state.completed_on)  # Note: proto Timestamp cannot be directly assigned
         response.duration = state.duration
         return response
 
-    @log_on_called
+    @log_rpc_call
     def is_task_done(self, request: StringObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
@@ -95,7 +104,7 @@ class Servicer(GrpcServerServicer):
         response.value = self.__task_runner.is_task_done(request.value)
         return response
 
-    @log_on_called
+    @log_rpc_call
     def is_task_successful(self, request: StringObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
@@ -105,7 +114,7 @@ class Servicer(GrpcServerServicer):
         response.value = self.__task_runner.is_task_successful(request.value)
         return response
 
-    @log_on_called
+    @log_rpc_call
     def cancel_task(self, request: StringObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
@@ -118,7 +127,7 @@ class Servicer(GrpcServerServicer):
     """
     Library APIs for general purpose
     """
-    @log_on_called
+    @log_rpc_call
     def create_library(self, request: LibInfoObj, context) -> BooleanObj:
         libInfo: LibInfo | None = self.__process_lib_obj(request)
         if not libInfo:
@@ -127,16 +136,17 @@ class Servicer(GrpcServerServicer):
         try:
             self.__lib_manager.create_library(libInfo, switch_to=False)
             return BooleanObj(value=True)
-        except LibraryManagerException:
+        except LibraryManagerException as e:
+            LOGGER.info(f'Failed to create library: {e}')
             return BooleanObj(value=False)
 
-    @log_on_called
+    @log_rpc_call
     def use_library(self, request: StringObj, context) -> BooleanObj:
         if not request.value:
             return BooleanObj(value=False)
         return BooleanObj(value=self.__lib_manager.use_library(request.value))
 
-    @log_on_called
+    @log_rpc_call
     def demolish_library(self, request: VoidObj, context) -> BooleanObj:
         try:
             self.__lib_manager.demolish_library()
@@ -144,19 +154,33 @@ class Servicer(GrpcServerServicer):
         except LibraryManagerException:
             return BooleanObj(value=False)
 
-    @log_on_called
+    @log_rpc_call
     def make_library_ready(self, request: LibGetReadyParamObj, context) -> StringObj:
+        potential_provider: type | None = None
         try:
-            potential_provider: type | None = globals().get(request.provider_type, None)
+            potential_provider = getattr(DOC_PROVIDER_MODULE, 'DocProvider')
+        except AttributeError:
+            pass
+        if not potential_provider:
+            try:
+                potential_provider = getattr(WECHAT_PROVIDER_MODULE, 'WeChatHistoryProvider')
+            except AttributeError:
+                pass
+
+        try:
             task_id: str = self.__lib_manager.make_library_ready(
                 force_init=request.force_init,
                 relative_path=request.relative_path,
                 provider_type=potential_provider)
             return StringObj(value=task_id)
         except LibraryManagerException as e:
+            LOGGER.info(f'Failed to make library ready: {e}')
+            return StringObj(value=None, error=str(e))
+        except Exception as e:
+            LOGGER.info(f'Failed to make library ready: {e}')
             return StringObj(value=None, error=str(e))
 
-    @log_on_called
+    @log_rpc_call
     def get_current_lib_info(self, request: VoidObj, context) -> LibInfoObj:
         libInfo: LibInfo | None = self.__lib_manager.get_current_lib_info()
         if not libInfo:
@@ -169,7 +193,7 @@ class Servicer(GrpcServerServicer):
         response.type = libInfo.type
         return response
 
-    @log_on_called
+    @log_rpc_call
     def get_library_list(self, request: VoidObj, context) -> ListOfLibInfoObj:
         libList: list[LibInfo] = self.__lib_manager.get_library_list()
         response: ListOfLibInfoObj = ListOfLibInfoObj()
@@ -182,14 +206,14 @@ class Servicer(GrpcServerServicer):
             response.value.append(rpcLibInfo)
         return response
 
-    @log_on_called
+    @log_rpc_call
     def get_library_path_list(self, request: VoidObj, context) -> ListOfStringObj:
         libPathList: list[str] = self.__lib_manager.get_library_path_list()
         response: ListOfStringObj = ListOfStringObj()
         response.value.extend(libPathList)
         return response
 
-    @log_on_called
+    @log_rpc_call
     def lib_exists(self, request: LibInfoObj, context) -> BooleanObj:
         libInfo: LibInfo | None = self.__process_lib_obj(request)
         if not libInfo:
@@ -200,7 +224,7 @@ class Servicer(GrpcServerServicer):
     """
     Document library APIs
     """
-    @log_on_called
+    @log_rpc_call
     def query(self, request: DocLibQueryObj, context) -> ListOfDocLibQueryResponseObj:
         response: ListOfDocLibQueryResponseObj = ListOfDocLibQueryResponseObj()
         instance: LibraryBase | None = self.__lib_manager.instance
@@ -213,13 +237,12 @@ class Servicer(GrpcServerServicer):
         for res in query_result:
             # Check if the data is from general document or chat history
             r: DocLibQueryResponseObj = DocLibQueryResponseObj()
+            r.timestamp.FromDatetime(res[1])
             if doc_type == DocumentType.GENERAL.value:
-                # The text column ['text', 'TEXT'] is the 3rd column of document table, so row[2] is the key info
+                # (id, timestamp, text)
                 r.text = res[2]
             elif doc_type == DocumentType.WECHAT_HISTORY.value:
-                # The message & replied message column ['message', 'TEXT'] and
-                # ['replied_message', 'TEXT'] are 4th and 6th columns of chat history
-                # table
+                # (id, timestamp, sender, message, reply_to, replied_message)
                 r.sender = res[2]
                 r.message = res[3]
                 r.reply_to = res[4]
@@ -231,7 +254,7 @@ class Servicer(GrpcServerServicer):
     """
     Document library APIs
     """
-    @log_on_called
+    @log_rpc_call
     def image_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponseObj:
         response: ListOfImageLibQueryResponseObj = ListOfImageLibQueryResponseObj()
         image_data: bytes = request.image_data
@@ -256,7 +279,7 @@ class Servicer(GrpcServerServicer):
         except Exception:
             return response
 
-    @log_on_called
+    @log_rpc_call
     def text_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponseObj:
         response: ListOfImageLibQueryResponseObj = ListOfImageLibQueryResponseObj()
         instance: LibraryBase | None = self.__lib_manager.instance
@@ -273,7 +296,7 @@ class Servicer(GrpcServerServicer):
             response.value.append(r)
         return response
 
-    @log_on_called
+    @log_rpc_call
     def get_image_tags(self, request: ImageLibQueryObj, context) -> ListOfImageTagObj:
         # TODO
         raise NotImplementedError('Not implemented yet')

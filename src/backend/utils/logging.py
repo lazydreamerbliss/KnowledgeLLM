@@ -71,6 +71,7 @@ class CategoryLogger:
         Args:
             category (str): The category name
             name (str): Logger name
+            write_to_default (bool): Whether to write to the default logger also
         """
 
         cat_logging_dir: str = os.path.join(LOGGING_FOLDER, 'categorized')

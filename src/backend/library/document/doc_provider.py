@@ -36,7 +36,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
         if not self._table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
-            LOGGER.info(f'Document table is empty, initializing document: {doc_path}...')
+            LOGGER.info(f'Document table is empty, initializing document: {doc_path}')
             self.initialize(doc_path)
 
     def __reader_pdf(self, doc_path: str) -> Generator[tuple[str, int], Any, None]:
@@ -127,7 +127,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
         extension = extension.lower()[1:]
         start: float = time()
 
-        LOGGER.info(f'Reading document: {doc_path}...')
+        LOGGER.info(f'Reading document: {doc_path}')
         reader: Callable[[str], Generator[tuple[str, int], Any, None]] | None = None
         if extension == PDF_EXTENSION:
             reader = self.__reader_pdf
@@ -154,6 +154,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
                 previous_progress = current_progress
                 report_progress(self._progress_reporter, current_progress, current_phase=1, phase_name='DUMP')
 
+            # (timestamp, text)
             self._table.insert_row((timestamp, line))
 
         time_taken: float = time() - start

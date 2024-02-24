@@ -314,7 +314,7 @@ class LibraryBase:
         if not os.path.isfile(self.__path_metadata):
             raise LibraryError(f'Metadata file missing: {self.__path_metadata}')
 
-        LOGGER.info('Saving metadata...')
+        LOGGER.info('Saving metadata')
         pickle.dump(self._metadata, open(self.__path_metadata, 'wb'))
 
     def _metadata_exists(self) -> bool:
@@ -330,7 +330,7 @@ class LibraryBase:
         if not initial or not initial.get('uuid'):
             raise LibraryError('Invalid initial data')
 
-        LOGGER.info('Initializing metadata...')
+        LOGGER.info('Initializing metadata')
         self._metadata = initial
         self.uuid = initial['uuid']
         pickle.dump(initial, open(self.__path_metadata, 'wb'))
@@ -338,7 +338,7 @@ class LibraryBase:
     def load_metadata(self, given_uuid: str, given_name: str):
         """Load the metadata of the library
         """
-        LOGGER.info('Loading metadata...')
+        LOGGER.info('Loading metadata')
         try:
             content: dict = pickle.load(open(self.__path_metadata, 'rb'))
         except BaseException:
@@ -357,7 +357,7 @@ class LibraryBase:
         """Delete the metadata file of the library
         - Can only call on the deletion of current library
         """
-        LOGGER.info('Deleting metadata...')
+        LOGGER.info('Deleting metadata')
         if os.path.isfile(self.__path_metadata):
             os.remove(self.__path_metadata)
 

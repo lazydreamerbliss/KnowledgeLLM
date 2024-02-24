@@ -26,7 +26,8 @@ IS_OSX: bool = 'darwin' in sys.platform
 GRPC_PORT: int = int(os.environ.get('GRPC_PORT', 50051))
 
 # Model info
-MODEL_FOLDER: str = f'{Path(__file__).parent.parent}/local_models'
+# - TODO: Change folders to installation path
+MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/local_models'
 CLIP_MODEL: str = 'openai--clip-vit-base-patch16'
 CLIP_MODEL_CHN: str = 'OFA-Sys--chinese-clip-vit-base-patch16'
 TRANSFORMER_MODEL: str = 'shibing624_text2vec-base-chinese-sentence'
