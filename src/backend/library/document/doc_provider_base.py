@@ -41,7 +41,7 @@ class DocProviderBase(Generic[T]):
             table_name (str): _description_
             table_type (Type[T]): Generic type constructor for SqliteTable
         """
-        LOGGER.info(f'Initializing document provider on {table_name}, table type: {table_type}...')
+        LOGGER.info(f'Initializing document provider on {table_name}, table type: {table_type}')
         self._table: T = table_type(db_file, table_name)
         self._progress_reporter: Callable[[int, int, str | None], None] | None = progress_reporter
 

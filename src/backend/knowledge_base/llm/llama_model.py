@@ -26,7 +26,7 @@
 #         # self.base_model = 'decapoda-research/llama-7b-hf'
 #         self.base_model = 'decapoda-research/llama-13b-hf'
 #         self.model_name = f'{self.base_model} + {self.lora_weights}'
-#         print(f'Loading model {self.model_name}...')
+#         print(f'Loading model {self.model_name}
 #
 #         self.prompter = Prompter('alpaca')
 #         self.tokenizer = LlamaTokenizer.from_pretrained(self.base_model)

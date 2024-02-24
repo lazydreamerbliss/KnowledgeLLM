@@ -8,12 +8,14 @@ message VoidObj
 message BooleanObj
 {
     bool value = 1;
+    string error = 2;
 };
 
 // Object for string
 message StringObj
 {
     string value = 1;
+    string error = 2;
 };
 message ListOfStringObj
 {

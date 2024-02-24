@@ -14,7 +14,7 @@ def ensure_index(func):
     """
     @wraps(func)
     def wrapper(self: 'InMemoryVectorDb', *args, **kwargs):
-        if not self.__mem_index_flat and not self.__mem_index_ivf:
+        if not self._mem_index_flat and not self._mem_index_ivf:
             raise VectorDbCoreError('Index not initialized')
         return func(self, *args, **kwargs)
     return wrapper
@@ -42,8 +42,8 @@ class InMemoryVectorDb:
         self.mem_index_path: str = index_file_path
         self.__id_mapping: dict[int, str] = dict()  # Maintain the mapping of ID to UUID
         self.__id_mapping_reverse: dict[str, int] = dict()  # Maintain the reverse mapping of UUID to ID
-        self.__mem_index_flat: IndexFlatL2 | IndexIDMap2 | None = None
-        self.__mem_index_ivf: IndexIVFFlat | None = None
+        self._mem_index_flat: IndexFlatL2 | IndexIDMap2 | None = None
+        self._mem_index_ivf: IndexIVFFlat | None = None
         self.index_size_since_last_training: int = 0  # TODO: add a timer to retrain the index
 
         # self.mem_index: IndexIVFFlat | None = None
@@ -52,15 +52,15 @@ class InMemoryVectorDb:
                 obj: dict = pickle.load(open(index_file_path, 'rb'))
                 self.__id_mapping = obj.get('id_mapping', dict())  # dict, can be empty
                 self.__id_mapping_reverse = obj.get('id_mapping_reverse', dict())  # dict, can be empty
-                self.__mem_index_flat = obj['index_flat']  # IndexIDMap2
-                self.__mem_index_ivf = obj['index_ivf']  # IndexIVFFlat
+                self._mem_index_flat = obj['index_flat']  # IndexIDMap2
+                self._mem_index_ivf = obj['index_ivf']  # IndexIVFFlat
 
-                if not self.__mem_index_flat and not self.__mem_index_ivf:
+                if not self._mem_index_flat and not self._mem_index_ivf:
                     msg: str = 'Corrupted index file: index not loaded'
                     LOGGER.error(msg)
                     raise VectorDbCoreError(msg)
                 if self.__id_mapping:
-                    index_size: int = self.__mem_index_flat.ntotal if self.__mem_index_flat else self.__mem_index_ivf.ntotal
+                    index_size: int = self._mem_index_flat.ntotal if self._mem_index_flat else self._mem_index_ivf.ntotal
                     # If we are not ignoring index error, raise exception on length mismatch
                     if not ignore_index_error \
                             and (len(self.__id_mapping) != index_size or len(self.__id_mapping_reverse) != index_size):
@@ -78,10 +78,10 @@ class InMemoryVectorDb:
             LOGGER.info(f'Index file {index_file_path} not found, this is a new vector database')
 
     def __get_index(self) -> IndexFlatL2 | IndexIDMap2 | IndexIVFFlat:
-        if self.__mem_index_flat:
-            return self.__mem_index_flat
-        if self.__mem_index_ivf:
-            return self.__mem_index_ivf
+        if self._mem_index_flat:
+            return self._mem_index_flat
+        if self._mem_index_ivf:
+            return self._mem_index_ivf
         raise VectorDbCoreError('Index not initialized')
 
     def initialize_index(self,
@@ -107,12 +107,13 @@ class InMemoryVectorDb:
         # FLAT index case
         # - If no training set is given using flat index, and return directly
         if training_set is None:
-            LOGGER.info('Using flat index for in-memory vector DB, no training data provided')
             index: IndexFlatL2 = IndexFlatL2(vector_dimension)
             if track_id:
-                self.__mem_index_flat = IndexIDMap2(index)
+                self._mem_index_flat = IndexIDMap2(index)
+                LOGGER.info('Using flat index for in-memory vector DB with ID tracking, no training data provided')
             else:
-                self.__mem_index_flat = index
+                self._mem_index_flat = index
+                LOGGER.info('Using flat index for in-memory vector DB, no training data and no ID tracking')
             return
 
         # IVF index case
@@ -139,19 +140,19 @@ class InMemoryVectorDb:
                 f'Training set {len(training_set)} is too small for the expected dataset size: {expected_dataset_size}, this will lower the accuracy of the index. Expected size: {expected_training_set_size}')
 
         quantizer: IndexFlatL2 = IndexFlatL2(vector_dimension)
-        self.__mem_index_ivf = IndexIVFFlat(quantizer, vector_dimension, cluster_count)
-        self.__mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
+        self._mem_index_ivf = IndexIVFFlat(quantizer, vector_dimension, cluster_count)
+        self._mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
 
-        self.__mem_index_ivf.train(training_set)  # type: ignore
+        self._mem_index_ivf.train(training_set)  # type: ignore
         self.index_size_since_last_training = len(training_set)
         LOGGER.info(f'IVF index trained')
 
         # Track vector ID only when the embedding is added with a UUID
         if training_set_uuid_list:
             self.__id_mapping = dict(zip(range(len(training_set_uuid_list)), training_set_uuid_list))
-            self.__mem_index_ivf.add_with_ids(training_set, np.asarray(range(len(training_set))))  # type: ignore
+            self._mem_index_ivf.add_with_ids(training_set, np.asarray(range(len(training_set))))  # type: ignore
         else:
-            self.__mem_index_ivf.add(training_set)  # type: ignore
+            self._mem_index_ivf.add(training_set)  # type: ignore
         LOGGER.info(f'IVF index trained data added')
 
     @ensure_index
@@ -216,10 +217,10 @@ class InMemoryVectorDb:
         - Does not need to ensure index, since it could be called before index is initialized
         """
         LOGGER.warning(f'Cleaning in-memory vector DB, path: {self.mem_index_path}')
-        if self.__mem_index_flat:
-            self.__mem_index_flat.reset()
-        if self.__mem_index_ivf:
-            self.__mem_index_ivf.reset()
+        if self._mem_index_flat:
+            self._mem_index_flat.reset()
+        if self._mem_index_ivf:
+            self._mem_index_ivf.reset()
         if self.__id_mapping:
             self.__id_mapping.clear()
         if self.__id_mapping_reverse:
@@ -242,8 +243,8 @@ class InMemoryVectorDb:
         pickle.dump({
             'id_mapping': self.__id_mapping,
             'id_mapping_reverse': self.__id_mapping_reverse,
-            'index_flat': self.__mem_index_flat,
-            'index_ivf': self.__mem_index_ivf,
+            'index_flat': self._mem_index_flat,
+            'index_ivf': self._mem_index_ivf,
         }, open(self.mem_index_path, 'wb'))
 
     def index_exists(self) -> bool:
@@ -265,8 +266,8 @@ class InMemoryVectorDb:
             additional_neighbors (int, optional): The additional closest neighbors to be queried for IVF. Defaults to 2.
         """
         prob_changed: bool = False
-        if self.__mem_index_ivf and additional_neighbors != InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT and additional_neighbors > 0:
-            self.__mem_index_ivf.nprobe = additional_neighbors
+        if self._mem_index_ivf and additional_neighbors != InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT and additional_neighbors > 0:
+            self._mem_index_ivf.nprobe = additional_neighbors
             prob_changed = True
 
         # Index search returns a tuple of two arrays: distances and IDs
@@ -274,8 +275,8 @@ class InMemoryVectorDb:
         D, I = target_index.search(embedding, top_k)  # type: ignore
 
         # Reset the number of neighbors to be queried for IVF
-        if prob_changed and self.__mem_index_ivf:
-            self.__mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
+        if prob_changed and self._mem_index_ivf:
+            self._mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
 
         if not self.__id_mapping:
             return list(I[0])

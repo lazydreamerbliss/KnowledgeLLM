@@ -95,10 +95,10 @@ class ImageLibQueryObj(_message.Message):
     IMAGE_DATA_FIELD_NUMBER: _ClassVar[int]
     TOP_K_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
-    image_data: bytes
+    image_data: str
     top_k: int
     text: str
-    def __init__(self, image_data: _Optional[bytes] = ..., top_k: _Optional[int] = ..., text: _Optional[str] = ...) -> None: ...
+    def __init__(self, image_data: _Optional[str] = ..., top_k: _Optional[int] = ..., text: _Optional[str] = ...) -> None: ...
 
 class ImageLibQueryResponseObj(_message.Message):
     __slots__ = ("uuid", "path", "filename")

@@ -51,7 +51,7 @@ class DocumentLib(Generic[D], LibraryBase):
         super().__init__(lib_path)
 
         # Load metadata
-        LOGGER.info(f'Loading metadata for {lib_name}...')
+        LOGGER.info(f'Loading metadata for {lib_name}')
         if not self._metadata_exists():
             initial_metadata: dict = BASIC_METADATA | {
                 'type': LibTypes.DOCUMENT.value,
@@ -119,7 +119,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 first_round: bool = True
                 start: float = time()
 
-                LOGGER.info(f'Total records: {total}, start embedding...')
+                LOGGER.info(f'Total records: {total}, start embedding')
                 for i, row in enumerate(self.__doc_provider.get_all_records()):
                     if cancel_event and cancel_event.is_set():
                         LOGGER.info('Embedding cancelled')
@@ -148,23 +148,22 @@ class DocumentLib(Generic[D], LibraryBase):
                     self.__vector_db.add(None, embedding.tolist())
 
                 if use_IVF:
-                    embeddings: np.ndarray = np.asarray(embedding_list)
-
                     # "ndarray.shape" is used to get the dimension of a matrix, the type is tuple
                     # The length of the tuple is the dimension of the array, and each element represents the length of the array in that dimension:
                     # - For a 2D matrix, the shape is a tuple of length 2: shape[0] is the number of rows, shape[1] is the number of columns
                     # - For example: self.embeddings.shape is (1232, 76), which means there are 1232 texts, and each text is converted to a 76-dimension vector
+                    embeddings: np.ndarray = np.asarray(embedding_list)
                     text_count: int = embeddings.shape[0]
                     dimension: int = embeddings.shape[1]
-
-                    LOGGER.info(f'Building index with dimension {dimension}...')
+                    LOGGER.info(f'Building index with dimension {dimension}')
                     self.__vector_db.initialize_index(dimension, training_set=embeddings, dataset_size=text_count)
                     LOGGER.info('Index built')
+
                 self.__vector_db.persist()
 
             # Record info in metadata after finished embedding
             self._tracker.add_record(relative_path, uuid)  # type: ignore
-            time_taken: float = time.time() - start
+            time_taken: float = time() - start
             LOGGER.info(f'Document initialization finished for {relative_path}, cost: {time_taken:.2f}s')
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
@@ -177,7 +176,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.__doc_provider or not self.__vector_db:
             raise LibraryError('No active document, please switch to a document first')
 
-        LOGGER.info(f'Retrieving {top_k} candidates for {text}...')
+        LOGGER.info(f'Retrieving {top_k} candidates for {text}')
         query_embedding: np.ndarray = self.__embedder.embed_text(text)  # type: ignore
         ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
         res: list[tuple] = list()
@@ -198,7 +197,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not self.__doc_provider:
             raise LibraryError('No active document, please switch to a document first')
 
-        LOGGER.info(f'Reranking {len(candidate_rows)} candidates for {text}...')
+        LOGGER.info(f'Reranking {len(candidate_rows)} candidates for {text}')
         candidates_str: list[str] = [
             self.__doc_provider.get_key_text_from_record(c) for c in candidate_rows
         ]  # type: ignore
@@ -233,9 +232,16 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
+        LOGGER.info(f'Switching to document {relative_path}, force init: {force_init}')
         need_initialization: bool = force_init or not self._tracker.is_recorded(relative_path)  # type: ignore
 
-        LOGGER.info(f'Switching to document {relative_path}, force init: {force_init}')
+        # Special case: test if the file is already gone but embeddings exists (this should not happen)
+        if not os.path.isfile(os.path.join(self.path_lib, relative_path)):
+            if self._tracker.is_recorded(relative_path): # type: ignore
+                self.remove_doc_embeddings([relative_path], provider_type)
+            LOGGER.error(f'Document {relative_path} does not exist')
+            raise LibraryError('File does not exist')
+
         if not need_initialization:
             # If no need to initialize, just switch to the doc
             LOGGER.info(f'Target document already initialized, load data from disk')
@@ -255,7 +261,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.remove_doc_embeddings([relative_path], provider_type)
 
             try:
-                LOGGER.info(f'Document initialization started for {relative_path}...')
+                LOGGER.info(f'Document initialization started for {relative_path}')
                 uuid: str = str(uuid4())
                 self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
             except Exception as e:
@@ -393,7 +399,7 @@ class DocumentLib(Generic[D], LibraryBase):
             rerank_lambda (int, optional): The function used to fetch specific data from a row for rerank.
             It needs to accept a tuple (the row data) and return a string. Defaults to None.
         """
-        LOGGER.info(f'Querying {query_text} with top {top_k} matches...')
+        LOGGER.info(f'Querying {query_text} with top {top_k} matches')
         if rerank:
             candidates: list[tuple] = self.__retrieve(query_text, top_k * 10)
             reranked: list[tuple] = self.__rerank(query_text, candidates)

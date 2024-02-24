@@ -65,6 +65,7 @@ class ImageLibVectorDb:
 
     @ensure_vector_db_connected
     def add(self, uuid: str, embedding: list[float], pipeline: BatchedPipeline | None = None):
+        LOGGER.info(f'Adding embedding to vector DB')
         if self.redis_vector_db:
             self.redis_vector_db.add(uuid, embedding, pipeline)
         elif self.mem_vector_db:
@@ -72,6 +73,7 @@ class ImageLibVectorDb:
 
     @ensure_vector_db_connected
     def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
+        LOGGER.info(f'Removing embedding from vector DB')
         if self.redis_vector_db:
             self.redis_vector_db.remove(uuid, pipeline)
         elif self.mem_vector_db:
@@ -79,12 +81,14 @@ class ImageLibVectorDb:
 
     @ensure_vector_db_connected
     def remove_many(self, uuids: list[str]):
+        LOGGER.info(f'Removing embeddings from vector DB')
         if self.mem_vector_db:
             self.mem_vector_db.remove(uuids, ids=None)
         raise NotImplementedError('Redis vector DB does not support remove many, use batched pipeline to remove instead')
 
     @ensure_vector_db_connected
     def clean_all_data(self):
+        LOGGER.info('Cleaning all data from vector DB')
         if self.redis_vector_db:
             self.redis_vector_db.clean_all_data()
         elif self.mem_vector_db:
@@ -92,6 +96,7 @@ class ImageLibVectorDb:
 
     @ensure_vector_db_connected
     def delete_db(self):
+        LOGGER.info('Deleting vector DB')
         if self.redis_vector_db:
             self.redis_vector_db.delete_db()
         elif self.mem_vector_db:
@@ -108,6 +113,7 @@ class ImageLibVectorDb:
 
     @ensure_vector_db_connected
     def persist(self):
+        LOGGER.info('Persisting vector DB')
         if self.redis_vector_db:
             self.redis_vector_db.persist()
         elif self.mem_vector_db:

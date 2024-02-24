@@ -5,7 +5,7 @@ from sqlite3 import Cursor
 from db.sqlite.sql_basic import create_index_sql, create_unique_index_sql
 from db.sqlite.table import SqliteTable, ensure_db
 from library.sql import *
-from loggers import logger as LOGGER
+from loggers import lib_logger as LOGGER
 
 
 class ScanRecordTable(SqliteTable):
@@ -245,13 +245,13 @@ class ScanRecordTracker:
     def remove_unfinished_by_relative_path(self, relative_path: str) -> bool:
         """Delete one unfinished record by relative path
         """
-        LOGGER.info(f'Removing unfinished record: {relative_path}')
+        LOGGER.info(f'Remove unfinished record: {relative_path}')
         return self.__table.delete_record_by_relative_path(relative_path, unfinished=True)
 
     def remove_unfinished_by_uuid(self, uuid: str) -> bool:
         """Delete one unfinished record by uuid
         """
-        LOGGER.info(f'Removing unfinished record: {uuid}')
+        LOGGER.info(f'Remove unfinished record: {uuid}')
         return self.__table.delete_record_by_uuid(uuid, unfinished=True)
 
 

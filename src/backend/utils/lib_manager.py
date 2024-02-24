@@ -8,7 +8,7 @@ from knowledge_base.image.image_embedder import ImageEmbedder
 from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
-from loggers import logger
+from loggers import lib_manager_logger as LOGGER
 from utils.exceptions.lib_errors import LibraryError, LibraryManagerException
 from utils.task_runner import TaskRunner
 
@@ -108,9 +108,13 @@ class LibraryManager:
         """Switch to another library with given UUID
         """
         if uuid and uuid in self.__libraries:
+            lib: LibInfo = self.__libraries[uuid]
+            LOGGER.info(f'Switch to library, name: {lib.name}, UUID: {uuid}')
             if self.__instanize_lib(uuid):
                 self.__save()
                 return True
+
+        LOGGER.info(f'Switch to library but target not found, UUID: {uuid}')
         return False
 
     def create_library(self, new_lib: LibInfo, switch_to: bool = False):
@@ -119,12 +123,15 @@ class LibraryManager:
         """
         if new_lib.uuid in self.__libraries or new_lib.path in self.get_library_path_list():
             if new_lib.uuid in self.__libraries and new_lib.path == self.__libraries[new_lib.uuid].path:
-                # If the new library's same UUID and and same path all matched, just do instanize and return
-                logger.info(f'Library with same UUID and path already created, library name: {new_lib.name}')
-                return
-            raise LibraryManagerException('Library with same UUID or path already exists')
+                # If the new library's same UUID and and same path all matched, do nothing
+                LOGGER.info(
+                    f'A library with same UUID and path already exists, name: {new_lib.name}, UUID: {new_lib.uuid}')
+            else:
+                raise LibraryManagerException('Library with same UUID or path already exists')
+        else:
+            LOGGER.info(f'Creating new library, name: {new_lib.name}, UUID: {new_lib.uuid}')
+            self.__libraries[new_lib.uuid] = new_lib
 
-        self.__libraries[new_lib.uuid] = new_lib
         if switch_to:
             if self.__instanize_lib(new_lib.uuid):
                 self.__save()
@@ -138,7 +145,7 @@ class LibraryManager:
             raise LibraryManagerException('Only an active library can be deleted')
 
         uuid: str = self.instance.uuid
-        logger.info(f'Demolishing library: {self.__libraries[uuid]}...')
+        LOGGER.warn(f'Ready to demolish library: {self.__libraries[uuid]}')
         self.instance.demolish()
         self.instance = None
         self.__libraries.pop(uuid)
@@ -211,7 +218,7 @@ class LibraryManager:
                     raise LibraryError('General library is not supported yet')
                 return True
             except Exception as e:
-                logger.error(f'Library instanization failed, error: {e}')
+                LOGGER.error(f'Library instanization failed, error: {e}')
                 return False
         return False
 
@@ -244,7 +251,7 @@ class LibraryManager:
         if isinstance(self.instance, DocumentLib):
             if not kwargs or 'relative_path' not in kwargs or 'provider_type' not in kwargs \
                     or not kwargs['relative_path'] or not kwargs['provider_type']:
-                raise LibraryManagerException('Invalid parameters for DocumentLib')
+                raise LibraryManagerException(f'Invalid parameters for DocumentLib, kwargs: {kwargs}')
 
             if self.instance.lib_is_ready_on_current_doc(kwargs['relative_path']):
                 return UUID_EMPTY

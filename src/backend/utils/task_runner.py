@@ -12,7 +12,7 @@ EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these 
 def report_progress(progress_reporter: Callable[[int, int, str | None], None] | None,
                     current_progress: int,
                     current_phase: int = 1,
-                    phase_name: str | None = None):
+                    phase_name: str = ''):
     """Report the progress of current task
     """
     if not progress_reporter:
@@ -42,12 +42,12 @@ class TaskInfo:
         self.id: str = id
         self.state: str = TaskState.IN_PROGRESS
         self.phase_count: int = 1  # The number of phases in the task
-        self.phase_name: str | None = None
+        self.phase_name: str = ''
         self.current_phase: int = 1
         self.progress: int = 0  # The progress of the task on current phase, if task with 1 phase only then it represents the overall progress of the task
-        self.error: str | None = None
+        self.error: str = ''
         self.submitted_on: datetime = datetime.now()
-        self.completed_on: datetime | None = None
+        self.completed_on: datetime = datetime(1970, 1, 1)
         self.duration: int = -1
 
     def to_dict(self) -> dict:
@@ -71,7 +71,7 @@ class TaskRunner:
         self.max_parallel_tasks: int = max_parallel_tasks
         self.__thread_pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=max_parallel_tasks)
 
-    def __mark_task_completed(self, task_id: str, termination_state: str, error: str | None = None):
+    def __mark_task_completed(self, task_id: str, termination_state: str, error: str = ''):
         """Mark a task as completed with given state
         """
         if termination_state == TaskState.FINISHED:
@@ -152,7 +152,7 @@ class TaskRunner:
             # The reporter function is used to report the progress of current task object via closure
             def progress_reporter(progress: int,
                                   current_phase: int = 1,
-                                  phase_name: str | None = None):
+                                  phase_name: str = ''):
                 t: TaskInfo = self.tasks[task.id]
                 t.progress = progress
                 t.current_phase = current_phase

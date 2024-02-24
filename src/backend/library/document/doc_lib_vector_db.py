@@ -37,6 +37,7 @@ class DocLibVectorDb:
 
     @ensure_vector_db_connected
     def initialize_index(self, vector_dimension: int, training_set: np.ndarray | None, dataset_size: int = -1):
+        LOGGER.info(f'Initializing index for DocLibVectorDb')
         self.mem_vector_db.initialize_index(vector_dimension,
                                             training_set=training_set,
                                             training_set_uuid_list=None,  # No need to track ID for document library
@@ -48,26 +49,32 @@ class DocLibVectorDb:
 
     @ensure_vector_db_connected
     def add(self, uuid: str | None, embedding: list[float]):
+        LOGGER.info(f'Adding embedding to vector DB')
         self.mem_vector_db.add(uuid, embedding)
 
     @ensure_vector_db_connected
     def remove(self, uuid: str):
+        LOGGER.info(f'Removing embedding from vector DB')
         self.mem_vector_db.remove([uuid], ids=None)
 
     @ensure_vector_db_connected
     def remove_many(self, uuids: list[str]):
+        LOGGER.info(f'Removing embeddings from vector DB')
         self.mem_vector_db.remove(uuids, ids=None)
 
     @ensure_vector_db_connected
     def clean_all_data(self):
+        LOGGER.info('Cleaning all data from vector DB')
         self.mem_vector_db.clean_all_data()
 
     @ensure_vector_db_connected
     def delete_db(self):
+        LOGGER.info('Deleting vector DB')
         self.mem_vector_db.delete_db()
 
     @ensure_vector_db_connected
     def persist(self):
+        LOGGER.info('Persisting vector DB')
         self.mem_vector_db.persist()
 
     @ensure_vector_db_connected
@@ -77,7 +84,7 @@ class DocLibVectorDb:
         if embedding is None or not top_k or top_k <= 0:
             return list()
 
-        LOGGER.info(f'Querying vector DB for top {top_k} similar entries under current document...')
+        LOGGER.info(f'Querying vector DB for top {top_k} similar entries under current document')
         try:
             return self.mem_vector_db.query(embedding, top_k)
         except VectorDbCoreError:

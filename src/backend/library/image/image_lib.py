@@ -1,7 +1,7 @@
 import os
 import shutil
-import time
 from datetime import datetime
+from time import time
 from typing import Generator
 from uuid import uuid4
 
@@ -141,7 +141,7 @@ class ImageLib(LibraryBase):
         if self._tracker.get_record_count() > 0:  # type: ignore
             to_be_deleted: set[str] = set(self._tracker.get_all_relative_paths()) - all_files  # type: ignore
             if to_be_deleted:
-                LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers...')
+                LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers')
                 self.remove_embeddings(list(to_be_deleted))
 
         if incremental:
@@ -178,9 +178,9 @@ class ImageLib(LibraryBase):
 
             LOGGER.info(f'Processing image: {relative_path}')
             if not scan_only:
-                start_time: float = time.time()
+                start_time: float = time()
                 embedding: list[float] = self.__embedder.embed_image_as_list(img)  # type: ignore
-                time_taken: float = time.time() - start_time
+                time_taken: float = time() - start_time
                 LOGGER.info(f'Image embedded: {relative_path}, dimension: {len(embedding)}, cost: {time_taken:.2f}s')
                 yield relative_path, embedding
             else:
@@ -259,7 +259,7 @@ class ImageLib(LibraryBase):
                 except NotImplementedError:
                     pass
 
-                start: float = time.time()
+                start: float = time()
                 if save_pipeline:
                     with save_pipeline:
                         self.__do_scan(save_pipeline,
@@ -280,7 +280,7 @@ class ImageLib(LibraryBase):
                     # On scan finished, persist index and save scan history
                     self.__vector_db.persist()  # type: ignore
 
-                time_taken: float = time.time() - start
+                time_taken: float = time() - start
                 if not incremental:
                     LOGGER.info(f'Image library scanned successfully, cost: {time_taken:.2f}s')
                 else:
@@ -472,10 +472,10 @@ class ImageLib(LibraryBase):
             return list()
 
         LOGGER.info(f'Image search with image similarity')
-        start: float = time.time()
+        start: float = time()
         image_embedding: np.ndarray = self.__embedder.embed_image(img)  # type: ignore
         docs: list = self.__vector_db.query(np.asarray([image_embedding]), top_k)  # type: ignore
-        time_taken: float = time.time() - start
+        time_taken: float = time() - start
         LOGGER.info(f'Image search with image similarity completed, cost: {time_taken:.2f}s, start to parse result')
 
         # Parse the result, get file data from DB
@@ -506,11 +506,11 @@ class ImageLib(LibraryBase):
             return list()
 
         LOGGER.info(f'Image search with text similarity for: {text}')
-        start: float = time.time()
+        start: float = time()
         # Text embedding is a 2D array, the first element is the embedding of the text
         text_embedding: np.ndarray = self.__embedder.embed_text(text)[0]  # type: ignore
         docs: list = self.__vector_db.query(np.asarray([text_embedding]), top_k)  # type: ignore
-        time_taken: float = time.time() - start
+        time_taken: float = time() - start
         LOGGER.info(f'Image search with text similarity completed, cost: {time_taken:.2f}s, start to parse result')
 
         # Parse the result, get file data from DB

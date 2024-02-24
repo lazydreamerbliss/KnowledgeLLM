@@ -48,12 +48,12 @@ class GrpcServerStub(object):
                 )
         self.use_library = channel.unary_unary(
                 '/GrpcServer/use_library',
-                request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
+                request_serializer=obj__basic__pb2.StringObj.SerializeToString,
                 response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.demolish_library = channel.unary_unary(
                 '/GrpcServer/demolish_library',
-                request_serializer=obj__shared__pb2.LibInfoObj.SerializeToString,
+                request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
                 response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
         self.make_library_ready = channel.unary_unary(
@@ -81,8 +81,8 @@ class GrpcServerStub(object):
                 request_serializer=obj__basic__pb2.StringObj.SerializeToString,
                 response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
-        self.query = channel.unary_unary(
-                '/GrpcServer/query',
+        self.query_text = channel.unary_unary(
+                '/GrpcServer/query_text',
                 request_serializer=obj__shared__pb2.DocLibQueryObj.SerializeToString,
                 response_deserializer=obj__shared__pb2.ListOfDocLibQueryResponseObj.FromString,
                 )
@@ -188,7 +188,7 @@ class GrpcServerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def query(self, request, context):
+    def query_text(self, request, context):
         """Document library APIs
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -249,12 +249,12 @@ def add_GrpcServerServicer_to_server(servicer, server):
             ),
             'use_library': grpc.unary_unary_rpc_method_handler(
                     servicer.use_library,
-                    request_deserializer=obj__basic__pb2.VoidObj.FromString,
+                    request_deserializer=obj__basic__pb2.StringObj.FromString,
                     response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'demolish_library': grpc.unary_unary_rpc_method_handler(
                     servicer.demolish_library,
-                    request_deserializer=obj__shared__pb2.LibInfoObj.FromString,
+                    request_deserializer=obj__basic__pb2.VoidObj.FromString,
                     response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
             'make_library_ready': grpc.unary_unary_rpc_method_handler(
@@ -282,8 +282,8 @@ def add_GrpcServerServicer_to_server(servicer, server):
                     request_deserializer=obj__basic__pb2.StringObj.FromString,
                     response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
-            'query': grpc.unary_unary_rpc_method_handler(
-                    servicer.query,
+            'query_text': grpc.unary_unary_rpc_method_handler(
+                    servicer.query_text,
                     request_deserializer=obj__shared__pb2.DocLibQueryObj.FromString,
                     response_serializer=obj__shared__pb2.ListOfDocLibQueryResponseObj.SerializeToString,
             ),
@@ -427,7 +427,7 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/use_library',
-            obj__basic__pb2.VoidObj.SerializeToString,
+            obj__basic__pb2.StringObj.SerializeToString,
             obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -444,7 +444,7 @@ class GrpcServer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/demolish_library',
-            obj__shared__pb2.LibInfoObj.SerializeToString,
+            obj__basic__pb2.VoidObj.SerializeToString,
             obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -535,7 +535,7 @@ class GrpcServer(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def query(request,
+    def query_text(request,
             target,
             options=(),
             channel_credentials=None,
@@ -545,7 +545,7 @@ class GrpcServer(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/GrpcServer/query',
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/query_text',
             obj__shared__pb2.DocLibQueryObj.SerializeToString,
             obj__shared__pb2.ListOfDocLibQueryResponseObj.FromString,
             options, channel_credentials,

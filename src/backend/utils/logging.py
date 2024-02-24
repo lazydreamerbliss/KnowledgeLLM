@@ -28,6 +28,11 @@ class DefaultLogger:
 
     @staticmethod
     def get_logger(name: str) -> Logger:
+        """Get logger
+
+        Args:
+            name (str): Logger name
+        """
         if not os.path.exists(LOGGING_FOLDER):
             os.makedirs(LOGGING_FOLDER, exist_ok=True)
 
@@ -36,9 +41,8 @@ class DefaultLogger:
         formatter: Formatter = Formatter(LOGGING_FORMATTER)
 
         # Logging file config
-        filename: str = f'{name}.log' if name else 'default.log'
         file_handler = handlers.TimedRotatingFileHandler(
-            filename=os.path.join(LOGGING_FOLDER, filename),
+            filename=os.path.join(LOGGING_FOLDER, 'default.log'),
             when=LOGGING_WHEN,
             interval=LOGGING_INTERVAL,
             backupCount=LOGGING_RETENTION_PERIOD)
@@ -57,24 +61,30 @@ class DefaultLogger:
 
 class CategoryLogger:
     """
-    Logger for specific categories, each category has its own folder under LOGGING_FOLDER
+    Logger for specific categories, each category has its own logging file name
     """
 
     @staticmethod
-    def get_logger(category: str, name: str | None = None) -> Logger:
-        cat_logging_dir: str = os.path.join(LOGGING_FOLDER, category)
+    def get_logger(category: str, name: str) -> Logger:
+        """Get logger
+
+        Args:
+            category (str): The category name
+            name (str): Logger name
+            write_to_default (bool): Whether to write to the default logger also
+        """
+
+        cat_logging_dir: str = os.path.join(LOGGING_FOLDER, 'categorized')
         if not os.path.exists(cat_logging_dir):
             os.makedirs(cat_logging_dir, exist_ok=True)
 
-        logger_name: str = f"{name}_{category}" if name else category
-        logger: Logger = logging.getLogger(logger_name)
+        logger: Logger = logging.getLogger(name)
         logger.setLevel(LOGGING_LEVEL)
         formatter: Formatter = Formatter(LOGGING_FORMATTER)
 
         # Logging file config
-        filename: str = f'{name}.log' if name else 'default.log'
         file_handler = handlers.TimedRotatingFileHandler(
-            filename=os.path.join(cat_logging_dir, filename),
+            filename=os.path.join(cat_logging_dir, f'{category}.log'),
             when=LOGGING_WHEN,
             interval=LOGGING_INTERVAL,
             backupCount=LOGGING_RETENTION_PERIOD)

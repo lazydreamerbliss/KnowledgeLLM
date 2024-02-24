@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 import torch
-
 from utils.containable_enum import ContainableEnum
 
 
@@ -27,7 +26,8 @@ IS_OSX: bool = 'darwin' in sys.platform
 GRPC_PORT: int = int(os.environ.get('GRPC_PORT', 50051))
 
 # Model info
-MODEL_FOLDER: str = f'{Path(__file__).parent.parent}/local_models'
+# - TODO: Change folders to installation path
+MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/local_models'
 CLIP_MODEL: str = 'openai--clip-vit-base-patch16'
 CLIP_MODEL_CHN: str = 'OFA-Sys--chinese-clip-vit-base-patch16'
 TRANSFORMER_MODEL: str = 'shibing624_text2vec-base-chinese-sentence'
@@ -36,7 +36,7 @@ CROSS_ENCODER_MODEL: str = 'tuhailong--cross_encoder_roberta-wwm-ext_v2'
 
 # Config folder, logging folder, etc.
 # - TODO: Change folders to installation path
-CONFIG_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/samples'
+CONFIG_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}'
 LOGGING_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/logs'
 
 REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')
