@@ -1,4 +1,5 @@
 import importlib
+import io
 from datetime import datetime
 from functools import wraps
 from time import time
@@ -16,6 +17,7 @@ from server.grpc.backend_pb2_grpc import GrpcServerServicer
 from server.grpc.obj_basic_pb2 import *
 from server.grpc.obj_shared_pb2 import *
 from utils.exceptions.lib_errors import LibraryManagerException
+from utils.file_helper import open_base64_as_image
 from utils.lib_manager import LibInfo, LibraryManager
 from utils.task_runner import TaskInfo, TaskRunner
 
@@ -258,11 +260,14 @@ class Servicer(GrpcServerServicer):
     """
     Document library APIs
     """
+
     @log_rpc_call
     def image_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponseObj:
         response: ListOfImageLibQueryResponseObj = ListOfImageLibQueryResponseObj()
-        image_data: bytes = request.image_data
-        if not image_data:
+        base64_data: str = request.image_data
+        image, _ = open_base64_as_image(base64_data)
+        if not image:
+            LOGGER.error(f'Failed to read provided image data for image search')
             return response
 
         instance: LibraryBase | None = self.__lib_manager.instance
@@ -270,7 +275,6 @@ class Servicer(GrpcServerServicer):
             return response
 
         try:
-            image: Image.Image = Image.open(image_data)
             casted_instance: ImageLib = instance
             query_result: list[tuple] = casted_instance.image_for_image_search(image, request.top_k)
             for res in query_result:
@@ -280,7 +284,8 @@ class Servicer(GrpcServerServicer):
                 r.filename = res[4]
                 response.value.append(r)
             return response
-        except Exception:
+        except Exception as e:
+            LOGGER.error(f'Image for image query failed, error: {e}')
             return response
 
     @log_rpc_call

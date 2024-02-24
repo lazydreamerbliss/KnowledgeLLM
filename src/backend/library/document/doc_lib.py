@@ -232,9 +232,16 @@ class DocumentLib(Generic[D], LibraryBase):
             raise LibraryError('Embedder not set')
 
         relative_path = relative_path.lstrip(os.path.sep)
+        LOGGER.info(f'Switching to document {relative_path}, force init: {force_init}')
         need_initialization: bool = force_init or not self._tracker.is_recorded(relative_path)  # type: ignore
 
-        LOGGER.info(f'Switching to document {relative_path}, force init: {force_init}')
+        # Special case: test if the file is already gone but embeddings exists (this should not happen)
+        if not os.path.isfile(os.path.join(self.path_lib, relative_path)):
+            if self._tracker.is_recorded(relative_path): # type: ignore
+                self.remove_doc_embeddings([relative_path], provider_type)
+            LOGGER.error(f'Document {relative_path} does not exist')
+            raise LibraryError('File does not exist')
+
         if not need_initialization:
             # If no need to initialize, just switch to the doc
             LOGGER.info(f'Target document already initialized, load data from disk')

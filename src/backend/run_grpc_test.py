@@ -15,6 +15,7 @@ class TestServer:
         elif IS_LINUX:
             self.process = subprocess.Popen(
                 ['nohup', '/home/chengjia/anaconda3/envs/llm_general/bin/python', server_file])
+        self.pid: int = self.process.pid
 
         print(f'gRPC server started with pid: {self.pid}')
         # Sleep for some time to let the server start, otherwise "Failed to
@@ -36,6 +37,7 @@ def run_test_client():
     test_client: GrpcClientForServerTest = GrpcClientForServerTest()
     test_client.test_heartbeat()
     test_client.test_create_and_demolish_doc_lib()
+    test_client.test_create_and_demolish_image_lib()
 
 
 def run_test_client_wrapper(run_server: bool = False):
@@ -47,4 +49,4 @@ def run_test_client_wrapper(run_server: bool = False):
 
 
 if __name__ == '__main__':
-    run_test_client_wrapper(run_server=False)
+    run_test_client_wrapper(run_server=True)

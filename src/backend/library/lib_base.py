@@ -56,7 +56,7 @@ def ensure_metadata_ready(func):
     @wraps(func)
     def wrapper(self: 'LibraryBase', *args, **kwargs):
         if not self._metadata:
-            raise LibraryError(f'Library is not ready: {self.path_lib}')
+            raise LibraryError(f'Library is not ready, metadata not initialized: {self.path_lib}')
         return func(self, *args, **kwargs)
     return wrapper
 

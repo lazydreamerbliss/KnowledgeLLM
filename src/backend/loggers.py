@@ -12,6 +12,7 @@ logger: Logger = DefaultLogger.get_logger('default')
 rpc_logger: Logger = CategoryLogger.get_logger('grpc', 'grpc')
 
 # Loggers for library's internal operations
+lib_manager_logger: Logger = CategoryLogger.get_logger('lib', 'lib_manager')
 lib_logger: Logger = CategoryLogger.get_logger('lib', 'lib')
 doc_lib_logger: Logger = CategoryLogger.get_logger('lib', 'doc_lib')
 image_lib_logger: Logger = CategoryLogger.get_logger('lib', 'img_lib')
@@ -26,6 +27,8 @@ vector_db_logger: Logger = DefaultLogger.get_logger('vector_db')
 
 
 def log_time_cost(start_log: str, end_log: str, LOGGER: Logger = logger):
+    """Decorator for automatically logging execution time cost
+    """
     def wrapper(func):
         @wraps(func)
         def wrapper_func(*args, **kwargs):

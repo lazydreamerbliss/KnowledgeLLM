@@ -57,7 +57,7 @@ message ListOfDocLibQueryResponseObj {
 
 // Represents the query and response of an image library
 message ImageLibQueryObj {
-    bytes image_data = 1;
+    string image_data = 1;
     int32 top_k = 2;
     string text = 3;
 }
