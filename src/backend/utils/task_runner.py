@@ -4,7 +4,7 @@ from datetime import datetime
 from threading import Event
 from typing import Callable
 
-from utils.exceptions.task_errors import *
+from utils.errors.task_errors import *
 
 EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these seconds
 

@@ -14,7 +14,7 @@ from library.document.sql import DB_NAME
 from library.lib_base import *
 from library.scan_record_tracker import UnfinishedScanRecordTrackerManager
 from loggers import doc_lib_logger as LOGGER
-from utils.exceptions.task_errors import (LockAcquisitionFailure,
+from utils.errors.task_errors import (LockAcquisitionFailure,
                                           TaskCancellationException)
 from utils.lock_context import LockContext
 from utils.task_runner import report_progress

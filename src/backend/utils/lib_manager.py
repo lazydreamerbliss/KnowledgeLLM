@@ -9,7 +9,7 @@ from library.document.doc_lib import DocumentLib
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
 from loggers import lib_manager_logger as LOGGER
-from utils.exceptions.lib_errors import LibraryError, LibraryManagerException
+from utils.errors.lib_errors import LibraryError, LibraryManagerException
 from utils.task_runner import TaskRunner
 
 UUID_EMPTY: str = '00000000-0000-0000-0000-000000000000'
@@ -238,13 +238,20 @@ class LibraryManager:
 
         # Image library case
         if isinstance(self.instance, ImageLib):
-            if self.instance.is_ready():
+            force_init: bool = kwargs.get('force_init', False)
+            incremental: bool = kwargs.get('incremental', False)
+
+            # If the library is already ready and not force init & not incremental, do nothing
+            if self.instance.is_ready() and not force_init and not incremental:
                 return UUID_EMPTY
 
             self.instance.set_embedder(ImageEmbedder())
-            # The phase count is 1 for image library's initialization task
-            task_id: str = self.task_runner.submit_task(self.instance.full_scan, None, True, True, 1,
-                                                        force_init=kwargs.get('force_init', False))
+            if incremental and not force_init:
+                # The phase count is 1 for image library's initialization task
+                task_id: str = self.task_runner.submit_task(self.instance.incremental_scan, None, True, True, 1)
+            else:
+                task_id: str = self.task_runner.submit_task(self.instance.full_scan, None, True, True, 1,
+                                                            force_init=force_init)
             return task_id
 
         # Document library case

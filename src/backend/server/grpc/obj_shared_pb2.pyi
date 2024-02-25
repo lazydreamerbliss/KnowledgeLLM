@@ -25,14 +25,16 @@ class ListOfLibInfoObj(_message.Message):
     def __init__(self, value: _Optional[_Iterable[_Union[LibInfoObj, _Mapping]]] = ...) -> None: ...
 
 class LibGetReadyParamObj(_message.Message):
-    __slots__ = ("force_init", "relative_path", "provider_type")
+    __slots__ = ("force_init", "relative_path", "provider_type", "incremental")
     FORCE_INIT_FIELD_NUMBER: _ClassVar[int]
     RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
     PROVIDER_TYPE_FIELD_NUMBER: _ClassVar[int]
+    INCREMENTAL_FIELD_NUMBER: _ClassVar[int]
     force_init: bool
     relative_path: str
     provider_type: str
-    def __init__(self, force_init: bool = ..., relative_path: _Optional[str] = ..., provider_type: _Optional[str] = ...) -> None: ...
+    incremental: bool
+    def __init__(self, force_init: bool = ..., relative_path: _Optional[str] = ..., provider_type: _Optional[str] = ..., incremental: bool = ...) -> None: ...
 
 class TaskInfoObj(_message.Message):
     __slots__ = ("id", "state", "phase_count", "phase_name", "current_phase", "progress", "error", "submitted_on", "completed_on", "duration")

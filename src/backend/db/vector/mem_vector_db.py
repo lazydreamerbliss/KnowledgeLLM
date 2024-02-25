@@ -6,7 +6,7 @@ from functools import wraps
 import numpy as np
 from faiss import IndexFlatL2, IndexIDMap2, IndexIVFFlat
 from loggers import vector_db_logger as LOGGER
-from utils.exceptions.db_errors import VectorDbCoreError
+from utils.errors.db_errors import VectorDbCoreError
 
 
 def ensure_index(func):

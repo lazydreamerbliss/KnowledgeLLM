@@ -4,7 +4,7 @@ from typing import Any, Iterator
 from constants.env import *
 from redis import Redis
 from redis.client import Pipeline
-from utils.exceptions.db_errors import VectorDbCoreError
+from utils.errors.db_errors import VectorDbCoreError
 
 
 class BatchedPipeline:

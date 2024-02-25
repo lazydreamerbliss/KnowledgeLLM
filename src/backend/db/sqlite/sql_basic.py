@@ -1,4 +1,4 @@
-from utils.exceptions.db_errors import SqlTableError
+from utils.errors.db_errors import SqlTableError
 
 
 def create_index_sql(table_name: str, column_name: str) -> str:

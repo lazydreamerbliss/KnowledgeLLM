@@ -1,4 +1,4 @@
-from utils.exceptions.db_errors import SqlTableError
+from utils.errors.db_errors import SqlTableError
 
 record_structure: list[list[str]] = [
     ['id', 'INTEGER PRIMARY KEY'],

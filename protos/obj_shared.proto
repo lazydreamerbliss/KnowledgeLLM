@@ -16,9 +16,11 @@ message ListOfLibInfoObj {
 // Represents the params that the library is required to get ready to use
 message LibGetReadyParamObj {
     bool force_init = 1;
-    // For document library, image library does not need them
+    // For document library
     string relative_path = 2;
     string provider_type = 3;
+    // For image library
+    bool incremental = 4;
 }
 
 // Represents the structure of a submitted task
