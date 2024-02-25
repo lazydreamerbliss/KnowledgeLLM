@@ -4,7 +4,7 @@ from redis import ResponseError
 from redis.commands.search import Search
 from redis.commands.search.field import VectorField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
-from utils.exceptions.db_errors import VectorDbCoreError
+from utils.errors.db_errors import VectorDbCoreError
 
 
 class RedisVectorDb:

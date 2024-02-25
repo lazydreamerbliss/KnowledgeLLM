@@ -17,3 +17,7 @@ class SqlTableError(Exception):
         super().__init__(message)
         self.message: str | None = message
         self.code: int = code
+
+
+class DbErrorCode:
+    pass

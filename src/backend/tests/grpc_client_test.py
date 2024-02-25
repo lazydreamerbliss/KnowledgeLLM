@@ -1,24 +1,19 @@
-import importlib
 import time
-from types import ModuleType
 
 import grpc
 from constants.env import GRPC_PORT
 from loggers import logger as TEST_LOGGER
-from PIL import Image
 from server.grpc.backend_pb2_grpc import GrpcServerStub
 from server.grpc.obj_basic_pb2 import *
 from server.grpc.obj_shared_pb2 import *
 from server.grpc_server import GrpcServer
 from tests.lib_info import *
 from utils.file_helper import open_image_as_base64
-from utils.lib_manager import LibraryManager
+from utils.lib_manager import UUID_EMPTY, LibraryManager
 from utils.task_runner import TaskRunner
 
 task_runner: TaskRunner = TaskRunner()
 test_server: GrpcServer = GrpcServer(task_runner, LibraryManager(task_runner))
-doc_provider: ModuleType = importlib.import_module('library.document.doc_provider')
-wechat_history_provider: ModuleType = importlib.import_module('library.document.wechat.wechat_history_provider')
 
 
 class GrpcClientForServerTest:
@@ -49,9 +44,12 @@ class GrpcClientForServerTest:
         request = LibGetReadyParamObj()
         request.relative_path = relative_path
         request.provider_type = provider_type
-        res: StringObj = self.stub.make_library_ready(request)
+        res: StringObj = self.stub.make_document_ready(request)
         task_id: str = res.value
         assert bool(task_id)
+
+        if task_id == UUID_EMPTY:
+            return
 
         task_request = StringObj()
         task_request.value = task_id
@@ -73,11 +71,16 @@ class GrpcClientForServerTest:
         for i, res in enumerate(response.value):
             TEST_LOGGER.info(f'Query result {i + 1}: {res.text}')
 
-    def test_make_image_library_ready(self):
+    def test_scan(self):
         request = LibGetReadyParamObj()
-        res: StringObj = self.stub.make_library_ready(request)
+        request.force_init = True
+        request.incremental = False
+        res: StringObj = self.stub.scan(request)
         task_id: str = res.value
         assert bool(task_id)
+
+        if task_id == UUID_EMPTY:
+            return
 
         task_request = StringObj()
         task_request.value = task_id
@@ -142,7 +145,7 @@ class GrpcClientForServerTest:
         self.test_switch_to_library(lib.uuid, True)
 
         # Full scan
-        self.test_make_image_library_ready()
+        self.test_scan()
 
         # Search image
         self.test_image_for_image_search('3.png')

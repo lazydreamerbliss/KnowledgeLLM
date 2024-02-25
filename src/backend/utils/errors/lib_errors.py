@@ -17,3 +17,7 @@ class DocProviderError(LibraryError):
         super().__init__(message)
         self.message: str | None = message
         self.code: int = code
+
+
+class LibraryErrorCode:
+    pass

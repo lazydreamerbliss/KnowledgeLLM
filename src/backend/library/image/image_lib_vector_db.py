@@ -8,7 +8,7 @@ from db.vector.redis_vector_db import RedisVectorDb
 from loggers import vector_db_logger as LOGGER
 from redis.commands.search.query import Query
 from redis.commands.search.result import Result
-from utils.exceptions.db_errors import LibraryVectorDbError
+from utils.errors.db_errors import LibraryVectorDbError
 
 
 def ensure_vector_db_connected(func):

@@ -4,7 +4,7 @@ from typing import Callable, Generic, Type, TypeVar
 from db.sqlite.table import SqliteTable
 from loggers import doc_lib_logger as LOGGER
 from utils.containable_enum import ContainableEnum
-from utils.exceptions.lib_errors import *
+from utils.errors.lib_errors import *
 
 
 class DocumentType(ContainableEnum):

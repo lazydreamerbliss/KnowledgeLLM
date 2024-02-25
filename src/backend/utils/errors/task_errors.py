@@ -24,3 +24,7 @@ class LockAcquisitionFailure(Exception):
         super().__init__(message)
         self.message: str | None = message
         self.code: int = code
+
+
+class TaskErrorCode:
+    pass

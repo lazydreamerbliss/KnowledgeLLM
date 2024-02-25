@@ -5,7 +5,7 @@ import numpy as np
 from db.vector.mem_vector_db import InMemoryVectorDb
 from db.vector.redis_client import BatchedPipeline
 from loggers import vector_db_logger as LOGGER
-from utils.exceptions.db_errors import LibraryVectorDbError, VectorDbCoreError
+from utils.errors.db_errors import LibraryVectorDbError, VectorDbCoreError
 
 
 def ensure_vector_db_connected(func):

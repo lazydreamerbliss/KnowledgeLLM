@@ -56,11 +56,6 @@ class GrpcServerStub(object):
                 request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
                 response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
-        self.make_library_ready = channel.unary_unary(
-                '/GrpcServer/make_library_ready',
-                request_serializer=obj__shared__pb2.LibGetReadyParamObj.SerializeToString,
-                response_deserializer=obj__basic__pb2.StringObj.FromString,
-                )
         self.get_current_lib_info = channel.unary_unary(
                 '/GrpcServer/get_current_lib_info',
                 request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
@@ -81,10 +76,20 @@ class GrpcServerStub(object):
                 request_serializer=obj__basic__pb2.StringObj.SerializeToString,
                 response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
+        self.make_document_ready = channel.unary_unary(
+                '/GrpcServer/make_document_ready',
+                request_serializer=obj__shared__pb2.LibGetReadyParamObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.StringObj.FromString,
+                )
         self.query_text = channel.unary_unary(
                 '/GrpcServer/query_text',
                 request_serializer=obj__shared__pb2.DocLibQueryObj.SerializeToString,
                 response_deserializer=obj__shared__pb2.ListOfDocLibQueryResponseObj.FromString,
+                )
+        self.scan = channel.unary_unary(
+                '/GrpcServer/scan',
+                request_serializer=obj__shared__pb2.LibGetReadyParamObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.StringObj.FromString,
                 )
         self.image_for_image_search = channel.unary_unary(
                 '/GrpcServer/image_for_image_search',
@@ -158,12 +163,6 @@ class GrpcServerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def make_library_ready(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def get_current_lib_info(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -188,16 +187,28 @@ class GrpcServerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def query_text(self, request, context):
+    def make_document_ready(self, request, context):
         """Document library APIs
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def image_for_image_search(self, request, context):
+    def query_text(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def scan(self, request, context):
         """Image library APIs
         """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def image_for_image_search(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -257,11 +268,6 @@ def add_GrpcServerServicer_to_server(servicer, server):
                     request_deserializer=obj__basic__pb2.VoidObj.FromString,
                     response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
-            'make_library_ready': grpc.unary_unary_rpc_method_handler(
-                    servicer.make_library_ready,
-                    request_deserializer=obj__shared__pb2.LibGetReadyParamObj.FromString,
-                    response_serializer=obj__basic__pb2.StringObj.SerializeToString,
-            ),
             'get_current_lib_info': grpc.unary_unary_rpc_method_handler(
                     servicer.get_current_lib_info,
                     request_deserializer=obj__basic__pb2.VoidObj.FromString,
@@ -282,10 +288,20 @@ def add_GrpcServerServicer_to_server(servicer, server):
                     request_deserializer=obj__basic__pb2.StringObj.FromString,
                     response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
+            'make_document_ready': grpc.unary_unary_rpc_method_handler(
+                    servicer.make_document_ready,
+                    request_deserializer=obj__shared__pb2.LibGetReadyParamObj.FromString,
+                    response_serializer=obj__basic__pb2.StringObj.SerializeToString,
+            ),
             'query_text': grpc.unary_unary_rpc_method_handler(
                     servicer.query_text,
                     request_deserializer=obj__shared__pb2.DocLibQueryObj.FromString,
                     response_serializer=obj__shared__pb2.ListOfDocLibQueryResponseObj.SerializeToString,
+            ),
+            'scan': grpc.unary_unary_rpc_method_handler(
+                    servicer.scan,
+                    request_deserializer=obj__shared__pb2.LibGetReadyParamObj.FromString,
+                    response_serializer=obj__basic__pb2.StringObj.SerializeToString,
             ),
             'image_for_image_search': grpc.unary_unary_rpc_method_handler(
                     servicer.image_for_image_search,
@@ -450,23 +466,6 @@ class GrpcServer(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def make_library_ready(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/GrpcServer/make_library_ready',
-            obj__shared__pb2.LibGetReadyParamObj.SerializeToString,
-            obj__basic__pb2.StringObj.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
     def get_current_lib_info(request,
             target,
             options=(),
@@ -535,6 +534,23 @@ class GrpcServer(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
+    def make_document_ready(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/make_document_ready',
+            obj__shared__pb2.LibGetReadyParamObj.SerializeToString,
+            obj__basic__pb2.StringObj.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
     def query_text(request,
             target,
             options=(),
@@ -548,6 +564,23 @@ class GrpcServer(object):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/query_text',
             obj__shared__pb2.DocLibQueryObj.SerializeToString,
             obj__shared__pb2.ListOfDocLibQueryResponseObj.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def scan(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/scan',
+            obj__shared__pb2.LibGetReadyParamObj.SerializeToString,
+            obj__basic__pb2.StringObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

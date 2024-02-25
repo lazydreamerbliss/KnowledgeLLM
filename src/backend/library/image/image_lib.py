@@ -17,7 +17,7 @@ from loggers import image_lib_logger as LOGGER
 from PIL import Image
 from redis.commands.search.document import Document
 from torch import Tensor
-from utils.exceptions.task_errors import (LockAcquisitionFailure,
+from utils.errors.task_errors import (LockAcquisitionFailure,
                                           TaskCancellationException)
 from utils.lock_context import LockContext
 from utils.task_runner import report_progress

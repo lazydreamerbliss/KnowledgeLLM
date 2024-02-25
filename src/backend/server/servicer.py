@@ -16,7 +16,7 @@ from PIL import Image
 from server.grpc.backend_pb2_grpc import GrpcServerServicer
 from server.grpc.obj_basic_pb2 import *
 from server.grpc.obj_shared_pb2 import *
-from utils.exceptions.lib_errors import LibraryManagerException
+from utils.errors.lib_errors import LibraryManagerException
 from utils.file_helper import open_base64_as_image
 from utils.lib_manager import LibInfo, LibraryManager
 from utils.task_runner import TaskInfo, TaskRunner
@@ -158,32 +158,6 @@ class Servicer(GrpcServerServicer):
             return BooleanObj(value=False)
 
     @log_rpc_call
-    def make_library_ready(self, request: LibGetReadyParamObj, context) -> StringObj:
-        potential_provider: type | None = None
-        try:
-            potential_provider = getattr(DOC_PROVIDER_MODULE, 'DocProvider')
-        except AttributeError:
-            pass
-        if not potential_provider:
-            try:
-                potential_provider = getattr(WECHAT_PROVIDER_MODULE, 'WeChatHistoryProvider')
-            except AttributeError:
-                pass
-
-        try:
-            task_id: str = self.__lib_manager.make_library_ready(
-                force_init=request.force_init,
-                relative_path=request.relative_path,
-                provider_type=potential_provider)
-            return StringObj(value=task_id)
-        except LibraryManagerException as e:
-            LOGGER.info(f'Failed to make library ready: {e}')
-            return StringObj(value=None, error=str(e))
-        except Exception as e:
-            LOGGER.info(f'Failed to make library ready: {e}')
-            return StringObj(value=None, error=str(e))
-
-    @log_rpc_call
     def get_current_lib_info(self, request: VoidObj, context) -> LibInfoObj:
         libInfo: LibInfo | None = self.__lib_manager.get_current_lib_info()
         if not libInfo:
@@ -227,6 +201,33 @@ class Servicer(GrpcServerServicer):
     """
     Document library APIs
     """
+
+    @log_rpc_call
+    def make_document_ready(self, request: LibGetReadyParamObj, context) -> StringObj:
+        potential_provider: type | None = None
+        try:
+            potential_provider = getattr(DOC_PROVIDER_MODULE, 'DocProvider')
+        except AttributeError:
+            pass
+        if not potential_provider:
+            try:
+                potential_provider = getattr(WECHAT_PROVIDER_MODULE, 'WeChatHistoryProvider')
+            except AttributeError:
+                pass
+
+        if not potential_provider:
+            return StringObj(value=None, error='No document provider found')
+
+        try:
+            task_id: str = self.__lib_manager.make_library_ready(
+                force_init=request.force_init,
+                relative_path=request.relative_path,
+                provider_type=potential_provider)
+            return StringObj(value=task_id)
+        except LibraryManagerException as e:
+            LOGGER.info(f'Failed to make document ready: {e}')
+            return StringObj(value=None, error=str(e))
+
     @log_rpc_call
     def query_text(self, request: DocLibQueryObj, context) -> ListOfDocLibQueryResponseObj:
         response: ListOfDocLibQueryResponseObj = ListOfDocLibQueryResponseObj()
@@ -258,8 +259,19 @@ class Servicer(GrpcServerServicer):
         return response
 
     """
-    Document library APIs
+    Image library APIs
     """
+
+    @log_rpc_call
+    def scan(self, request: LibGetReadyParamObj, context) -> StringObj:
+        try:
+            task_id: str = self.__lib_manager.make_library_ready(
+                force_init=request.force_init,
+                incremental=request.incremental)
+            return StringObj(value=task_id)
+        except LibraryManagerException as e:
+            LOGGER.info(f'Failed scan image library: {e}')
+            return StringObj(value=None, error=str(e))
 
     @log_rpc_call
     def image_for_image_search(self, request: ImageLibQueryObj, context) -> ListOfImageLibQueryResponseObj:

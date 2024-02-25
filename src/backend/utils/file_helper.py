@@ -85,5 +85,5 @@ def open_base64_as_image(base64_image: str) -> tuple[Image.Image | None, str | N
     try:
         _, body = base64_image.split(',')
         return Image.open(BytesIO(base64.b64decode(body))), extension
-    except BaseException as e:
+    except BaseException:
         return None, None

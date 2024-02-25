@@ -2,7 +2,7 @@ from sqlite3 import Cursor
 
 from db.sqlite.table import SqliteTable, ensure_db
 from library.document.sql import *
-from utils.exceptions.db_errors import SqlTableError
+from utils.errors.db_errors import SqlTableError
 
 
 class DocLibTable(SqliteTable):
