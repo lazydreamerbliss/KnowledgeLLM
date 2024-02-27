@@ -18,7 +18,7 @@ from PIL import Image
 from redis.commands.search.document import Document
 from torch import Tensor
 from utils.errors.task_errors import (LockAcquisitionFailure,
-                                          TaskCancellationException)
+                                      TaskCancellationException)
 from utils.lock_context import LockContext
 from utils.task_runner import report_progress
 
@@ -142,7 +142,8 @@ class ImageLib(LibraryBase):
             to_be_deleted: set[str] = set(self._tracker.get_all_relative_paths()) - all_files  # type: ignore
             if to_be_deleted:
                 LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers')
-                self.remove_embeddings(list(to_be_deleted))
+                for relative_path in to_be_deleted:
+                    self.remove_img_embedding(relative_path)
 
         if incremental:
             all_files.clear()
@@ -374,23 +375,22 @@ class ImageLib(LibraryBase):
             shutil.rmtree(self._path_lib_data)
             LOGGER.warning(f'Library demolished: {self.path_lib}')
 
-    def add_file(self, folder_relative_path: str, source_file: str):
+    def add_file(self, parent_relative_path: str, source_file: str):
         pass
 
-    def delete_files(self, relative_paths: list[str], **kwargs):
-        if not relative_paths:
-            return
+    def delete_file(self, relative_path: str, **kwargs) -> bool:
+        if not relative_path:
+            return False
 
-        for relative_path in relative_paths:
-            if not relative_path:
-                continue
-
-            LOGGER.warn(f'Remove file: {relative_path}')
-            relative_path = relative_path.lstrip(os.path.sep)
+        relative_path = relative_path.lstrip(os.path.sep)
+        if relative_path:
+            self.remove_img_embedding(relative_path)
+            LOGGER.warn(f'Delete image file from library: {relative_path}')
             image_path: str = os.path.join(self.path_lib, relative_path)
             if os.path.isfile(image_path):
                 os.remove(image_path)
-        self.remove_embeddings(relative_paths)
+                return True
+        return False
 
     """
     Public methods
@@ -400,18 +400,15 @@ class ImageLib(LibraryBase):
         self.__embedder = embedder
 
     @ensure_lib_is_ready
-    def remove_embeddings(self, relative_paths: list[str]):
-        """Remove the embeddings of images from the DB but keep the files
+    def remove_img_embedding(self, relative_path: str):
+        """Remove the embedding of give image but keep the file
         """
-        if not relative_paths:
+        if not relative_path:
             return
 
-        for relative_path in relative_paths:
-            if not relative_path:
-                continue
-
-            LOGGER.warn(f'Remove embedding for: {relative_path}')
-            relative_path = relative_path.lstrip(os.path.sep)
+        relative_path = relative_path.lstrip(os.path.sep)
+        if relative_path:
+            LOGGER.warn(f'Remove image embedding for: {relative_path}')
             if self._tracker.is_recorded(relative_path):  # type: ignore
                 uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
                 self.__vector_db.remove(uuid)  # type: ignore

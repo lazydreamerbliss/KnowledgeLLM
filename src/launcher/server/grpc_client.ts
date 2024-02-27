@@ -7,4 +7,5 @@ import { ListOfLibInfoObj } from './grpc/obj_shared_pb';
 
 let client: GrpcServerClient = new GrpcServerClient('http://localhost:8080', grpc.credentials.createInsecure());
 
-
+// https://dev.to/devaddict/use-grpc-with-node-js-and-typescript-3c58
+// https://github.com/badsyntax/grpc-js-typescript/blob/master/examples/grpc_tools_node_protoc_ts/client.ts

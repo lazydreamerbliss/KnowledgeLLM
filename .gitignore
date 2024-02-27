@@ -184,3 +184,7 @@ local_models/
 
 # Log files
 logs/
+
+# gRPC generated files
+/src/backend/server/grpc/
+/src/launcher/server/grpc/

@@ -15,7 +15,7 @@ from library.lib_base import *
 from library.scan_record_tracker import UnfinishedScanRecordTrackerManager
 from loggers import doc_lib_logger as LOGGER
 from utils.errors.task_errors import (LockAcquisitionFailure,
-                                          TaskCancellationException)
+                                      TaskCancellationException)
 from utils.lock_context import LockContext
 from utils.task_runner import report_progress
 
@@ -238,7 +238,7 @@ class DocumentLib(Generic[D], LibraryBase):
         # Special case: test if the file is already gone but embeddings exists (this should not happen)
         if not os.path.isfile(os.path.join(self.path_lib, relative_path)):
             if self._tracker.is_recorded(relative_path): # type: ignore
-                self.remove_doc_embeddings([relative_path], provider_type)
+                self.remove_doc_embedding(relative_path, provider_type)
             LOGGER.error(f'Document {relative_path} does not exist')
             raise LibraryError('File does not exist')
 
@@ -258,7 +258,7 @@ class DocumentLib(Generic[D], LibraryBase):
             if force_init or self._tracker.is_unfinished(relative_path):  # type: ignore
                 LOGGER.info(
                     f'Clean up existing embeddings for {relative_path} because of force init or target doc is in unfinished list')
-                self.remove_doc_embeddings([relative_path], provider_type)
+                self.remove_doc_embedding(relative_path, provider_type)
 
             try:
                 LOGGER.info(f'Document initialization started for {relative_path}')
@@ -266,7 +266,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 self.__initialize_doc(relative_path, provider_type, uuid, progress_reporter, cancel_event)
             except Exception as e:
                 # On cancel, clean this doc's leftover
-                self.remove_doc_embeddings([relative_path], provider_type)
+                self.remove_doc_embedding(relative_path, provider_type)
                 if isinstance(e, TaskCancellationException):
                     LOGGER.warn('Document initialization cancelled, progress abandoned')
                 else:
@@ -299,23 +299,23 @@ class DocumentLib(Generic[D], LibraryBase):
     def add_file(self, folder_relative_path: str, source_file: str):
         pass
 
-    def delete_files(self, relative_paths: list[str], **kwargs):
-        if not relative_paths:
-            return
+    def delete_file(self, relative_path: str, **kwargs) -> bool:
+        if not relative_path:
+            return False
         provider_type: Type[D] = kwargs.get('provider_type', None)
         if not provider_type:
             raise LibraryError('Provider type not provided')
 
-        for relative_path in relative_paths:
-            if not relative_path:
-                continue
-
-            LOGGER.warn(f'Remove file: {relative_path}')
+        relative_path = relative_path.lstrip(os.path.sep)
+        if relative_path:
+            self.remove_doc_embedding(relative_path, provider_type)
+            LOGGER.warn(f'Delete document file from library: {relative_path}')
             relative_path = relative_path.lstrip(os.path.sep)
             doc_path: str = os.path.join(self.path_lib, relative_path)
             if os.path.isfile(doc_path):
                 os.remove(doc_path)
-        self.remove_doc_embeddings(relative_paths, provider_type)
+                return True
+        return False
 
     """
     Public methods
@@ -336,53 +336,47 @@ class DocumentLib(Generic[D], LibraryBase):
     def set_embedder(self, embedder: DocEmbedder):
         self.__embedder = embedder
 
-    def remove_doc_embeddings(self, relative_paths: list[str], provider_type: Type[D]):
-        """Remove the embedding of a document under the library (those docs must have same provider type)
+    def remove_doc_embedding(self, relative_path: str, provider_type: Type[D]):
+        """Remove the embedding of given document but keep the file
         1. Delete the document's table from DB
         2. Delete the document's vector index
-
-        - Relative path is mandatory, with optional UUID
-        - Optional UUID is used to remove existing embedding if the relative path is not in scan profile, this can happen when the embedding is cancelled in half way
-        - Provided relative path does not need to be exists in file system, as the file might be deleted already but the leftover still exists
         """
-        if not relative_paths:
+        if not relative_path:
             return
 
-        for relative_path in relative_paths:
-            if not relative_path:
-                continue
-
-            relative_path = relative_path.lstrip(os.path.sep)
-
+        relative_path = relative_path.lstrip(os.path.sep)
+        if relative_path:
             # UUID is mandatory for data cleanup, retrieve UUID from scan history
             uuid: str | None = self._tracker.get_uuid(relative_path)  # type: ignore
             if not uuid:
                 uuid = self._tracker.get_unfinished_uuid(relative_path)  # type: ignore
             if not uuid:
-                continue
+                return
+
+            # Remove doc from embedding history after deletion if this doc is tracked
+            self._tracker.remove_by_relative_path(relative_path)  # type: ignore
 
             is_active_doc: bool = False
             if self.__doc_provider:
+                # If doc provider instance exists, then provider's table name is the active doc's UUID
                 is_active_doc = self.__doc_provider.get_table_name() == uuid
 
             if not is_active_doc:
                 # For non-active doc, create temp provider and temp vector DB to delete leftover
-                LOGGER.warn(f'Remove embedding for: {relative_path}, UUID: {uuid}, this document is not active')
+                LOGGER.warn(f'Remove document embedding for: {relative_path}, UUID: {uuid}, this document is not active')
                 tmp_provider: DocProviderBase = provider_type(self.path_db,
-                                                              uuid)
+                                                                uuid)
                 tmp_provider.delete_table()
                 tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
                 tmp_vector_db.delete_db()
             else:
-                LOGGER.warn(f'Remove embedding for: {relative_path}, UUID: {uuid}, this document is active')
+                LOGGER.warn(f'Remove document embedding for: {relative_path}, UUID: {uuid}, this document is active')
                 self.__doc_provider.delete_table()  # type: ignore
                 self.__doc_provider = None
                 self.__vector_db.delete_db()  # type: ignore
                 self.__vector_db = None
                 self.doc_type = ''
 
-            # Remove doc from embedding history after deletion if this doc is tracked
-            self._tracker.remove_by_relative_path(relative_path)  # type: ignore
 
     """
     Query methods

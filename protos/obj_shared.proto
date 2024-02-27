@@ -19,8 +19,6 @@ message LibGetReadyParamObj {
     // For document library
     string relative_path = 2;
     string provider_type = 3;
-    // For image library
-    bool incremental = 4;
 }
 
 // Represents the structure of a submitted task
@@ -79,4 +77,18 @@ message ImageTagObj {
 }
 message ListOfImageTagObj {
     repeated ImageTagObj value = 1;
+}
+
+// Represents the query params of file move/rename/delete operations
+message FileMoveParamObj {
+    string relative_path = 1;
+    string dest_relative_path = 2;
+}
+message FileRenameParamObj {
+    string relative_path = 1;
+    string new_name = 2;
+}
+message FileDeleteParamObj {
+    string relative_path = 1;
+    string provider_type = 2;
 }

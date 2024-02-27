@@ -1,18 +1,15 @@
 import importlib
-import io
 from datetime import datetime
 from functools import wraps
 from time import time
 from types import ModuleType
 from typing import Any
 
-from google.protobuf.timestamp_pb2 import Timestamp
 from library.document.doc_lib import DocumentLib
 from library.document.doc_provider_base import DocumentType
 from library.image.image_lib import ImageLib
 from library.lib_base import LibraryBase
 from loggers import rpc_logger as LOGGER
-from PIL import Image
 from server.grpc.backend_pb2_grpc import GrpcServerServicer
 from server.grpc.obj_basic_pb2 import *
 from server.grpc.obj_shared_pb2 import *
@@ -42,6 +39,24 @@ def log_rpc_call(func):
             LOGGER.error(f'RPC call failed: {func.__name__}, cost: {time_taken:.2f}s, error: {e}')
             raise e
     return wrapper
+
+
+def get_doc_provider_type(type_name: str) -> type | None:
+    if not type_name:
+        return None
+
+    potential_provider: type | None = None
+    try:
+        potential_provider = getattr(DOC_PROVIDER_MODULE, type_name)
+    except AttributeError:
+        pass
+    if not potential_provider:
+        try:
+            potential_provider = getattr(WECHAT_PROVIDER_MODULE, type_name)
+        except AttributeError:
+            pass
+
+    return potential_provider
 
 
 class Servicer(GrpcServerServicer):
@@ -140,7 +155,7 @@ class Servicer(GrpcServerServicer):
             self.__lib_manager.create_library(libInfo, switch_to=False)
             return BooleanObj(value=True)
         except LibraryManagerException as e:
-            LOGGER.info(f'Failed to create library: {e}')
+            LOGGER.error(f'Failed to create library: {e}')
             return BooleanObj(value=False)
 
     @log_rpc_call
@@ -155,6 +170,7 @@ class Servicer(GrpcServerServicer):
             self.__lib_manager.demolish_library()
             return BooleanObj(value=True)
         except LibraryManagerException:
+            LOGGER.error(f'Failed to demolish library')
             return BooleanObj(value=False)
 
     @log_rpc_call
@@ -192,11 +208,13 @@ class Servicer(GrpcServerServicer):
 
     @log_rpc_call
     def lib_exists(self, request: LibInfoObj, context) -> BooleanObj:
+        response: BooleanObj = BooleanObj()
+        response.value = False
         libInfo: LibInfo | None = self.__process_lib_obj(request)
         if not libInfo:
-            return BooleanObj(value=False)
-
-        return BooleanObj(value=self.__lib_manager.lib_exists(libInfo.uuid))
+            return response
+        response.value=self.__lib_manager.lib_exists(libInfo.uuid)
+        return response
 
     """
     Document library APIs
@@ -204,19 +222,9 @@ class Servicer(GrpcServerServicer):
 
     @log_rpc_call
     def make_document_ready(self, request: LibGetReadyParamObj, context) -> StringObj:
-        potential_provider: type | None = None
-        try:
-            potential_provider = getattr(DOC_PROVIDER_MODULE, 'DocProvider')
-        except AttributeError:
-            pass
+        potential_provider: type | None = get_doc_provider_type(request.provider_type)
         if not potential_provider:
-            try:
-                potential_provider = getattr(WECHAT_PROVIDER_MODULE, 'WeChatHistoryProvider')
-            except AttributeError:
-                pass
-
-        if not potential_provider:
-            return StringObj(value=None, error='No document provider found')
+            return StringObj(value=None, error=f'Invalid document provider type: {request.provider_type}')
 
         try:
             task_id: str = self.__lib_manager.make_library_ready(
@@ -267,10 +275,19 @@ class Servicer(GrpcServerServicer):
         try:
             task_id: str = self.__lib_manager.make_library_ready(
                 force_init=request.force_init,
-                incremental=request.incremental)
+                incremental=False)
             return StringObj(value=task_id)
         except LibraryManagerException as e:
-            LOGGER.info(f'Failed scan image library: {e}')
+            LOGGER.info(f'Failed to scan image library: {e}')
+            return StringObj(value=None, error=str(e))
+
+    @log_rpc_call
+    def incremental_scan(self, request: VoidObj, context) -> StringObj:
+        try:
+            task_id: str = self.__lib_manager.make_library_ready(incremental=True)
+            return StringObj(value=task_id)
+        except LibraryManagerException as e:
+            LOGGER.info(f'Failed to incrementally scan image library: {e}')
             return StringObj(value=None, error=str(e))
 
     @log_rpc_call
@@ -307,17 +324,77 @@ class Servicer(GrpcServerServicer):
         if not instance or not isinstance(instance, ImageLib) or not request.text:
             return response
 
-        casted_instance: ImageLib = instance
-        query_result: list[tuple] = casted_instance.text_for_image_search(request.text, request.top_k)
-        for res in query_result:
-            r: ImageLibQueryResponseObj = ImageLibQueryResponseObj()
-            r.uuid = res[2]
-            r.path = res[3]
-            r.filename = res[4]
-            response.value.append(r)
-        return response
+        try:
+            casted_instance: ImageLib = instance
+            query_result: list[tuple] = casted_instance.text_for_image_search(request.text, request.top_k)
+            for res in query_result:
+                r: ImageLibQueryResponseObj = ImageLibQueryResponseObj()
+                r.uuid = res[2]
+                r.path = res[3]
+                r.filename = res[4]
+                response.value.append(r)
+            return response
+        except Exception as e:
+            LOGGER.error(f'Text for image query failed, error: {e}')
+            return response
 
     @log_rpc_call
     def get_image_tags(self, request: ImageLibQueryObj, context) -> ListOfImageTagObj:
         # TODO
         raise NotImplementedError('Not implemented yet')
+
+    """
+    File APIs
+    """
+
+    @log_rpc_call
+    def move_file(self, request: FileMoveParamObj, context) -> BooleanObj:
+        response: BooleanObj = BooleanObj()
+        response.value = False
+        if not request.relative_path or not request.dest_relative_path:
+            return response
+
+        instance: LibraryBase | None = self.__lib_manager.instance
+        if not instance:
+            return response
+
+        response.value = instance.move_file(request.relative_path, request.dest_relative_path)
+        return response
+
+    @log_rpc_call
+    def rename_file(self, request: FileRenameParamObj, context) -> BooleanObj:
+        response: BooleanObj = BooleanObj()
+        response.value = False
+        if not request.relative_path or not request.new_name:
+            return response
+
+        instance: LibraryBase | None = self.__lib_manager.instance
+        if not instance:
+            return response
+
+        response.value = instance.rename_file(request.relative_path, request.new_name)
+        return response
+
+    @log_rpc_call
+    def delete_file(self, request: FileDeleteParamObj, context) -> BooleanObj:
+        response: BooleanObj = BooleanObj()
+        response.value = False
+        if not request.relative_path:
+            return response
+
+        instance: LibraryBase | None = self.__lib_manager.instance
+        if not instance:
+            return response
+
+        if isinstance(instance, DocumentLib):
+            if not request.provider_type:
+                return response
+            potential_provider: type | None = get_doc_provider_type(request.provider_type)
+            if not potential_provider:
+                return response
+            response.value = instance.delete_file(request.relative_path, provider_type=potential_provider)
+
+        elif isinstance(instance, ImageLib):
+            response.value = instance.delete_file(request.relative_path)
+
+        return response

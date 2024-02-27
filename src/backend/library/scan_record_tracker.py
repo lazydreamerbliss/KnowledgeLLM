@@ -135,6 +135,10 @@ class ScanRecordTracker:
     def __init__(self, db_path: str, db_name: str):
         self.__table = ScanRecordTable(db_path, db_name)
 
+    """
+    Common methods, does not distinguish between record and unfinished record
+    """
+
     def clean_all_data(self):
         """Clean up the tracking history
         """
