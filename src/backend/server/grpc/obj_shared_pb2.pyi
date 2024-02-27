@@ -25,16 +25,14 @@ class ListOfLibInfoObj(_message.Message):
     def __init__(self, value: _Optional[_Iterable[_Union[LibInfoObj, _Mapping]]] = ...) -> None: ...
 
 class LibGetReadyParamObj(_message.Message):
-    __slots__ = ("force_init", "relative_path", "provider_type", "incremental")
+    __slots__ = ("force_init", "relative_path", "provider_type")
     FORCE_INIT_FIELD_NUMBER: _ClassVar[int]
     RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
     PROVIDER_TYPE_FIELD_NUMBER: _ClassVar[int]
-    INCREMENTAL_FIELD_NUMBER: _ClassVar[int]
     force_init: bool
     relative_path: str
     provider_type: str
-    incremental: bool
-    def __init__(self, force_init: bool = ..., relative_path: _Optional[str] = ..., provider_type: _Optional[str] = ..., incremental: bool = ...) -> None: ...
+    def __init__(self, force_init: bool = ..., relative_path: _Optional[str] = ..., provider_type: _Optional[str] = ...) -> None: ...
 
 class TaskInfoObj(_message.Message):
     __slots__ = ("id", "state", "phase_count", "phase_name", "current_phase", "progress", "error", "submitted_on", "completed_on", "duration")
@@ -131,3 +129,27 @@ class ListOfImageTagObj(_message.Message):
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: _containers.RepeatedCompositeFieldContainer[ImageTagObj]
     def __init__(self, value: _Optional[_Iterable[_Union[ImageTagObj, _Mapping]]] = ...) -> None: ...
+
+class FileMoveParamObj(_message.Message):
+    __slots__ = ("relative_path", "dest_relative_path")
+    RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
+    DEST_RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
+    relative_path: str
+    dest_relative_path: str
+    def __init__(self, relative_path: _Optional[str] = ..., dest_relative_path: _Optional[str] = ...) -> None: ...
+
+class FileRenameParamObj(_message.Message):
+    __slots__ = ("relative_path", "new_name")
+    RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
+    NEW_NAME_FIELD_NUMBER: _ClassVar[int]
+    relative_path: str
+    new_name: str
+    def __init__(self, relative_path: _Optional[str] = ..., new_name: _Optional[str] = ...) -> None: ...
+
+class FileDeleteParamObj(_message.Message):
+    __slots__ = ("relative_path", "provider_type")
+    RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
+    PROVIDER_TYPE_FIELD_NUMBER: _ClassVar[int]
+    relative_path: str
+    provider_type: str
+    def __init__(self, relative_path: _Optional[str] = ..., provider_type: _Optional[str] = ...) -> None: ...

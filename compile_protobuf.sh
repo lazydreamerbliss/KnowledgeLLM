@@ -25,12 +25,12 @@ python -m grpc_tools.protoc \
 
 # Python generated files have issues with import module name, replace "import obj_basic_pb2" to "import server.grpc.obj_basic_pb2"
 PY_MODULE_PREFIX="server.grpc"
-sed -i "s/import obj_basic_pb2/import $PY_MODULE_PREFIX.obj_basic_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2_grpc.py
-sed -i "s/import obj_basic_pb2/import $PY_MODULE_PREFIX.obj_basic_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.py
-sed -i "s/import obj_basic_pb2/import $PY_MODULE_PREFIX.obj_basic_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.pyi
-sed -i "s/import obj_shared_pb2/import $PY_MODULE_PREFIX.obj_shared_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2_grpc.py
-sed -i "s/import obj_shared_pb2/import $PY_MODULE_PREFIX.obj_shared_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.py
-sed -i "s/import obj_shared_pb2/import $PY_MODULE_PREFIX.obj_shared_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.pyi
+sed -i '' -e "s/import obj_basic_pb2/import $PY_MODULE_PREFIX.obj_basic_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2_grpc.py
+sed -i '' -e "s/import obj_basic_pb2/import $PY_MODULE_PREFIX.obj_basic_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.py
+sed -i '' -e "s/import obj_basic_pb2/import $PY_MODULE_PREFIX.obj_basic_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.pyi
+sed -i '' -e "s/import obj_shared_pb2/import $PY_MODULE_PREFIX.obj_shared_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2_grpc.py
+sed -i '' -e "s/import obj_shared_pb2/import $PY_MODULE_PREFIX.obj_shared_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.py
+sed -i '' -e "s/import obj_shared_pb2/import $PY_MODULE_PREFIX.obj_shared_pb2/g" $SERVER_OUTPUT_DIR/backend_pb2.pyi
 
 # Build client side (JS) code
 # - Need to install grpc-tools

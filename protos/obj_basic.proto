@@ -10,6 +10,10 @@ message BooleanObj
     bool value = 1;
     string error = 2;
 };
+message ListOfBooleanObj
+{
+    repeated bool value = 1;
+};
 
 // Object for string
 message StringObj

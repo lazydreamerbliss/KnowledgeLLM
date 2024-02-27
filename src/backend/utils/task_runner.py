@@ -174,11 +174,13 @@ class TaskRunner:
         """Cancel an executing task
         1. Try to stop the future if the task is not started
         2. On failure, check if task supports cancellation
+
+        If task not found, return True
         """
         if task_id in self.tasks:
             future = self.tasks[task_id].future
             if not future:
-                raise TaskCancelFailureException('Task is not running')
+                return False
             if not future.done():
                 cancelled: bool = future.cancel()
                 if not cancelled and self.tasks[task_id].cancel_event:
@@ -187,7 +189,8 @@ class TaskRunner:
                 if cancelled:
                     self.__mark_task_completed(task_id, TaskState.CANCELLED)
                     return True
-        return False
+                return False
+        return True
 
     def get_task_state(self, task_id: str) -> TaskInfo | None:
         """Check the running state of given task IDs
@@ -196,6 +199,7 @@ class TaskRunner:
 
     def is_task_done(self, task_id: str) -> bool:
         """Check if a task is done, this includes all termination states like cancel, failure, etc.
+        - If task not found, return True
         """
         if task_id in self.tasks:
             return self.tasks[task_id].state != TaskState.IN_PROGRESS
@@ -203,6 +207,7 @@ class TaskRunner:
 
     def is_task_successful(self, task_id: str) -> bool:
         """Check if a task is done and successful
+        - If task not found, return True
         """
         if task_id in self.tasks:
             return self.tasks[task_id].state == TaskState.FINISHED and not self.tasks[task_id].error

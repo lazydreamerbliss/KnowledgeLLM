@@ -25,9 +25,13 @@ interface IGrpcServerService extends grpc.ServiceDefinition<grpc.UntypedServiceI
     make_document_ready: IGrpcServerService_Imake_document_ready;
     query_text: IGrpcServerService_Iquery_text;
     scan: IGrpcServerService_Iscan;
+    incremental_scan: IGrpcServerService_Iincremental_scan;
     image_for_image_search: IGrpcServerService_Iimage_for_image_search;
     text_for_image_search: IGrpcServerService_Itext_for_image_search;
     get_image_tags: IGrpcServerService_Iget_image_tags;
+    move_file: IGrpcServerService_Imove_file;
+    rename_file: IGrpcServerService_Irename_file;
+    delete_file: IGrpcServerService_Idelete_file;
 }
 
 interface IGrpcServerService_Iheartbeat extends grpc.MethodDefinition<obj_basic_pb.VoidObj, obj_basic_pb.BooleanObj> {
@@ -165,6 +169,15 @@ interface IGrpcServerService_Iscan extends grpc.MethodDefinition<obj_shared_pb.L
     responseSerialize: grpc.serialize<obj_basic_pb.StringObj>;
     responseDeserialize: grpc.deserialize<obj_basic_pb.StringObj>;
 }
+interface IGrpcServerService_Iincremental_scan extends grpc.MethodDefinition<obj_basic_pb.VoidObj, obj_basic_pb.StringObj> {
+    path: "/GrpcServer/incremental_scan";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<obj_basic_pb.VoidObj>;
+    requestDeserialize: grpc.deserialize<obj_basic_pb.VoidObj>;
+    responseSerialize: grpc.serialize<obj_basic_pb.StringObj>;
+    responseDeserialize: grpc.deserialize<obj_basic_pb.StringObj>;
+}
 interface IGrpcServerService_Iimage_for_image_search extends grpc.MethodDefinition<obj_shared_pb.ImageLibQueryObj, obj_shared_pb.ListOfImageLibQueryResponseObj> {
     path: "/GrpcServer/image_for_image_search";
     requestStream: false;
@@ -192,6 +205,33 @@ interface IGrpcServerService_Iget_image_tags extends grpc.MethodDefinition<obj_s
     responseSerialize: grpc.serialize<obj_shared_pb.ListOfImageTagObj>;
     responseDeserialize: grpc.deserialize<obj_shared_pb.ListOfImageTagObj>;
 }
+interface IGrpcServerService_Imove_file extends grpc.MethodDefinition<obj_shared_pb.FileMoveParamObj, obj_basic_pb.BooleanObj> {
+    path: "/GrpcServer/move_file";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<obj_shared_pb.FileMoveParamObj>;
+    requestDeserialize: grpc.deserialize<obj_shared_pb.FileMoveParamObj>;
+    responseSerialize: grpc.serialize<obj_basic_pb.BooleanObj>;
+    responseDeserialize: grpc.deserialize<obj_basic_pb.BooleanObj>;
+}
+interface IGrpcServerService_Irename_file extends grpc.MethodDefinition<obj_shared_pb.FileRenameParamObj, obj_basic_pb.BooleanObj> {
+    path: "/GrpcServer/rename_file";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<obj_shared_pb.FileRenameParamObj>;
+    requestDeserialize: grpc.deserialize<obj_shared_pb.FileRenameParamObj>;
+    responseSerialize: grpc.serialize<obj_basic_pb.BooleanObj>;
+    responseDeserialize: grpc.deserialize<obj_basic_pb.BooleanObj>;
+}
+interface IGrpcServerService_Idelete_file extends grpc.MethodDefinition<obj_shared_pb.FileDeleteParamObj, obj_basic_pb.BooleanObj> {
+    path: "/GrpcServer/delete_file";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<obj_shared_pb.FileDeleteParamObj>;
+    requestDeserialize: grpc.deserialize<obj_shared_pb.FileDeleteParamObj>;
+    responseSerialize: grpc.serialize<obj_basic_pb.BooleanObj>;
+    responseDeserialize: grpc.deserialize<obj_basic_pb.BooleanObj>;
+}
 
 export const GrpcServerService: IGrpcServerService;
 
@@ -211,9 +251,13 @@ export interface IGrpcServerServer {
     make_document_ready: grpc.handleUnaryCall<obj_shared_pb.LibGetReadyParamObj, obj_basic_pb.StringObj>;
     query_text: grpc.handleUnaryCall<obj_shared_pb.DocLibQueryObj, obj_shared_pb.ListOfDocLibQueryResponseObj>;
     scan: grpc.handleUnaryCall<obj_shared_pb.LibGetReadyParamObj, obj_basic_pb.StringObj>;
+    incremental_scan: grpc.handleUnaryCall<obj_basic_pb.VoidObj, obj_basic_pb.StringObj>;
     image_for_image_search: grpc.handleUnaryCall<obj_shared_pb.ImageLibQueryObj, obj_shared_pb.ListOfImageLibQueryResponseObj>;
     text_for_image_search: grpc.handleUnaryCall<obj_shared_pb.ImageLibQueryObj, obj_shared_pb.ListOfImageLibQueryResponseObj>;
     get_image_tags: grpc.handleUnaryCall<obj_shared_pb.ImageLibQueryObj, obj_shared_pb.ListOfImageTagObj>;
+    move_file: grpc.handleUnaryCall<obj_shared_pb.FileMoveParamObj, obj_basic_pb.BooleanObj>;
+    rename_file: grpc.handleUnaryCall<obj_shared_pb.FileRenameParamObj, obj_basic_pb.BooleanObj>;
+    delete_file: grpc.handleUnaryCall<obj_shared_pb.FileDeleteParamObj, obj_basic_pb.BooleanObj>;
 }
 
 export interface IGrpcServerClient {
@@ -262,6 +306,9 @@ export interface IGrpcServerClient {
     scan(request: obj_shared_pb.LibGetReadyParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
     scan(request: obj_shared_pb.LibGetReadyParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
     scan(request: obj_shared_pb.LibGetReadyParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
+    incremental_scan(request: obj_basic_pb.VoidObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
+    incremental_scan(request: obj_basic_pb.VoidObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
+    incremental_scan(request: obj_basic_pb.VoidObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
     image_for_image_search(request: obj_shared_pb.ImageLibQueryObj, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageLibQueryResponseObj) => void): grpc.ClientUnaryCall;
     image_for_image_search(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageLibQueryResponseObj) => void): grpc.ClientUnaryCall;
     image_for_image_search(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageLibQueryResponseObj) => void): grpc.ClientUnaryCall;
@@ -271,6 +318,15 @@ export interface IGrpcServerClient {
     get_image_tags(request: obj_shared_pb.ImageLibQueryObj, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageTagObj) => void): grpc.ClientUnaryCall;
     get_image_tags(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageTagObj) => void): grpc.ClientUnaryCall;
     get_image_tags(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageTagObj) => void): grpc.ClientUnaryCall;
+    move_file(request: obj_shared_pb.FileMoveParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    move_file(request: obj_shared_pb.FileMoveParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    move_file(request: obj_shared_pb.FileMoveParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    rename_file(request: obj_shared_pb.FileRenameParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    rename_file(request: obj_shared_pb.FileRenameParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    rename_file(request: obj_shared_pb.FileRenameParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    delete_file(request: obj_shared_pb.FileDeleteParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    delete_file(request: obj_shared_pb.FileDeleteParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    delete_file(request: obj_shared_pb.FileDeleteParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
 }
 
 export class GrpcServerClient extends grpc.Client implements IGrpcServerClient {
@@ -320,6 +376,9 @@ export class GrpcServerClient extends grpc.Client implements IGrpcServerClient {
     public scan(request: obj_shared_pb.LibGetReadyParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
     public scan(request: obj_shared_pb.LibGetReadyParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
     public scan(request: obj_shared_pb.LibGetReadyParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
+    public incremental_scan(request: obj_basic_pb.VoidObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
+    public incremental_scan(request: obj_basic_pb.VoidObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
+    public incremental_scan(request: obj_basic_pb.VoidObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.StringObj) => void): grpc.ClientUnaryCall;
     public image_for_image_search(request: obj_shared_pb.ImageLibQueryObj, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageLibQueryResponseObj) => void): grpc.ClientUnaryCall;
     public image_for_image_search(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageLibQueryResponseObj) => void): grpc.ClientUnaryCall;
     public image_for_image_search(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageLibQueryResponseObj) => void): grpc.ClientUnaryCall;
@@ -329,4 +388,13 @@ export class GrpcServerClient extends grpc.Client implements IGrpcServerClient {
     public get_image_tags(request: obj_shared_pb.ImageLibQueryObj, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageTagObj) => void): grpc.ClientUnaryCall;
     public get_image_tags(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageTagObj) => void): grpc.ClientUnaryCall;
     public get_image_tags(request: obj_shared_pb.ImageLibQueryObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_shared_pb.ListOfImageTagObj) => void): grpc.ClientUnaryCall;
+    public move_file(request: obj_shared_pb.FileMoveParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public move_file(request: obj_shared_pb.FileMoveParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public move_file(request: obj_shared_pb.FileMoveParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public rename_file(request: obj_shared_pb.FileRenameParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public rename_file(request: obj_shared_pb.FileRenameParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public rename_file(request: obj_shared_pb.FileRenameParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public delete_file(request: obj_shared_pb.FileDeleteParamObj, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public delete_file(request: obj_shared_pb.FileDeleteParamObj, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
+    public delete_file(request: obj_shared_pb.FileDeleteParamObj, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: obj_basic_pb.BooleanObj) => void): grpc.ClientUnaryCall;
 }

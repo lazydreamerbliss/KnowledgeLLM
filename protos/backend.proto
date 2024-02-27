@@ -32,10 +32,13 @@ service GrpcServer
 
     // Image library APIs
     rpc scan(LibGetReadyParamObj) returns(StringObj) {}
+    rpc incremental_scan(VoidObj) returns(StringObj) {}
     rpc image_for_image_search(ImageLibQueryObj) returns(ListOfImageLibQueryResponseObj) {}
     rpc text_for_image_search(ImageLibQueryObj) returns(ListOfImageLibQueryResponseObj) {}
     rpc get_image_tags(ImageLibQueryObj) returns(ListOfImageTagObj) {}
 
-    // TODO: add manual incremental scan, file operation, etc.
-    // ...
+    // File APIs
+    rpc move_file(FileMoveParamObj) returns(BooleanObj) {}
+    rpc rename_file(FileRenameParamObj) returns(BooleanObj) {}
+    rpc delete_file(FileDeleteParamObj) returns(BooleanObj) {}
 }

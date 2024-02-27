@@ -46,6 +46,28 @@ export namespace BooleanObj {
     }
 }
 
+export class ListOfBooleanObj extends jspb.Message { 
+    clearValueList(): void;
+    getValueList(): Array<boolean>;
+    setValueList(value: Array<boolean>): ListOfBooleanObj;
+    addValue(value: boolean, index?: number): boolean;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListOfBooleanObj.AsObject;
+    static toObject(includeInstance: boolean, msg: ListOfBooleanObj): ListOfBooleanObj.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListOfBooleanObj, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListOfBooleanObj;
+    static deserializeBinaryFromReader(message: ListOfBooleanObj, reader: jspb.BinaryReader): ListOfBooleanObj;
+}
+
+export namespace ListOfBooleanObj {
+    export type AsObject = {
+        valueList: Array<boolean>,
+    }
+}
+
 export class StringObj extends jspb.Message { 
     getValue(): string;
     setValue(value: string): StringObj;

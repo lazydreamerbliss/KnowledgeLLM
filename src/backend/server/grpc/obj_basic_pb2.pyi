@@ -17,6 +17,12 @@ class BooleanObj(_message.Message):
     error: str
     def __init__(self, value: bool = ..., error: _Optional[str] = ...) -> None: ...
 
+class ListOfBooleanObj(_message.Message):
+    __slots__ = ("value",)
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    value: _containers.RepeatedScalarFieldContainer[bool]
+    def __init__(self, value: _Optional[_Iterable[bool]] = ...) -> None: ...
+
 class StringObj(_message.Message):
     __slots__ = ("value", "error")
     VALUE_FIELD_NUMBER: _ClassVar[int]

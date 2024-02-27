@@ -65,8 +65,6 @@ export class LibGetReadyParamObj extends jspb.Message {
     setRelativePath(value: string): LibGetReadyParamObj;
     getProviderType(): string;
     setProviderType(value: string): LibGetReadyParamObj;
-    getIncremental(): boolean;
-    setIncremental(value: boolean): LibGetReadyParamObj;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LibGetReadyParamObj.AsObject;
@@ -83,7 +81,6 @@ export namespace LibGetReadyParamObj {
         forceInit: boolean,
         relativePath: string,
         providerType: string,
-        incremental: boolean,
     }
 }
 
@@ -342,5 +339,74 @@ export class ListOfImageTagObj extends jspb.Message {
 export namespace ListOfImageTagObj {
     export type AsObject = {
         valueList: Array<ImageTagObj.AsObject>,
+    }
+}
+
+export class FileMoveParamObj extends jspb.Message { 
+    getRelativePath(): string;
+    setRelativePath(value: string): FileMoveParamObj;
+    getDestRelativePath(): string;
+    setDestRelativePath(value: string): FileMoveParamObj;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FileMoveParamObj.AsObject;
+    static toObject(includeInstance: boolean, msg: FileMoveParamObj): FileMoveParamObj.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FileMoveParamObj, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FileMoveParamObj;
+    static deserializeBinaryFromReader(message: FileMoveParamObj, reader: jspb.BinaryReader): FileMoveParamObj;
+}
+
+export namespace FileMoveParamObj {
+    export type AsObject = {
+        relativePath: string,
+        destRelativePath: string,
+    }
+}
+
+export class FileRenameParamObj extends jspb.Message { 
+    getRelativePath(): string;
+    setRelativePath(value: string): FileRenameParamObj;
+    getNewName(): string;
+    setNewName(value: string): FileRenameParamObj;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FileRenameParamObj.AsObject;
+    static toObject(includeInstance: boolean, msg: FileRenameParamObj): FileRenameParamObj.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FileRenameParamObj, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FileRenameParamObj;
+    static deserializeBinaryFromReader(message: FileRenameParamObj, reader: jspb.BinaryReader): FileRenameParamObj;
+}
+
+export namespace FileRenameParamObj {
+    export type AsObject = {
+        relativePath: string,
+        newName: string,
+    }
+}
+
+export class FileDeleteParamObj extends jspb.Message { 
+    getRelativePath(): string;
+    setRelativePath(value: string): FileDeleteParamObj;
+    getProviderType(): string;
+    setProviderType(value: string): FileDeleteParamObj;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FileDeleteParamObj.AsObject;
+    static toObject(includeInstance: boolean, msg: FileDeleteParamObj): FileDeleteParamObj.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FileDeleteParamObj, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FileDeleteParamObj;
+    static deserializeBinaryFromReader(message: FileDeleteParamObj, reader: jspb.BinaryReader): FileDeleteParamObj;
+}
+
+export namespace FileDeleteParamObj {
+    export type AsObject = {
+        relativePath: string,
+        providerType: string,
     }
 }

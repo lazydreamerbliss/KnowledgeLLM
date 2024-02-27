@@ -27,6 +27,39 @@ function deserialize_DocLibQueryObj(buffer_arg) {
   return obj_shared_pb.DocLibQueryObj.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_FileDeleteParamObj(arg) {
+  if (!(arg instanceof obj_shared_pb.FileDeleteParamObj)) {
+    throw new Error('Expected argument of type FileDeleteParamObj');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_FileDeleteParamObj(buffer_arg) {
+  return obj_shared_pb.FileDeleteParamObj.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_FileMoveParamObj(arg) {
+  if (!(arg instanceof obj_shared_pb.FileMoveParamObj)) {
+    throw new Error('Expected argument of type FileMoveParamObj');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_FileMoveParamObj(buffer_arg) {
+  return obj_shared_pb.FileMoveParamObj.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_FileRenameParamObj(arg) {
+  if (!(arg instanceof obj_shared_pb.FileRenameParamObj)) {
+    throw new Error('Expected argument of type FileRenameParamObj');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_FileRenameParamObj(buffer_arg) {
+  return obj_shared_pb.FileRenameParamObj.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_ImageLibQueryObj(arg) {
   if (!(arg instanceof obj_shared_pb.ImageLibQueryObj)) {
     throw new Error('Expected argument of type ImageLibQueryObj');
@@ -321,6 +354,17 @@ scan: {
     responseSerialize: serialize_StringObj,
     responseDeserialize: deserialize_StringObj,
   },
+  incremental_scan: {
+    path: '/GrpcServer/incremental_scan',
+    requestStream: false,
+    responseStream: false,
+    requestType: obj_basic_pb.VoidObj,
+    responseType: obj_basic_pb.StringObj,
+    requestSerialize: serialize_VoidObj,
+    requestDeserialize: deserialize_VoidObj,
+    responseSerialize: serialize_StringObj,
+    responseDeserialize: deserialize_StringObj,
+  },
   image_for_image_search: {
     path: '/GrpcServer/image_for_image_search',
     requestStream: false,
@@ -353,6 +397,40 @@ scan: {
     requestDeserialize: deserialize_ImageLibQueryObj,
     responseSerialize: serialize_ListOfImageTagObj,
     responseDeserialize: deserialize_ListOfImageTagObj,
+  },
+  // File APIs
+move_file: {
+    path: '/GrpcServer/move_file',
+    requestStream: false,
+    responseStream: false,
+    requestType: obj_shared_pb.FileMoveParamObj,
+    responseType: obj_basic_pb.BooleanObj,
+    requestSerialize: serialize_FileMoveParamObj,
+    requestDeserialize: deserialize_FileMoveParamObj,
+    responseSerialize: serialize_BooleanObj,
+    responseDeserialize: deserialize_BooleanObj,
+  },
+  rename_file: {
+    path: '/GrpcServer/rename_file',
+    requestStream: false,
+    responseStream: false,
+    requestType: obj_shared_pb.FileRenameParamObj,
+    responseType: obj_basic_pb.BooleanObj,
+    requestSerialize: serialize_FileRenameParamObj,
+    requestDeserialize: deserialize_FileRenameParamObj,
+    responseSerialize: serialize_BooleanObj,
+    responseDeserialize: deserialize_BooleanObj,
+  },
+  delete_file: {
+    path: '/GrpcServer/delete_file',
+    requestStream: false,
+    responseStream: false,
+    requestType: obj_shared_pb.FileDeleteParamObj,
+    responseType: obj_basic_pb.BooleanObj,
+    requestSerialize: serialize_FileDeleteParamObj,
+    requestDeserialize: deserialize_FileDeleteParamObj,
+    responseSerialize: serialize_BooleanObj,
+    responseDeserialize: deserialize_BooleanObj,
   },
 };
 

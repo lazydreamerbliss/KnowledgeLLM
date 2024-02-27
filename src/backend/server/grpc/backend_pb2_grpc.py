@@ -91,6 +91,11 @@ class GrpcServerStub(object):
                 request_serializer=obj__shared__pb2.LibGetReadyParamObj.SerializeToString,
                 response_deserializer=obj__basic__pb2.StringObj.FromString,
                 )
+        self.incremental_scan = channel.unary_unary(
+                '/GrpcServer/incremental_scan',
+                request_serializer=obj__basic__pb2.VoidObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.StringObj.FromString,
+                )
         self.image_for_image_search = channel.unary_unary(
                 '/GrpcServer/image_for_image_search',
                 request_serializer=obj__shared__pb2.ImageLibQueryObj.SerializeToString,
@@ -105,6 +110,21 @@ class GrpcServerStub(object):
                 '/GrpcServer/get_image_tags',
                 request_serializer=obj__shared__pb2.ImageLibQueryObj.SerializeToString,
                 response_deserializer=obj__shared__pb2.ListOfImageTagObj.FromString,
+                )
+        self.move_file = channel.unary_unary(
+                '/GrpcServer/move_file',
+                request_serializer=obj__shared__pb2.FileMoveParamObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
+                )
+        self.rename_file = channel.unary_unary(
+                '/GrpcServer/rename_file',
+                request_serializer=obj__shared__pb2.FileRenameParamObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
+                )
+        self.delete_file = channel.unary_unary(
+                '/GrpcServer/delete_file',
+                request_serializer=obj__shared__pb2.FileDeleteParamObj.SerializeToString,
+                response_deserializer=obj__basic__pb2.BooleanObj.FromString,
                 )
 
 
@@ -207,6 +227,12 @@ class GrpcServerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def incremental_scan(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def image_for_image_search(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -220,6 +246,25 @@ class GrpcServerServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def get_image_tags(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def move_file(self, request, context):
+        """File APIs
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def rename_file(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def delete_file(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -303,6 +348,11 @@ def add_GrpcServerServicer_to_server(servicer, server):
                     request_deserializer=obj__shared__pb2.LibGetReadyParamObj.FromString,
                     response_serializer=obj__basic__pb2.StringObj.SerializeToString,
             ),
+            'incremental_scan': grpc.unary_unary_rpc_method_handler(
+                    servicer.incremental_scan,
+                    request_deserializer=obj__basic__pb2.VoidObj.FromString,
+                    response_serializer=obj__basic__pb2.StringObj.SerializeToString,
+            ),
             'image_for_image_search': grpc.unary_unary_rpc_method_handler(
                     servicer.image_for_image_search,
                     request_deserializer=obj__shared__pb2.ImageLibQueryObj.FromString,
@@ -317,6 +367,21 @@ def add_GrpcServerServicer_to_server(servicer, server):
                     servicer.get_image_tags,
                     request_deserializer=obj__shared__pb2.ImageLibQueryObj.FromString,
                     response_serializer=obj__shared__pb2.ListOfImageTagObj.SerializeToString,
+            ),
+            'move_file': grpc.unary_unary_rpc_method_handler(
+                    servicer.move_file,
+                    request_deserializer=obj__shared__pb2.FileMoveParamObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
+            ),
+            'rename_file': grpc.unary_unary_rpc_method_handler(
+                    servicer.rename_file,
+                    request_deserializer=obj__shared__pb2.FileRenameParamObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
+            ),
+            'delete_file': grpc.unary_unary_rpc_method_handler(
+                    servicer.delete_file,
+                    request_deserializer=obj__shared__pb2.FileDeleteParamObj.FromString,
+                    response_serializer=obj__basic__pb2.BooleanObj.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -585,6 +650,23 @@ class GrpcServer(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
+    def incremental_scan(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/incremental_scan',
+            obj__basic__pb2.VoidObj.SerializeToString,
+            obj__basic__pb2.StringObj.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
     def image_for_image_search(request,
             target,
             options=(),
@@ -632,5 +714,56 @@ class GrpcServer(object):
         return grpc.experimental.unary_unary(request, target, '/GrpcServer/get_image_tags',
             obj__shared__pb2.ImageLibQueryObj.SerializeToString,
             obj__shared__pb2.ListOfImageTagObj.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def move_file(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/move_file',
+            obj__shared__pb2.FileMoveParamObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def rename_file(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/rename_file',
+            obj__shared__pb2.FileRenameParamObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def delete_file(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/GrpcServer/delete_file',
+            obj__shared__pb2.FileDeleteParamObj.SerializeToString,
+            obj__basic__pb2.BooleanObj.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

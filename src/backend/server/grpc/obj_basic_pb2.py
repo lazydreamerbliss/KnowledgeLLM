@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0fobj_basic.proto\"\t\n\x07VoidObj\"*\n\nBooleanObj\x12\r\n\x05value\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\")\n\tStringObj\x12\r\n\x05value\x18\x01 \x01(\t\x12\r\n\x05\x65rror\x18\x02 \x01(\t\" \n\x0fListOfStringObj\x12\r\n\x05value\x18\x01 \x03(\t\" \n\x0fIntegerShortObj\x12\r\n\x05value\x18\x01 \x01(\x05\"\x1f\n\x0eIntegerLongObj\x12\r\n\x05value\x18\x01 \x01(\x03\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0fobj_basic.proto\"\t\n\x07VoidObj\"*\n\nBooleanObj\x12\r\n\x05value\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\"!\n\x10ListOfBooleanObj\x12\r\n\x05value\x18\x01 \x03(\x08\")\n\tStringObj\x12\r\n\x05value\x18\x01 \x01(\t\x12\r\n\x05\x65rror\x18\x02 \x01(\t\" \n\x0fListOfStringObj\x12\r\n\x05value\x18\x01 \x03(\t\" \n\x0fIntegerShortObj\x12\r\n\x05value\x18\x01 \x01(\x05\"\x1f\n\x0eIntegerLongObj\x12\r\n\x05value\x18\x01 \x01(\x03\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -25,12 +25,14 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_VOIDOBJ']._serialized_end=28
   _globals['_BOOLEANOBJ']._serialized_start=30
   _globals['_BOOLEANOBJ']._serialized_end=72
-  _globals['_STRINGOBJ']._serialized_start=74
-  _globals['_STRINGOBJ']._serialized_end=115
-  _globals['_LISTOFSTRINGOBJ']._serialized_start=117
-  _globals['_LISTOFSTRINGOBJ']._serialized_end=149
-  _globals['_INTEGERSHORTOBJ']._serialized_start=151
-  _globals['_INTEGERSHORTOBJ']._serialized_end=183
-  _globals['_INTEGERLONGOBJ']._serialized_start=185
-  _globals['_INTEGERLONGOBJ']._serialized_end=216
+  _globals['_LISTOFBOOLEANOBJ']._serialized_start=74
+  _globals['_LISTOFBOOLEANOBJ']._serialized_end=107
+  _globals['_STRINGOBJ']._serialized_start=109
+  _globals['_STRINGOBJ']._serialized_end=150
+  _globals['_LISTOFSTRINGOBJ']._serialized_start=152
+  _globals['_LISTOFSTRINGOBJ']._serialized_end=184
+  _globals['_INTEGERSHORTOBJ']._serialized_start=186
+  _globals['_INTEGERSHORTOBJ']._serialized_end=218
+  _globals['_INTEGERLONGOBJ']._serialized_start=220
+  _globals['_INTEGERLONGOBJ']._serialized_end=251
 # @@protoc_insertion_point(module_scope)
