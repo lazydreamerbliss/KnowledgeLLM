@@ -37,8 +37,8 @@ service GrpcServer
     rpc text_for_image_search(ImageLibQueryObj) returns(ListOfImageLibQueryResponseObj) {}
     rpc get_image_tags(ImageLibQueryObj) returns(ListOfImageTagObj) {}
 
-    // File APIs
-    rpc move_file(FileMoveParamObj) returns(BooleanObj) {}
-    rpc rename_file(FileRenameParamObj) returns(BooleanObj) {}
-    rpc delete_file(FileDeleteParamObj) returns(BooleanObj) {}
+    // File/folder APIs
+    rpc move(FileMoveParamObj) returns(BooleanObj) {}
+    rpc rename(FileRenameParamObj) returns(BooleanObj) {}
+    rpc delete(ListOfStringObj) returns(BooleanObj) {}
 }

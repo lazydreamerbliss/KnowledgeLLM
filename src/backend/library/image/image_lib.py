@@ -119,22 +119,15 @@ class ImageLib(LibraryBase):
         all_files: set[str] = set()
         to_be_embedded: set[str] = set()
 
-        # Get all files under current library
+        # Get all files under current library's root
         LOGGER.info(f'Fetching all files under current library')
-        lib_data_folder_abs_path: str = os.path.join(self.path_lib, LIB_DATA_FOLDER)
-        for root, _, filenames in os.walk(self.path_lib):
-            if root == lib_data_folder_abs_path:
-                continue
-            for filename in filenames:
-                # Relative path built from os.path.relpath does not start with os.path.sep, no need to strip
-                file_abs_path: str = os.path.join(root, filename)
-                file_relative_path: str = os.path.relpath(file_abs_path, self.path_lib)
-                all_files.add(file_relative_path)
-                if incremental:
-                    if self._tracker.is_recorded(file_relative_path):  # type: ignore
-                        LOGGER.info(f'File already embedded: {file_relative_path}, skip for incremental scan')
-                        continue
-                    to_be_embedded.add(file_relative_path)
+        for file_relative_path in self._file_operator.folder_walker(relative_path=''):
+            all_files.add(file_relative_path)
+            if incremental:
+                if self._tracker.is_recorded(file_relative_path):  # type: ignore
+                    LOGGER.info(f'File already embedded: {file_relative_path}, skip for incremental scan')
+                    continue
+                to_be_embedded.add(file_relative_path)
 
         # Check if there are files are deleted but left in embedded files list
         # - This can happen when user deletes files from file system directly and library is not aware of these operation
@@ -143,7 +136,7 @@ class ImageLib(LibraryBase):
             if to_be_deleted:
                 LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers')
                 for relative_path in to_be_deleted:
-                    self.remove_img_embedding(relative_path)
+                    self.delete_file_embedding(relative_path)
 
         if incremental:
             all_files.clear()
@@ -245,7 +238,7 @@ class ImageLib(LibraryBase):
         if (incremental and first_run) or (scan_only and first_run):
             raise LibraryError('Invalid scan param')
 
-        with LockContext(self._scan_lock) as lock:
+        with LockContext(self._file_lock) as lock:
             if not lock.acquired:
                 raise LockAcquisitionFailure('There is already a scan task running')
 
@@ -359,7 +352,7 @@ class ImageLib(LibraryBase):
         Simply purge the library data folder
         """
         LOGGER.warning(f'Demolish library: {self.path_lib}')
-        with LockContext(self._scan_lock) as lock:
+        with LockContext(self._file_lock) as lock:
             if not lock.acquired:
                 raise LockAcquisitionFailure('There is already a scan task running, cancel the task and try again')
 
@@ -375,22 +368,25 @@ class ImageLib(LibraryBase):
             shutil.rmtree(self._path_lib_data)
             LOGGER.warning(f'Library demolished: {self.path_lib}')
 
-    def add_file(self, parent_relative_path: str, source_file: str):
-        pass
-
-    def delete_file(self, relative_path: str, **kwargs) -> bool:
+    @ensure_lib_is_ready
+    def delete_file_embedding(self, relative_path: str) -> bool:
+        """Remove the embedding of give image but keep the file
+        """
         if not relative_path:
             return False
 
-        relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path:
-            self.remove_img_embedding(relative_path)
-            LOGGER.warn(f'Delete image file from library: {relative_path}')
-            image_path: str = os.path.join(self.path_lib, relative_path)
-            if os.path.isfile(image_path):
-                os.remove(image_path)
-                return True
-        return False
+        relative_path = relative_path.strip().lstrip(os.path.sep)
+        if not relative_path:
+            return False
+
+        LOGGER.warn(f'Remove image embedding for: {relative_path}')
+        if self._tracker.is_recorded(relative_path):  # type: ignore
+            uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
+            self.__vector_db.remove(uuid)  # type: ignore
+            self.__table.delete_row_by_uuid(uuid)  # type: ignore
+            self._tracker.remove_by_relative_path(relative_path)  # type: ignore
+
+        return True
 
     """
     Public methods
@@ -398,22 +394,6 @@ class ImageLib(LibraryBase):
 
     def set_embedder(self, embedder: ImageEmbedder):
         self.__embedder = embedder
-
-    @ensure_lib_is_ready
-    def remove_img_embedding(self, relative_path: str):
-        """Remove the embedding of give image but keep the file
-        """
-        if not relative_path:
-            return
-
-        relative_path = relative_path.lstrip(os.path.sep)
-        if relative_path:
-            LOGGER.warn(f'Remove image embedding for: {relative_path}')
-            if self._tracker.is_recorded(relative_path):  # type: ignore
-                uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
-                self.__vector_db.remove(uuid)  # type: ignore
-                self.__table.delete_row_by_uuid(uuid)  # type: ignore
-                self._tracker.remove_record_by_relative_path(relative_path)  # type: ignore
 
     def get_scan_gap(self) -> int:
         """Get the time gap from last scan in days

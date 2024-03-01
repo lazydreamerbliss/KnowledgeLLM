@@ -87,7 +87,7 @@ class Servicer(GrpcServerServicer):
     def heartbeat(self, request: VoidObj, context) -> BooleanObj:
         return BooleanObj(value=True)
 
-    """
+    """`
     Task APIs
     """
     @log_rpc_call
@@ -213,7 +213,7 @@ class Servicer(GrpcServerServicer):
         libInfo: LibInfo | None = self.__process_lib_obj(request)
         if not libInfo:
             return response
-        response.value=self.__lib_manager.lib_exists(libInfo.uuid)
+        response.value = self.__lib_manager.lib_exists(libInfo.uuid)
         return response
 
     """
@@ -340,7 +340,7 @@ class Servicer(GrpcServerServicer):
 
     @log_rpc_call
     def get_image_tags(self, request: ImageLibQueryObj, context) -> ListOfImageTagObj:
-        # TODO
+        # TODO: tagger is too slow, improve it firstly before adding tagger feature
         raise NotImplementedError('Not implemented yet')
 
     """
@@ -348,21 +348,22 @@ class Servicer(GrpcServerServicer):
     """
 
     @log_rpc_call
-    def move_file(self, request: FileMoveParamObj, context) -> BooleanObj:
+    def move(self, request: FileMoveParamObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
-        if not request.relative_path or not request.dest_relative_path:
+        relative_paths: list[str] = list(request.relative_paths)
+        if not relative_paths or not request.dest_relative_path:
             return response
 
         instance: LibraryBase | None = self.__lib_manager.instance
         if not instance:
             return response
 
-        response.value = instance.move_file(request.relative_path, request.dest_relative_path)
+        response.value = instance.move(relative_paths, request.dest_relative_path)
         return response
 
     @log_rpc_call
-    def rename_file(self, request: FileRenameParamObj, context) -> BooleanObj:
+    def rename(self, request: FileRenameParamObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
         if not request.relative_path or not request.new_name:
@@ -372,29 +373,20 @@ class Servicer(GrpcServerServicer):
         if not instance:
             return response
 
-        response.value = instance.rename_file(request.relative_path, request.new_name)
+        response.value = instance.rename(request.relative_path, request.new_name)
         return response
 
     @log_rpc_call
-    def delete_file(self, request: FileDeleteParamObj, context) -> BooleanObj:
+    def delete(self, request: ListOfStringObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
-        if not request.relative_path:
+        relative_paths: list[str] = list(request.value)
+        if not relative_paths:
             return response
 
         instance: LibraryBase | None = self.__lib_manager.instance
         if not instance:
             return response
 
-        if isinstance(instance, DocumentLib):
-            if not request.provider_type:
-                return response
-            potential_provider: type | None = get_doc_provider_type(request.provider_type)
-            if not potential_provider:
-                return response
-            response.value = instance.delete_file(request.relative_path, provider_type=potential_provider)
-
-        elif isinstance(instance, ImageLib):
-            response.value = instance.delete_file(request.relative_path)
-
+        response.value = instance.delete(relative_paths)
         return response

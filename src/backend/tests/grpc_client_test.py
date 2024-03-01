@@ -74,7 +74,6 @@ class GrpcClientForServerTest:
     def test_scan(self):
         request = LibGetReadyParamObj()
         request.force_init = True
-        request.incremental = False
         res: StringObj = self.stub.scan(request)
         task_id: str = res.value
         assert bool(task_id)

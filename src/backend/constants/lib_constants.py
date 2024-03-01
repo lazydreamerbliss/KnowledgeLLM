@@ -1,5 +1,7 @@
 from utils.containable_enum import ContainableEnum
 
+LIB_DATA_FOLDER: str = '.LibraryData'
+
 SORTED_BY_LABELS: set[str] = {'Name', 'Date Created', 'Date Modified', 'Size'}
 SORTED_BY_LABELS_ORDERED: list[str] = ['Name', 'Date Created', 'Date Modified', 'Size']
 SORTED_BY_LABELS_CN: dict[str, str] = {
