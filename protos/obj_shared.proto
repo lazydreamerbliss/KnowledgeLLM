@@ -81,14 +81,10 @@ message ListOfImageTagObj {
 
 // Represents the query params of file move/rename/delete operations
 message FileMoveParamObj {
-    string relative_path = 1;
+    repeated string relative_paths = 1;
     string dest_relative_path = 2;
 }
 message FileRenameParamObj {
     string relative_path = 1;
     string new_name = 2;
-}
-message FileDeleteParamObj {
-    string relative_path = 1;
-    string provider_type = 2;
 }

@@ -33,6 +33,7 @@ CLIP_MODEL_CHN: str = 'OFA-Sys--chinese-clip-vit-base-patch16'
 TRANSFORMER_MODEL: str = 'shibing624_text2vec-base-chinese-sentence'
 BERT_MODEL: str = 'hfl--chinese-roberta-wwm-ext'
 CROSS_ENCODER_MODEL: str = 'tuhailong--cross_encoder_roberta-wwm-ext_v2'
+TAGGER_MODEL: str = 'fancyfeast--joytag'
 
 # Config folder, logging folder, etc.
 # - TODO: Change folders to installation path

@@ -1,30 +1,32 @@
-from pathlib import Path
+import os
 from time import time
 
 import numpy as np
 import torch
 import torch.amp.autocast_mode
 import torchvision.transforms.functional as TVF
+from constants.env import MODEL_FOLDER, TAGGER_MODEL
 from knowledge_base.image.__tagger_model import TaggerModel
 from loggers import img_embedder_logger as LOGGER
 from PIL import Image
 from torch import Tensor
 
+TAG_FILE: str = 'top_tags.txt'
+
 
 class ImageTagger:
     SCORE_THRESHOLD = 0.4
-    MODEL_FOLDER: str = f'{Path(__file__).parent.parent.parent.parent}/local_models'
-    model_path: str = f'{MODEL_FOLDER}/fancyfeast--joytag'
 
     def __init__(self, cuda: bool = False):
+        model_path: str = os.path.join(MODEL_FOLDER, TAGGER_MODEL)
         self.device_type: str = 'cuda' if cuda else 'cpu'
-        self.model: TaggerModel = TaggerModel.load_model(self.model_path)
+        self.model: TaggerModel = TaggerModel.load_model(model_path)
         self.model.eval()
         self.model = self.model.to(self.device_type)
 
         self.tag_list: list[str] = list()
         self.tag_list_cn: list[str] = list()
-        with open(Path(ImageTagger.model_path) / 'top_tags.txt', 'r') as f:
+        with open(os.path.join(model_path, TAG_FILE), 'r') as f:
             for line in f.readlines():
                 line = line.strip()
                 if not line:

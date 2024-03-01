@@ -264,7 +264,10 @@ class LibraryManager:
                 return UUID_EMPTY
 
             relative_path: str = kwargs['relative_path']
-            relative_path = relative_path.lstrip(os.path.sep)
+            relative_path = relative_path.strip().lstrip(os.path.sep)
+            if not relative_path:
+                raise LibraryManagerException(f'Invalid parameters for DocumentLib, kwargs: {kwargs}')
+
             lite_mode: bool = kwargs.get('lite_mode', False)
             self.instance.set_embedder(DocEmbedder(lite_mode=lite_mode))
             # The phase count is 2 for document library's initialization task

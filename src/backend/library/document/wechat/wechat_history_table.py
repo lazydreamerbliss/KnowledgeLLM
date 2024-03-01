@@ -8,12 +8,7 @@ from library.document.wechat.sql import *
 class WechatHistoryTable(SqliteTable):
     def __init__(self, db_path: str, table_name: str):
         super().__init__(db_path, table_name)
-        self.__initialize_table()
-
-    @ensure_db
-    def __initialize_table(self) -> None:
         cursor = self.db.cursor()
-        a = create_index_sql(self.table_name, 'timestamp')
         cursor.execute(initialize_table_sql(self.table_name))
         cursor.execute(create_index_sql(self.table_name, 'timestamp'))
         cursor.execute(create_index_sql(self.table_name, 'sender'))

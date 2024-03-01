@@ -1,5 +1,5 @@
 # run time data
-__library_data__
+.LibraryData
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

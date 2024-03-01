@@ -49,4 +49,4 @@ def run_test_client_wrapper(run_server: bool = False):
 
 
 if __name__ == '__main__':
-    run_test_client_wrapper(run_server=True)
+    run_test_client_wrapper(run_server=False)

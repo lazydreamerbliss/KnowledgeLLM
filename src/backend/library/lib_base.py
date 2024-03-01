@@ -6,14 +6,13 @@ from functools import wraps
 from threading import Event, Lock
 from typing import Any, Callable
 
-from constants.lib_constants import (SORTED_BY_LABELS, SUPPORTED_EXTENSIONS,
-                                     VIEW_STYLES)
+from constants.lib_constants import (LIB_DATA_FOLDER, SORTED_BY_LABELS,
+                                     SUPPORTED_EXTENSIONS, VIEW_STYLES)
 from library.lib_item import *
 from library.scan_record_tracker import ScanRecordTracker
 from loggers import lib_logger as LOGGER
 from utils.errors.lib_errors import LibraryError
-
-LIB_DATA_FOLDER: str = '__library_data__'
+from utils.file_operator import FileOperator
 
 DEFAULT_EXCLUSION_LIST: set[str] = {
     '$RECYCLE.BIN',
@@ -92,15 +91,17 @@ class LibraryBase:
         # Scan tracker to track embedded files under the library
         self._tracker: ScanRecordTracker | None = None
 
-        # File scan is mutually exclusive, use a lock to prevent concurrent operations
-        self._scan_lock = Lock()
+        # File scan is mutually exclusive, use a lock to prevent concurrent operations such as scan and file moving
+        self._file_lock: Lock = Lock()
+        # File operator
+        self._file_operator: FileOperator = FileOperator(root_path=self.path_lib)
 
         # Ensure the library's data folder exists
         if not os.path.isdir(self._path_lib_data):
             os.makedirs(self._path_lib_data)
 
     """
-    Library methods
+    Library methods for override
     """
 
     def set_embedder(self, embedder: Any):
@@ -156,92 +157,139 @@ class LibraryBase:
         """
         raise NotImplementedError()
 
-    """
-    File A/R/W/D operation methods
-    """
-
-    def add_file(self, parent_relative_path: str, source_file: str) -> bool:
-        """Add given source file to the library under the given folder
+    def delete_file_embedding(self, relative_path: str) -> bool:
+        """Delete the embedding of given file but keep the file on disk
         """
         raise NotImplementedError()
 
-    def move_file(self, relative_path: str, new_relative_path: str, called_from_rename: bool = False) -> bool:
-        """Move the given file under current library and retain the existing embedding information
+    """
+    File A/R/W/D operation methods
+    - Do pre-checks and call the file operator to do the actual work
+    """
+
+    def add_files(self, target_relative_path: str, source_file: str) -> bool:
+        raise NotImplementedError()
+
+    def move(self, relative_paths: list[str], dest_relative_path: str) -> bool:
+        """Move a list of files/folders under current library to a target folder, and retain the existing embedding information
 
         Args:
-            relative_path (str): The relative path of the target file to be moved
-            new_relative_path (str): The new relative path of the target file
-
-        Returns:
-            bool: True if the move operation is successful
+            relative_paths (list[str]): A list of relative paths of the files/folders to be moved
+            target_relative_path (str): Target folder's relative path
         """
         if not self._tracker:
             raise LibraryError('Embedding tracker not ready')
 
-        # Do pre-checks for move operation
-        # No pre-checks for rename operation (called_from_rename=True), as rename_file() already did
-        if not called_from_rename:
-            if not relative_path or not new_relative_path:
-                return False
+        if not relative_paths or dest_relative_path is None:
+            return False
 
-            relative_path = relative_path.strip()
-            new_relative_path = new_relative_path.strip()
+        all_success: bool = True
+        dest_relative_path = dest_relative_path.strip().lstrip(os.path.sep)
+        for relative_path in relative_paths:
+            relative_path = relative_path.strip().lstrip(os.path.sep)
+            full_path: str = os.path.join(self.path_lib, relative_path)
+            if not os.path.exists(full_path):
+                continue
+
+            name: str = os.path.basename(relative_path)
+            new_relative_path: str = os.path.join(dest_relative_path, name)
             if relative_path == new_relative_path:
-                return True
+                continue
 
-            relative_path = relative_path.lstrip(os.path.sep)
-            new_relative_path = new_relative_path.lstrip(os.path.sep)
-            LOGGER.info(f'Move file: {relative_path} -> {new_relative_path}')
+            # Update the scan record with new relative path to retain the embedding information
+            if os.path.isfile(full_path):
+                all_success = self._file_operator.move_file(relative_path,
+                                                            new_relative_path,
+                                                            is_rename=False,
+                                                            update_record=self._tracker.update_record_path) and all_success
+            else:
+                all_success = self._file_operator.move_folder(relative_path,
+                                                              new_relative_path,
+                                                              is_rename=False,
+                                                              update_record=self._tracker.update_record_path) and all_success
+        return all_success
 
-        old_doc_path: str = os.path.join(self.path_lib, relative_path)
-        if not os.path.isfile(old_doc_path):
-            LOGGER.error(f'File not exists on source: {old_doc_path}')
-            return False
-
-        new_doc_path: str = os.path.join(self.path_lib, new_relative_path)
-        if os.path.isfile(new_doc_path):
-            LOGGER.error(f'File with same name already exists on target: {new_doc_path}')
-            return False
-
-        # Move the file
-        os.makedirs(os.path.dirname(new_doc_path), exist_ok=True)
-        shutil.move(old_doc_path, new_doc_path)
-
-        # Update the scan record with new relative path to retain the embedding information
-        self._tracker.update_record_path(new_relative_path, relative_path)
-        return True
-
-    def rename_file(self, relative_path: str, new_name: str) -> bool:
-        """Rename the given file under current library and retain the existing embedding information
-        - It will invoke move_file() to perform the actual rename operation
+    def rename(self, relative_path: str, new_name: str) -> bool:
+        """Rename the given file/folder under current library and retain the existing embedding information
 
         Args:
-            relative_path (str): The relative path of the target file to be renamed
-            new_name (str): The new filename
-
-        Returns:
-            bool: True if the rename operation is successful
+            relative_path (str): The relative path of the target file/folder to be renamed
+            new_name (str): The new file/folder name
         """
+        if not self._tracker:
+            raise LibraryError('Embedding tracker not ready')
+
         if not relative_path or not new_name:
             return False
-        relative_path = relative_path.strip()
+        relative_path = relative_path.strip().lstrip(os.path.sep)
         new_name = new_name.strip()
         if not relative_path or not new_name:
             return False
 
-        filename: str = os.path.basename(relative_path)
-        if filename == new_name:
+        full_path: str = os.path.join(self.path_lib, relative_path)
+        if not os.path.exists(full_path):
+            return False
+
+        name: str = os.path.basename(relative_path)
+        if name == new_name:
             return True
 
-        LOGGER.info(f'Rename file {relative_path}, {filename} -> {new_name}')
-        relative_path = relative_path.lstrip(os.path.sep)
+        # Update the scan record with new relative path to retain the embedding information
         new_relative_path = os.path.join(os.path.dirname(relative_path), new_name)
-        return self.move_file(relative_path, new_relative_path, called_from_rename=True)
+        if os.path.isfile(full_path):
+            return self._file_operator.move_file(relative_path,
+                                                 new_relative_path,
+                                                 is_rename=True,
+                                                 update_record=self._tracker.update_record_path)
+        else:
+            return self._file_operator.move_folder(relative_path,
+                                                   new_relative_path,
+                                                   is_rename=True,
+                                                   update_record=self._tracker.update_record_path)
 
-    def delete_file(self, relative_path: str, **kwargs) -> bool:
-        """Delete the given file from the library, remove from both file system and embedding
+    def delete(self, relative_paths: list[str]) -> bool:
+        """Delete the given files/folders from disk and its embedding
+
+        Args:
+            relative_paths (list[str]): A list of relative paths of the files/folders to be deleted
         """
-        raise NotImplementedError()
+        if not relative_paths:
+            return False
+
+        all_success: bool = True
+        for relative_path in relative_paths:
+            relative_path = relative_path.strip().lstrip(os.path.sep)
+            if not relative_path:
+                continue
+
+            full_path: str = os.path.join(self.path_lib, relative_path)
+            if not os.path.exists(full_path):
+                continue
+
+            # Delete embedding first, if success then delete the file
+            if os.path.isfile(full_path):
+                LOGGER.info(f'Delete file {relative_path} from library')
+                if self.delete_file_embedding(relative_path):
+                    all_success = self._file_operator.delete_file(relative_path) and all_success
+                else:
+                    all_success = False
+            else:
+                folder_success: bool = True
+                LOGGER.info(f'Delete folder {relative_path} from library')
+                for r in self._file_operator.folder_walker(relative_path):
+                    if self.delete_file_embedding(r):
+                        folder_success = self._file_operator.delete_file(r) and folder_success
+                    else:
+                        folder_success = False
+
+                all_success = folder_success and all_success
+                if folder_success:
+                    shutil.rmtree(full_path)
+                    LOGGER.info(f'Folder {relative_path} deleted')
+                else:
+                    LOGGER.info(f'Not all files under folder {relative_path} are successfully deleted')
+
+        return all_success
 
     def list_folder_content(self, folder_relative_path: str) -> tuple[list[DirectoryItem], list[FileItem]]:
         """List the content of a folder, no recursion
@@ -252,7 +300,11 @@ class LibraryBase:
         dir_list: list[DirectoryItem] = list()
         file_list: list[FileItem] = list()
 
-        folder_relative_path = folder_relative_path.lstrip(os.sep)
+        # Empty string is acceptable (listing the root of the library) but None is not
+        if folder_relative_path is None:
+            return dir_list, file_list
+
+        folder_relative_path = folder_relative_path.strip().lstrip(os.path.sep)
         folder_full_path: str = os.path.join(self.path_lib, folder_relative_path)
         if not os.path.isdir(folder_full_path):
             return dir_list, file_list
@@ -309,15 +361,14 @@ class LibraryBase:
 
     def is_accessible(self, relative_path: str) -> bool:
         """Check if the given relative path is accessible under the library
-        - Accessible means the file or folder is not in the exclusion list and it is under the library's root
+        - Accessible means the file or folder is not in the exclusion list and it is under currently active library
         """
         if not relative_path:
             return True
-        relative_path = relative_path.lstrip(os.path.sep)
+        relative_path = relative_path.strip().lstrip(os.path.sep)
         if not relative_path:
             return True
 
-        LOGGER.info(f'Checking accessibility: {relative_path}')
         exclusion_list: set[str] = self.get_exclusion_list()
         if exclusion_list:
             file_or_folder_name: str = os.path.basename(relative_path)
@@ -325,6 +376,29 @@ class LibraryBase:
                 return False
         full_path: str = os.path.join(self.path_lib, relative_path)
         return os.path.exists(full_path)
+
+    """
+    Embedding methods
+    """
+
+    def is_embedded(self, relative_path: str) -> bool:
+        """Check if the given file is embedded
+        """
+        if not relative_path:
+            return False
+        relative_path = relative_path.strip().lstrip(os.path.sep)
+        full_path: str = os.path.join(self.path_lib, relative_path)
+        if not os.path.isfile(full_path):
+            return False
+
+        return False if not self._tracker else self._tracker.is_recorded(relative_path)
+
+    def get_embedded_files(self) -> dict[str, str]:
+        """Get the embedded files under the library with [relative_path: UUID]
+        """
+        if not self._tracker:
+            raise LibraryError('Embedding tracker not ready')
+        return self._tracker.get_all_records()
 
     """
     Metadata file methods
@@ -382,13 +456,6 @@ class LibraryBase:
         LOGGER.info('Deleting metadata')
         if os.path.isfile(self.__path_metadata):
             os.remove(self.__path_metadata)
-
-    def get_embedded_files(self) -> dict[str, str]:
-        """Get the embedded files under the library with [relative_path: UUID]
-        """
-        if not self._tracker:
-            raise LibraryError('Embedding tracker not ready')
-        return self._tracker.get_all_records()
 
     """
     Public methods to read library metadata
