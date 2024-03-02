@@ -42,13 +42,13 @@ class DocProviderBase(Generic[T]):
             table_type (Type[T]): Generic type constructor for SqliteTable
         """
         LOGGER.info(f'Initializing document provider on {table_name}, table type: {table_type}')
-        self._table: T = table_type(db_file, table_name)
+        self._doc_content_table: T = table_type(db_file, table_name)
         self._progress_reporter: Callable[[int, int, str | None], None] | None = progress_reporter
 
     def get_table_name(self) -> str:
         """Get the name of the table for this document provider
         """
-        return self._table.table_name
+        return self._doc_content_table.table_name
 
     def initialize(self, file_path: str):
         """Initialize the document provider, it reads all lines from given file and insert them into the table after some processing
@@ -58,18 +58,18 @@ class DocProviderBase(Generic[T]):
     def get_record_count(self) -> int:
         """Get the number of lines/segments of the document
         """
-        return self._table.row_count()
+        return self._doc_content_table.row_count()
 
     def get_record_by_id(self, id: int) -> tuple | None:
         """Get one line/segment of a document by ID, in table row format
         """
-        row: tuple | None = self._table.select_row(id)
+        row: tuple | None = self._doc_content_table.select_row(id)
         return row
 
     def get_all_records(self, order_by: str = 'id', asc: bool = True) -> list[tuple]:
         """Get all lines/segments, in table row format
         """
-        cursor: Cursor = self._table.select_many(order_by=order_by, asc=asc)
+        cursor: Cursor = self._doc_content_table.select_many(order_by=order_by, asc=asc)
         rows: list[tuple] | None = cursor.fetchall()
         if not rows:
             return list()
@@ -88,4 +88,4 @@ class DocProviderBase(Generic[T]):
     def delete_table(self):
         """Remove current document's table from DB
         """
-        self._table.drop_table()
+        self._doc_content_table.drop_table()

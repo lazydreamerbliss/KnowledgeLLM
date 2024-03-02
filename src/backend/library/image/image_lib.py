@@ -60,10 +60,10 @@ class ImageLib(LibraryBase):
             raise LibraryError('Library metadata not initialized')
 
         self.local_mode: bool = local_mode
-        self.__table: ImageLibTable | None = None
+        self._embedding_table: ImageLibTable = ImageLibTable(os.path.join(self._path_lib_data, DB_NAME))
+
         self.__vector_db: ImageLibVectorDb | None = None
         self.__embedder: ImageEmbedder | None = None
-        self._tracker = ScanRecordTracker(self._path_lib_data, DB_NAME)
 
     """
     Private methods
@@ -76,9 +76,7 @@ class ImageLib(LibraryBase):
         will be purged afterwards, and for force init case index error are allowed
         - Set `ignore_index_error` to the value of `force_init` to ignore index error if force init is provided
         """
-        LOGGER.info(f'Instanize DB for library: {self.path_lib}')
-        if not self.__table:
-            self.__table = ImageLibTable(self._path_lib_data)
+        LOGGER.info(f'Instanize vector DB for library: {self.path_lib}')
         if not self.__vector_db:
             self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                                 lib_uuid=self._metadata['uuid'],
@@ -96,11 +94,9 @@ class ImageLib(LibraryBase):
         filename: str = os.path.basename(relative_path)
         LOGGER.info(f'Write embedding entry for: {relative_path}, UUID: {uuid}')
 
-        # (timestamp, uuid, path, filename)
-        self.__table.insert_row((timestamp, uuid, parent_folder, filename))  # type: ignore
+        # Row format: (id, timestamp, ongoing, uuid, relative_path, path, filename)
+        self._embedding_table.insert_row((timestamp, 0, uuid, relative_path, parent_folder, filename))
         self.__vector_db.add(uuid, embedding, save_pipeline)  # type: ignore
-        # Record scan history on saving the embedding to the DB
-        self._tracker.add_record(relative_path, uuid)  # type: ignore
 
     def __library_walker(self,
                          progress_reporter: Callable[[int, int, str | None], None] | None,
@@ -121,18 +117,18 @@ class ImageLib(LibraryBase):
 
         # Get all files under current library's root
         LOGGER.info(f'Fetching all files under current library')
-        for file_relative_path in self._file_operator.folder_walker(relative_path=''):
-            all_files.add(file_relative_path)
+        for relative_path in self._file_operator.folder_walker(relative_path=''):
+            all_files.add(relative_path)
             if incremental:
-                if self._tracker.is_recorded(file_relative_path):  # type: ignore
-                    LOGGER.info(f'File already embedded: {file_relative_path}, skip for incremental scan')
+                if self._embedding_table.relative_path_exists(relative_path, ongoing=False):
+                    LOGGER.info(f'File already embedded: {relative_path}, skip for incremental scan')
                     continue
-                to_be_embedded.add(file_relative_path)
+                to_be_embedded.add(relative_path)
 
         # Check if there are files are deleted but left in embedded files list
         # - This can happen when user deletes files from file system directly and library is not aware of these operation
-        if self._tracker.get_record_count() > 0:  # type: ignore
-            to_be_deleted: set[str] = set(self._tracker.get_all_relative_paths()) - all_files  # type: ignore
+        if self._embedding_table.row_count() > 0:
+            to_be_deleted: set[str] = self._embedding_table.get_all_relative_paths() - all_files
             if to_be_deleted:
                 LOGGER.info(f'Incremental scan, found {len(to_be_deleted)} leftover items, removing leftovers')
                 for relative_path in to_be_deleted:
@@ -294,7 +290,7 @@ class ImageLib(LibraryBase):
     """
 
     def is_ready(self) -> bool:
-        if not self._metadata_exists() or not self.__table or not self.__vector_db or not self.__embedder:
+        if not self._metadata_exists() or not self.__vector_db or not self.__embedder:
             return False
         return True
 
@@ -319,7 +315,7 @@ class ImageLib(LibraryBase):
             self.__instanize_db(force_init)
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
-        if not force_init and self.__table.row_count() > 0 and self.__vector_db.db_is_ready():  # type: ignore
+        if not force_init and self._embedding_table.row_count() > 0 and self.__vector_db.db_is_ready():  # type: ignore
             LOGGER.info(f'Library is already ready after DB loading, abort operation')
             return
 
@@ -336,8 +332,7 @@ class ImageLib(LibraryBase):
                 msg: str = f'Vector DB corrupted, forcibly re-initializing library: {self.path_lib}, purging existing library data...'
                 LOGGER.info(msg)
                 self.__vector_db.clean_all_data()  # type: ignore
-                self.__table.clean_all_data()  # type: ignore
-                self._tracker.clean_all_data()  # type: ignore
+                self._embedding_table.clean_all_data()
         else:
             LOGGER.info(f'Initialize library: {self.path_lib}, this is a new library')
 
@@ -351,7 +346,7 @@ class ImageLib(LibraryBase):
 
         Simply purge the library data folder
         """
-        LOGGER.warning(f'Demolish library: {self.path_lib}')
+        LOGGER.warning(f'Demolish image library: {self.path_lib}')
         with LockContext(self._file_lock) as lock:
             if not lock.acquired:
                 raise LockAcquisitionFailure('There is already a scan task running, cancel the task and try again')
@@ -362,9 +357,8 @@ class ImageLib(LibraryBase):
                 self.__vector_db.delete_db()
 
             self.__embedder = None
-            self.__table = None
+            self._embedding_table = None  # type: ignore
             self.__vector_db = None
-            self._tracker = None
             shutil.rmtree(self._path_lib_data)
             LOGGER.warning(f'Library demolished: {self.path_lib}')
 
@@ -380,11 +374,10 @@ class ImageLib(LibraryBase):
             return False
 
         LOGGER.warn(f'Remove image embedding for: {relative_path}')
-        if self._tracker.is_recorded(relative_path):  # type: ignore
-            uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
+        if self._embedding_table.relative_path_exists(relative_path, ongoing=False):
+            uuid: str = self._embedding_table.get_uuid(relative_path)  # type: ignore
             self.__vector_db.remove(uuid)  # type: ignore
-            self.__table.delete_row_by_uuid(uuid)  # type: ignore
-            self._tracker.remove_by_relative_path(relative_path)  # type: ignore
+            self._embedding_table.delete_by_uuid(uuid)
 
         return True
 
@@ -419,7 +412,7 @@ class ImageLib(LibraryBase):
             self.__instanize_db()
 
         # If there is no single embedded image, do full scan directly
-        if not self._tracker.get_record_count():  # type: ignore
+        if not self._embedding_table.row_count():
             LOGGER.info(f'No embedded image found, do full scan and initialization')
             self.full_scan(force_init=True,
                            progress_reporter=progress_reporter,
@@ -464,14 +457,14 @@ class ImageLib(LibraryBase):
             for possible_uuid in casted_local:
                 if isinstance(possible_uuid, int):
                     raise LibraryError('ID tracking not enabled, cannot get UUID')
-                row: tuple | None = self.__table.select_row_by_uuid(possible_uuid)  # type: ignore
+                row: tuple | None = self._embedding_table.select_by_uuid(possible_uuid)
                 if row:
                     res.append(row)
         else:
             casted_redis: list[Document] = docs
             for doc in casted_redis:
                 uuid: str = doc.id.split(':')[1]
-                row: tuple | None = self.__table.select_row_by_uuid(uuid)  # type: ignore
+                row: tuple | None = self._embedding_table.select_by_uuid(uuid)
                 if row:
                     res.append(row)
 
@@ -499,14 +492,14 @@ class ImageLib(LibraryBase):
             for possible_uuid in casted_local:
                 if isinstance(possible_uuid, int):
                     raise LibraryError('ID tracking not enabled, cannot get UUID')
-                row: tuple | None = self.__table.select_row_by_uuid(possible_uuid)  # type: ignore
+                row: tuple | None = self._embedding_table.select_by_uuid(possible_uuid)
                 if row:
                     res.append(row)
         else:
             casted_redis: list[Document] = docs
             for doc in casted_redis:
                 uuid: str = doc.id.split(':')[1]
-                row: tuple | None = self.__table.select_row_by_uuid(uuid)  # type: ignore
+                row: tuple | None = self._embedding_table.select_by_uuid(uuid)
                 if row:
                     res.append(row)
 

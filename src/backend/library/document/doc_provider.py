@@ -5,11 +5,12 @@ from typing import Any, Generator
 
 import docx
 from docx.document import Document
-from library.document.doc_lib_table import DocLibTable
 from library.document.doc_provider_base import *
 from loggers import doc_lib_logger as LOGGER
 from pypdf import PdfReader
 from utils.task_runner import report_progress
+
+from backend.library.document.doc_content_table import DocContentTable
 
 TXT_EXTENSION: str = 'txt'
 PDF_EXTENSION: str = 'pdf'
@@ -18,11 +19,11 @@ DOCX_EXTENSION: str = 'docx'
 EBOOK_EXTENSIONS: set[str] = {'epub', 'mobi', 'azw', 'azw3', 'azw4', 'prc', 'tpz'}
 
 
-class DocProvider(DocProviderBase[DocLibTable]):
+class DocProvider(DocProviderBase[DocContentTable]):
     """A generic type of DocLibTable as the type of SQL table is needed
     """
 
-    TABLE_TYPE: type = DocLibTable
+    TABLE_TYPE: type = DocContentTable
     DOC_TYPE: str = DocumentType.GENERAL.value
 
     def __init__(self,
@@ -33,7 +34,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
         super().__init__(db_path, uuid, doc_path, progress_reporter, table_type=DocProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path
-        if not self._table.row_count():
+        if not self._doc_content_table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
             LOGGER.info(f'Document table is empty, initializing document: {doc_path}')
@@ -155,7 +156,7 @@ class DocProvider(DocProviderBase[DocLibTable]):
                 report_progress(self._progress_reporter, current_progress, current_phase=1, phase_name='DUMP')
 
             # (timestamp, text)
-            self._table.insert_row((timestamp, line))
+            self._doc_content_table.insert_row((timestamp, line))
 
         time_taken: float = time() - start
         LOGGER.info(f'Finished processing document: {doc_path}, cost: {time_taken:.2f}s')

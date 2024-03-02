@@ -27,7 +27,7 @@ WECHAT_PROVIDER_MODULE: ModuleType = importlib.import_module(WECHAT_PROVIDER_MOD
 def log_rpc_call(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        LOGGER.info(f'RPC call started: {func.__name__}')
+        LOGGER.debug(f'RPC call started: {func.__name__}')
         start: float = time()
         try:
             result: Any = func(*args, **kwargs)

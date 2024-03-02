@@ -2,6 +2,7 @@ import os
 from functools import wraps
 
 import numpy as np
+from constants.lib_constants import INDEX_FOLDER
 from db.vector.mem_vector_db import InMemoryVectorDb
 from db.vector.redis_client import BatchedPipeline
 from loggers import vector_db_logger as LOGGER
@@ -22,13 +23,12 @@ def ensure_vector_db_connected(func):
 class DocLibVectorDb:
     """It maintains a vector database on memory only
     """
-    INDEX_FOLDER: str = '__index__'  # All index files are stored in this folder under library's data folder
 
     def __init__(self, data_folder: str, db_name: str):
         if not data_folder or not db_name:
             raise LibraryVectorDbError('Invalid input')
 
-        idx_path: str = os.path.join(data_folder, self.INDEX_FOLDER)
+        idx_path: str = os.path.join(data_folder, INDEX_FOLDER)
         idx_file: str = f'{db_name}.idx'
         # No need to check if path and file are valid, InMemoryVectorDb will do it
         LOGGER.info(f'Connecting to in-memory vector DB in path: {data_folder}')

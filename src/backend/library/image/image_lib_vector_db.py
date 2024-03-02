@@ -25,7 +25,7 @@ def ensure_vector_db_connected(func):
 class ImageLibVectorDb:
     """It maintains a vector database on either Redis or in-memory for given image library
     """
-    IDX_FILENAME = 'image_lib.idx'
+    IDX_FILENAME = 'ImageLib.idx'
 
     def __init__(self, use_redis: bool = False,
                  lib_uuid: str | None = None,

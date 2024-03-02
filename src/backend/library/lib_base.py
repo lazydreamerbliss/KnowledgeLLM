@@ -8,8 +8,8 @@ from typing import Any, Callable
 
 from constants.lib_constants import (LIB_DATA_FOLDER, SORTED_BY_LABELS,
                                      SUPPORTED_EXTENSIONS, VIEW_STYLES)
+from library.embedding_record_table import EmbeddingRecordTable
 from library.lib_item import *
-from library.scan_record_tracker import ScanRecordTracker
 from loggers import lib_logger as LOGGER
 from utils.errors.lib_errors import LibraryError
 from utils.file_operator import FileOperator
@@ -88,8 +88,8 @@ class LibraryBase:
 
         # In-memory library metadata
         self._metadata: dict = dict()
-        # Scan tracker to track embedded files under the library
-        self._tracker: ScanRecordTracker | None = None
+        # Table that tracks the embedding status of files under the library
+        self._embedding_table: EmbeddingRecordTable | None = None
 
         # File scan is mutually exclusive, use a lock to prevent concurrent operations such as scan and file moving
         self._file_lock: Lock = Lock()
@@ -177,9 +177,6 @@ class LibraryBase:
             relative_paths (list[str]): A list of relative paths of the files/folders to be moved
             target_relative_path (str): Target folder's relative path
         """
-        if not self._tracker:
-            raise LibraryError('Embedding tracker not ready')
-
         if not relative_paths or dest_relative_path is None:
             return False
 
@@ -201,12 +198,12 @@ class LibraryBase:
                 all_success = self._file_operator.move_file(relative_path,
                                                             new_relative_path,
                                                             is_rename=False,
-                                                            update_record=self._tracker.update_record_path) and all_success
+                                                            update_record=self._embedding_table.update_record_by_relative_path) and all_success  # type: ignore
             else:
                 all_success = self._file_operator.move_folder(relative_path,
                                                               new_relative_path,
                                                               is_rename=False,
-                                                              update_record=self._tracker.update_record_path) and all_success
+                                                              update_record=self._embedding_table.update_record_by_relative_path) and all_success  # type: ignore
         return all_success
 
     def rename(self, relative_path: str, new_name: str) -> bool:
@@ -216,9 +213,6 @@ class LibraryBase:
             relative_path (str): The relative path of the target file/folder to be renamed
             new_name (str): The new file/folder name
         """
-        if not self._tracker:
-            raise LibraryError('Embedding tracker not ready')
-
         if not relative_path or not new_name:
             return False
         relative_path = relative_path.strip().lstrip(os.path.sep)
@@ -240,12 +234,12 @@ class LibraryBase:
             return self._file_operator.move_file(relative_path,
                                                  new_relative_path,
                                                  is_rename=True,
-                                                 update_record=self._tracker.update_record_path)
+                                                 update_record=self._embedding_table.update_record_by_relative_path) and all_success  # type: ignore
         else:
             return self._file_operator.move_folder(relative_path,
                                                    new_relative_path,
                                                    is_rename=True,
-                                                   update_record=self._tracker.update_record_path)
+                                                   update_record=self._embedding_table.update_record_by_relative_path) and all_success  # type: ignore
 
     def delete(self, relative_paths: list[str]) -> bool:
         """Delete the given files/folders from disk and its embedding
@@ -344,7 +338,7 @@ class LibraryBase:
                     extension[1:].lower()
                 f_item.extension = extension
                 f_item.supported = extension in SUPPORTED_EXTENSIONS
-                f_item.embedded = False if not self._tracker else self._tracker.is_recorded(file_relative_path)
+                f_item.embedded = self._embedding_table.relative_path_exists(file_relative_path)  # type: ignore
                 try:
                     f_stats: os.stat_result = os.stat(item_path)
                     f_item.dtc = datetime.utcfromtimestamp(f_stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
@@ -391,14 +385,15 @@ class LibraryBase:
         if not os.path.isfile(full_path):
             return False
 
-        return False if not self._tracker else self._tracker.is_recorded(relative_path)
+        return self._embedding_table.relative_path_exists(relative_path)  # type: ignore
 
     def get_embedded_files(self) -> dict[str, str]:
         """Get the embedded files under the library with [relative_path: UUID]
         """
-        if not self._tracker:
-            raise LibraryError('Embedding tracker not ready')
-        return self._tracker.get_all_records()
+        res: list[tuple] = self._embedding_table.get_all_records()  # type: ignore
+
+        # Row format: (id, timestamp, ongoing, uuid, relative_path)
+        return {r[4]: r[3] for r in res}
 
     """
     Metadata file methods

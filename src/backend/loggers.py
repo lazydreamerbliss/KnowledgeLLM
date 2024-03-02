@@ -32,7 +32,7 @@ def log_time_cost(start_log: str, end_log: str, LOGGER: Logger = logger):
     def wrapper(func):
         @wraps(func)
         def wrapper_func(*args, **kwargs):
-            LOGGER.info(start_log)
+            LOGGER.debug(start_log)
             start: float = time()
             try:
                 result: Any = func(*args, **kwargs)

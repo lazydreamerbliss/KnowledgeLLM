@@ -1,127 +1,90 @@
-from utils.errors.db_errors import SqlTableError
-
-record_structure: list[list[str]] = [
-    ['id', 'INTEGER PRIMARY KEY'],
-    ['timestamp', 'INTEGER NOT NULL'],
-    ['relative_path', 'TEXT'],
-    ['uuid', 'TEXT'],
-    ['unfinished', 'INTEGER NOT NULL DEFAULT 0'],
-]
-
 # This is the table of embedding record
 # - Each embedding record has a relative path of this embedded file under the root directory with a UUID to identify this file
-# - The `unfinished` column is used to indicate whether this file has finished embedding or not
-# - If `unfinished` is 1, then this file's embedding process has been interrupted (e.g., cancelled, faulted, etc.)
+# - The `ongoing` column is used to indicate whether this file has finished embedding or not
+# - If `ongoing` is 1, then this file's embedding process has been interrupted (e.g., cancelled, faulted, etc.)
 EMBEDDING_RECORD_TABLE_NAME: str = 'embedding_record'
-RECORD_LENGTH: int = len(record_structure)
+
+"""
+Commonly shared SQL operations for all tables that inherit from `EmbeddingRecordTable`
+"""
 
 
-class Record:
-    def __init__(self, row: tuple):
-        if not row or len(row) != RECORD_LENGTH:
-            raise SqlTableError('Row size is not correct')
-
-        self.id: int = row[0]
-        self.timestamp: int = row[1]
-        self.relative_path: str = row[2]
-        self.uuid: int = row[3]
-        self.unfinished: int = row[4]
-
-    def __str__(self) -> str:
-        return f'[{self.id}|{self.relative_path}][{self.uuid}]{self.unfinished}'
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
-def initialize_table_sql() -> str:
-    # id INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL, relative_path TEXT,
-    # uuid TEXT, unfinished INTEGER NOT NULL DEFAULT 0
+def row_count_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'WHERE ongoing = {1 if ongoing else 0}'
     return f"""
-    CREATE TABLE IF NOT EXISTS "{EMBEDDING_RECORD_TABLE_NAME}" (
-        {', '.join([f'{col[0]} {col[1]}' for col in record_structure])}
-    );
+    SELECT COUNT(*) FROM "{EMBEDDING_RECORD_TABLE_NAME}" {state_str};
     """
 
 
-def row_count_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
+def select_by_uuid_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'AND ongoing = {1 if ongoing else 0}'
     return f"""
-    SELECT COUNT(*) FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE {unfinished_str};
+    SELECT * FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE uuid = ? {state_str};
     """
 
 
-def insert_row_sql() -> str:
-    # Skip the first column (id)
+def select_by_relative_path_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'AND ongoing = {1 if ongoing else 0}'
     return f"""
-    INSERT INTO "{EMBEDDING_RECORD_TABLE_NAME}" ({', '.join([col[0] for col in record_structure[1:]])})
-    VALUES ({', '.join(['?' for _ in range(RECORD_LENGTH-1)])});
+    SELECT * FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE relative_path = ? {state_str};
     """
 
 
-def select_by_uuid_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
+def select_all_relative_paths_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'WHERE ongoing = {1 if ongoing else 0}'
     return f"""
-    SELECT * FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE uuid = ? AND {unfinished_str};
+    SELECT relative_path FROM "{EMBEDDING_RECORD_TABLE_NAME}" {state_str};
     """
 
 
-def select_by_relative_path_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
+def select_all_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'WHERE ongoing = {1 if ongoing else 0}'
     return f"""
-    SELECT * FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE relative_path = ? AND {unfinished_str};
+    SELECT * FROM "{EMBEDDING_RECORD_TABLE_NAME}" {state_str};
     """
 
 
-def select_all_relative_paths_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
+def update_relative_path_by_uuid_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'AND ongoing = {1 if ongoing else 0}'
     return f"""
-    SELECT relative_path FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE {unfinished_str};
+    UPDATE "{EMBEDDING_RECORD_TABLE_NAME}" SET relative_path = ? WHERE uuid = ? {state_str};
     """
 
 
-def select_all_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
+def update_relative_path_by_relative_path_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'AND ongoing = {1 if ongoing else 0}'
     return f"""
-    SELECT * FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE {unfinished_str};
+    UPDATE "{EMBEDDING_RECORD_TABLE_NAME}" SET relative_path = ? WHERE relative_path = ? {state_str};
     """
 
 
-def update_relative_path_by_uuid_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
+def delete_by_uuid_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'AND ongoing = {1 if ongoing else 0}'
     return f"""
-    UPDATE "{EMBEDDING_RECORD_TABLE_NAME}" SET relative_path = ? WHERE uuid = ? AND {unfinished_str};
+    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE uuid = ? {state_str};
     """
 
 
-def update_relative_path_by_relative_path_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
+def delete_by_relative_path_sql(ongoing: bool | None = None) -> str:
+    state_str: str = ''
+    if ongoing is not None:
+        state_str = f'AND ongoing = {1 if ongoing else 0}'
     return f"""
-    UPDATE "{EMBEDDING_RECORD_TABLE_NAME}" SET relative_path = ? WHERE relative_path = ? AND {unfinished_str};
-    """
-
-
-def delete_by_uuid_with_state_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
-    return f"""
-    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE uuid = ? AND {unfinished_str};
-    """
-
-
-def delete_by_relative_path_with_state_sql(unfinished: bool) -> str:
-    unfinished_str: str = 'unfinished = 1' if unfinished else 'unfinished = 0'
-    return f"""
-    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE relative_path = ? AND {unfinished_str};
-    """
-
-
-def delete_by_uuid_sql() -> str:
-    return f"""
-    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE uuid = ?;
-    """
-
-
-def delete_by_relative_path_sql() -> str:
-    return f"""
-    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE relative_path = ?;
+    DELETE FROM "{EMBEDDING_RECORD_TABLE_NAME}" WHERE relative_path = ? {state_str};
     """

@@ -1,6 +1,9 @@
 from utils.containable_enum import ContainableEnum
 
 LIB_DATA_FOLDER: str = '.LibraryData'
+INDEX_FOLDER: str = '.IndexStorage'  # All index files are stored in this folder under LIB_DATA_FOLDER
+MEM_VDB_IDX_FILENAME: str = 'MemVectorDb.idx'  # Default mem-vector DB's index file name, if file name is not given
+
 
 SORTED_BY_LABELS: set[str] = {'Name', 'Date Created', 'Date Modified', 'Size'}
 SORTED_BY_LABELS_ORDERED: list[str] = ['Name', 'Date Created', 'Date Modified', 'Size']

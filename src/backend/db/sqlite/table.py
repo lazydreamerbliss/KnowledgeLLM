@@ -20,6 +20,8 @@ class SqliteTable:
     """Base class for sqlite table operations
     """
 
+    TABLE_STRUCTURE: list[list[str]] = []
+
     def __init__(self, db_path: str, table_name: str):
         """
         Args:
@@ -33,6 +35,7 @@ class SqliteTable:
             raise SqlTableError('table_name is None')
 
         self.table_name: str = table_name
+        self.row_size: int = len(self.TABLE_STRUCTURE)
         self.db: Connection = sqlite3.connect(db_path, check_same_thread=False)
 
     @ensure_db
@@ -50,11 +53,32 @@ class SqliteTable:
 
     @ensure_db
     def insert_row(self, row: tuple) -> int | None:
-        raise NotImplementedError()
+        # Skip the first column (id)
+        if not row or len(row) != self.row_size - 1:
+            raise SqlTableError('Row size is not correct')
+
+        cur: Cursor = self.db.cursor()
+        cur.execute(insert_row_sql(
+            table_name=self.table_name,
+            table_structure=self.TABLE_STRUCTURE
+        ), row)
+        self.db.commit()
+        return cur.lastrowid
 
     @ensure_db
     def insert_rows(self, rows: list[tuple]) -> int | None:
-        raise NotImplementedError()
+        # Skip the first column (id)
+        for row in rows:
+            if not row or len(row) != self.row_size - 1:
+                raise SqlTableError('Row size is not correct')
+
+        cur: Cursor = self.db.cursor()
+        cur.executemany(insert_row_sql(
+            table_name=self.table_name,
+            table_structure=self.TABLE_STRUCTURE
+        ), rows)
+        self.db.commit()
+        return cur.lastrowid
 
     @ensure_db
     def select_row(self, row_id: int) -> tuple | None:

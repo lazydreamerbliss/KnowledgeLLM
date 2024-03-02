@@ -11,8 +11,8 @@ from knowledge_base.document.doc_embedder import DocEmbedder
 from library.document.doc_lib_vector_db import DocLibVectorDb
 from library.document.doc_provider_base import DocProviderBase
 from library.document.sql import DB_NAME
+from library.embedding_record_table import *
 from library.lib_base import *
-from library.scan_record_tracker import UnfinishedScanRecordTrackerManager
 from loggers import doc_lib_logger as LOGGER
 from utils.errors.task_errors import (LockAcquisitionFailure,
                                       TaskCancellationException)
@@ -67,10 +67,11 @@ class DocumentLib(Generic[D], LibraryBase):
 
         self.doc_type: str = ''  # The type of current active document
         self.path_db: str = os.path.join(self._path_lib_data, DB_NAME)
+        self._embedding_table: EmbeddingRecordTable = EmbeddingRecordTable(self.path_db)
+
         self.__doc_provider: D | None = None
         self.__vector_db: DocLibVectorDb | None = None
         self.__embedder: DocEmbedder | None = None
-        self._tracker = ScanRecordTracker(self._path_lib_data, DB_NAME)
 
     """
     Private methods
@@ -87,7 +88,7 @@ class DocumentLib(Generic[D], LibraryBase):
         if not relative_path:
             raise LibraryError('Invalid relative path')
 
-        if self._tracker.is_recorded(relative_path):  # type: ignore
+        if self._embedding_table.relative_path_exists(relative_path, ongoing=False):
             self.use_doc(relative_path, provider_type)
             return
 
@@ -100,7 +101,7 @@ class DocumentLib(Generic[D], LibraryBase):
                 raise LockAcquisitionFailure('There is already a scan task running')
 
             # Start to track embedding and progress
-            with UnfinishedScanRecordTrackerManager(self._tracker, relative_path, uuid):  # type: ignore
+            with OngoingEmbeddingManager(self._embedding_table, relative_path, uuid):
                 # Create doc provider for this doc
                 LOGGER.info(f'Document initialization started for {relative_path}')
                 self.__doc_provider = provider_type(self.path_db,
@@ -137,7 +138,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
                     # For IVF case, save all embeddings for further training
                     if use_IVF:
-                        embedding_list.append(embedding)  # type: ignore
+                        embedding_list.append(embedding)
                         continue
 
                     # For non-IVF (Flat) case, add embedding to index directly
@@ -161,9 +162,10 @@ class DocumentLib(Generic[D], LibraryBase):
 
                 self.__vector_db.persist()
 
-            # Record info in metadata after finished embedding
-            self._tracker.add_record(relative_path, uuid)  # type: ignore
+            timestamp: datetime = datetime.now()
             time_taken: float = time() - start
+            # Row format: (id, timestamp, ongoing, uuid, relative_path)
+            self._embedding_table.insert_row((timestamp, 0, uuid, relative_path))
             LOGGER.info(f'Document initialization finished for {relative_path}, cost: {time_taken:.2f}s')
 
     def __retrieve(self, text: str, top_k: int = 10) -> list[tuple]:
@@ -178,7 +180,7 @@ class DocumentLib(Generic[D], LibraryBase):
 
         LOGGER.info(f'Retrieving {top_k} candidates for {text}')
         query_embedding: np.ndarray = self.__embedder.embed_text(text)  # type: ignore
-        ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)  # type: ignore
+        ids: list[np.int64] = self.__vector_db.query(np.asarray([query_embedding]), top_k)
         res: list[tuple] = list()
 
         for i64 in ids:
@@ -200,7 +202,7 @@ class DocumentLib(Generic[D], LibraryBase):
         LOGGER.info(f'Reranking {len(candidate_rows)} candidates for {text}')
         candidates_str: list[str] = [
             self.__doc_provider.get_key_text_from_record(c) for c in candidate_rows
-        ]  # type: ignore
+        ]
         scores: npt.ArrayLike = self.__embedder.predict_similarity_batch(text, candidates_str)  # type: ignore
 
         # Re-sort the ranking result
@@ -216,7 +218,8 @@ class DocumentLib(Generic[D], LibraryBase):
     """
 
     def is_ready(self) -> bool:
-        if not self._metadata_exists() or not self._metadata or not self.__doc_provider:
+        if not self._metadata_exists() or not self._embedding_table or \
+                not self.__vector_db or not self.__embedder or not self.__doc_provider:
             return False
         return True
 
@@ -233,19 +236,21 @@ class DocumentLib(Generic[D], LibraryBase):
 
         relative_path = relative_path.strip().lstrip(os.path.sep)
         LOGGER.info(f'Switching to document {relative_path}, force init: {force_init}')
-        need_initialization: bool = force_init or not self._tracker.is_recorded(relative_path)  # type: ignore
 
-        # Special case: test if the file is already gone but embeddings exists (this should not happen)
+        # Check if the file is gone before switch to given doc
+        # - Also clean up the embedding if there are leftover
         if not os.path.isfile(os.path.join(self.path_lib, relative_path)):
-            if self._tracker.is_recorded(relative_path):  # type: ignore
+            if self._embedding_table.relative_path_exists(relative_path):
                 self.delete_file_embedding(relative_path)
             LOGGER.error(f'Document {relative_path} does not exist')
             raise LibraryError('File does not exist')
 
+        need_initialization: bool = force_init or \
+            not self._embedding_table.relative_path_exists(relative_path, ongoing=False)
         if not need_initialization:
             # If no need to initialize, just switch to the doc
             LOGGER.info(f'Target document already initialized, load data from disk')
-            uuid: str = self._tracker.get_uuid(relative_path)  # type: ignore
+            uuid: str = self._embedding_table.get_uuid(relative_path, ongoing=False)  # type: ignore
             self.__doc_provider = provider_type(self.path_db,
                                                 uuid,
                                                 doc_path=None,
@@ -254,10 +259,10 @@ class DocumentLib(Generic[D], LibraryBase):
         else:
             # Clean up existing embeddings or leftover if any when:
             # - If this is a force init
-            # - If given doc is in unfinished list
-            if force_init or self._tracker.is_unfinished(relative_path):  # type: ignore
+            # - If given doc is in ongoing list
+            if force_init or self._embedding_table.relative_path_exists(relative_path, ongoing=True):
                 LOGGER.info(
-                    f'Clean up existing embeddings for {relative_path} because of force init or target doc is in unfinished list')
+                    f'Clean up existing embeddings for {relative_path} because of force init or target doc is in ongoing list')
                 self.delete_file_embedding(relative_path)
 
             try:
@@ -284,15 +289,15 @@ class DocumentLib(Generic[D], LibraryBase):
 
         Simply purge the library data folder
         """
-        LOGGER.warning(f'Demolish library: {self.path_lib}')
+        LOGGER.warning(f'Demolish document library: {self.path_lib}')
         with LockContext(self._file_lock) as lock:
             if not lock.acquired:
                 raise LockAcquisitionFailure('There is already a scan task running, cancel the task and try again')
 
+            self._embedding_table = None  # type: ignore
             self.__embedder = None
             self.__doc_provider = None
             self.__vector_db = None
-            self._tracker = None
             shutil.rmtree(self._path_lib_data)
             LOGGER.warning(f'Library demolished: {self.path_lib}')
 
@@ -309,9 +314,7 @@ class DocumentLib(Generic[D], LibraryBase):
             return False
 
         # UUID is mandatory for data cleanup, retrieve UUID from scan history
-        uuid: str | None = self._tracker.get_uuid(relative_path)  # type: ignore
-        if not uuid:
-            uuid = self._tracker.get_unfinished_uuid(relative_path)  # type: ignore
+        uuid: str | None = self._embedding_table.get_uuid(relative_path)
         if not uuid:
             return False
 
@@ -326,7 +329,7 @@ class DocumentLib(Generic[D], LibraryBase):
             tmp_provider: DocProviderBase = DocProviderBase(self.path_db,
                                                             uuid)
             tmp_provider.delete_table()
-            tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)  # type: ignore
+            tmp_vector_db: DocLibVectorDb = DocLibVectorDb(self._path_lib_data, uuid)
             tmp_vector_db.delete_db()
         else:
             LOGGER.warn(f'Remove document embedding for: {relative_path}, UUID: {uuid}, this document is active')
@@ -337,7 +340,7 @@ class DocumentLib(Generic[D], LibraryBase):
             self.doc_type = ''
 
         # Remove doc from embedding history after deletion if this doc is tracked
-        self._tracker.remove_by_relative_path(relative_path)  # type: ignore
+        self._embedding_table.delete_by_relative_path(relative_path)
         return True
 
     """
@@ -346,15 +349,16 @@ class DocumentLib(Generic[D], LibraryBase):
 
     def lib_is_ready_on_current_doc(self, relative_path: str) -> bool:
         """Check if library is ready on the given document
-        - This need to ensure lib_is_ready() and confirm the given relative_path is the current doc
         """
         if not self.is_ready() or not relative_path:
             return False
 
         relative_path = relative_path.strip().lstrip(os.path.sep)
-        if not self._tracker.is_recorded(relative_path):  # type: ignore
+        if not self._embedding_table.relative_path_exists(relative_path, ongoing=False):
             return False
-        return self.__doc_provider.get_table_name() == self.get_embedded_files()[relative_path]  # type: ignore
+
+        # Doc provider's table name is the active doc's UUID
+        return self.__doc_provider.get_table_name() == self._embedding_table.get_uuid(relative_path)  # type: ignore
 
     def set_embedder(self, embedder: DocEmbedder):
         self.__embedder = embedder

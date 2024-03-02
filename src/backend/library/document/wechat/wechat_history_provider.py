@@ -33,7 +33,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
         super().__init__(db_path, uuid, doc_path, progress_reporter, table_type=WechatHistoryProvider.TABLE_TYPE)
 
         # If the table is empty, initialize it with given doc_path (chat history)
-        if not self._table.row_count():
+        if not self._doc_content_table.row_count():
             if not doc_path:
                 raise DocProviderError('doc_path is mandatory when table is empty')
             LOGGER.info(f'Document table is empty, initializing chat history: {doc_path}')
@@ -140,7 +140,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                     if r_message:
                         # (timestamp, sender, message, reply_to, replied_message)
                         # - Sender is missed in reply message, use empty string instead
-                        self._table.insert_row((reply_time, '', r_message, reply_to, replied_message))
+                        self._doc_content_table.insert_row((reply_time, '', r_message, reply_to, replied_message))
 
                 timestamp, username, message = self.__process_message(message_match)
                 if not timestamp:
@@ -148,7 +148,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
                 reply_time = timestamp + timedelta(seconds=1)
                 # (timestamp, sender, message, reply_to, replied_message)
-                self._table.insert_row((timestamp, username, message, '', ''))
+                self._doc_content_table.insert_row((timestamp, username, message, '', ''))
                 continue
 
             # Reply message case
@@ -175,7 +175,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
                 reply_to, replied_message, r_message = self.__process_reply(cached_reply)
                 cached_reply = ''
                 if r_message:
-                    self._table.insert_row((reply_time, '', r_message, reply_to, replied_message))
+                    self._doc_content_table.insert_row((reply_time, '', r_message, reply_to, replied_message))
 
             cached_reply += line
             continue
@@ -186,7 +186,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
             if message:
                 # (timestamp, sender, message, reply_to, replied_message)
                 # - Sender is missed in reply message, use empty string instead
-                self._table.insert_row((reply_time, '', message, reply_to, replied_message))
+                self._doc_content_table.insert_row((reply_time, '', message, reply_to, replied_message))
 
         time_taken: float = time() - start
         LOGGER.info(f'Finished processing chat history: {chat_filepath}, cost: {time_taken:.2f}s')
@@ -201,7 +201,7 @@ class WechatHistoryProvider(DocProviderBase[WechatHistoryTable]):
 
         if 'sender' in kwargs:
             sender: str = kwargs['sender']
-            cursor: Cursor = self._table.select_rows_by_sender(sender)
+            cursor: Cursor = self._doc_content_table.select_rows_by_sender(sender)
             rows: list[tuple] | None = cursor.fetchmany()
             if not rows:
                 return list()
