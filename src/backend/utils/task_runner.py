@@ -4,6 +4,7 @@ from datetime import datetime
 from threading import Event
 from typing import Callable
 
+from loggers import task_runner_logger as LOGGER
 from utils.errors.task_errors import *
 
 EXPIRATION_DURATION = 86400  # Automatically cleanup finished tasks after these seconds
@@ -74,8 +75,14 @@ class TaskRunner:
     def __mark_task_completed(self, task_id: str, termination_state: str, error: str = ''):
         """Mark a task as completed with given state
         """
+        if termination_state == TaskState.FAULTED:
+            LOGGER.error(f'Task {task_id} faulted, error: {error}')
+        if termination_state == TaskState.CANCELLED:
+            LOGGER.info(f'Task {task_id} cancelled')
         if termination_state == TaskState.FINISHED:
             self.tasks[task_id].progress = 100
+            LOGGER.info(f'Task {task_id} finished')
+
         now: datetime = datetime.now()
         self.tasks[task_id].state = termination_state
         self.tasks[task_id].completed_on = now
@@ -92,6 +99,7 @@ class TaskRunner:
         """Run given task
         """
         try:
+            LOGGER.info(f'Executing task: {task_id}, task function: {task_func.__name__}')
             task_func(*args, **kwargs,
                       progress_reporter=progress_reporter,
                       cancel_event=cancel_event)
@@ -115,8 +123,10 @@ class TaskRunner:
                 else:
                     expired.append(id)
 
-        for id in expired:
-            self.tasks.pop(id)
+        if expired:
+            LOGGER.info(f'Found {len(expired)} expired tasks, cleaning up')
+            for id in expired:
+                self.tasks.pop(id)
         return res
 
     def submit_task(self,
@@ -126,7 +136,7 @@ class TaskRunner:
                     support_cancel: bool,
                     phase_count: int,
                     *task_args,
-                    **task_kwargs):
+                    **task_kwargs) -> str | None:
         """Submit a function as a concurrent task and executing in the background
 
         Args:
@@ -141,13 +151,17 @@ class TaskRunner:
             task_kwargs (dict): The keyword arguments to be passed to the target function
         """
         if self.__get_active_task_count() >= self.max_parallel_tasks:
-            raise TaskCreationFailureException('Maximum number of parallel tasks exceeded')
+            LOGGER.warning(f'Failed to submit new task, maximum parallel tasks reached: {self.max_parallel_tasks}')
+            return None
+        if not task_func:
+            return None
 
         task: TaskInfo = TaskInfo(str(uuid.uuid4()))
         task.phase_count = phase_count if phase_count >= 1 else 1
         if support_cancel:
             task.cancel_event = Event()
 
+        LOGGER.info(f'Submitting new task: {task.id}, task function: {task_func.__name__}')
         if support_reporter:
             # The reporter function is used to report the progress of current task object via closure
             def progress_reporter(progress: int,
@@ -177,10 +191,13 @@ class TaskRunner:
 
         If task not found, return True
         """
+        LOGGER.info(f'Canceling task: {task_id}')
         if task_id in self.tasks:
             future = self.tasks[task_id].future
             if not future:
+                LOGGER.warning(f'Failed to cancel task: {task_id}, future not found')
                 return False
+
             if not future.done():
                 cancelled: bool = future.cancel()
                 if not cancelled and self.tasks[task_id].cancel_event:
@@ -189,6 +206,8 @@ class TaskRunner:
                 if cancelled:
                     self.__mark_task_completed(task_id, TaskState.CANCELLED)
                     return True
+
+                LOGGER.warning(f'Failed to cancel task: {task_id}')
                 return False
         return True
 

@@ -12,9 +12,7 @@ class Environment(ContainableEnum):
 
 
 # Environment
-ENV: str | None = os.environ.get("ENV", None)
-if not ENV or ENV not in Environment:
-    ENV = Environment.DEV.name
+ENV: str = Environment.DEV.name
 
 # Device and OS
 DEVICE: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -23,7 +21,7 @@ IS_LINUX: bool = 'linux' in sys.platform
 IS_OSX: bool = 'darwin' in sys.platform
 
 # gRPC port
-GRPC_PORT: int = int(os.environ.get('GRPC_PORT', 50051))
+GRPC_PORT: int = 50051
 
 # Model info
 # - TODO: Change folders to installation path

@@ -55,6 +55,14 @@ message ListOfDocLibQueryResponseObj {
     repeated DocLibQueryResponseObj value = 1;
 }
 
+message EmbeddingRecordObj {
+    string relative_path = 1;
+    string uuid = 2;
+}
+message ListOfEmbeddingRecordObj {
+    repeated EmbeddingRecordObj value = 1;
+}
+
 // Represents the query and response of an image library
 message ImageLibQueryObj {
     string image_data = 1;

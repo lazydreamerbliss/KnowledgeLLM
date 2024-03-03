@@ -4,9 +4,12 @@ import pickle
 from functools import wraps
 
 import numpy as np
+from constants.lib_constants import MEM_VDB_IDX_FILENAME
 from faiss import IndexFlatL2, IndexIDMap2, IndexIVFFlat
 from loggers import vector_db_logger as LOGGER
 from utils.errors.db_errors import VectorDbCoreError
+
+DEFAULT_NEIGHBOR_COUNT: int = 5  # Default number of nearest neighbors to be queried for IVF
 
 
 def ensure_index(func):
@@ -24,8 +27,6 @@ class InMemoryVectorDb:
     """It maintains a vector database (FLAT) in-memory for given image library
     - It needs to persist the index to disk for reuse
     """
-    IDX_FILENAME: str = 'mem_db.idx'  # Default index file name, if file name is not given
-    DEFAULT_NEIGHBOR_COUNT: int = 5  # Default number of nearest neighbors to be queried for IVF
 
     def __init__(self, data_folder, index_filename: str | None = None, ignore_index_error: bool = False):
         if not data_folder:
@@ -37,7 +38,7 @@ class InMemoryVectorDb:
             os.makedirs(data_folder)
 
         LOGGER.info(f'Loading vector index from disk, path: {data_folder}, index file: {index_filename}')
-        index_filename = index_filename or InMemoryVectorDb.IDX_FILENAME
+        index_filename = index_filename or MEM_VDB_IDX_FILENAME
         index_file_path: str = os.path.join(data_folder, index_filename)
         self.mem_index_path: str = index_file_path
         self.__id_mapping: dict[int, str] = dict()  # Maintain the mapping of ID to UUID
@@ -102,7 +103,8 @@ class InMemoryVectorDb:
             training_set_uuid_list (list[str] | None, optional): IVF index param, whether to track ID. Defaults to None.
             expected_dataset_size (int, optional): IVF index param. Defaults to 0.
         """
-        LOGGER.info(f'Initializing index for in-memory vector DB, vector dimension: {vector_dimension}, track ID: {track_id}')
+        LOGGER.info(
+            f'Initializing index for in-memory vector DB, vector dimension: {vector_dimension}, track ID: {track_id}')
 
         # FLAT index case
         # - If no training set is given using flat index, and return directly
@@ -141,7 +143,7 @@ class InMemoryVectorDb:
 
         quantizer: IndexFlatL2 = IndexFlatL2(vector_dimension)
         self._mem_index_ivf = IndexIVFFlat(quantizer, vector_dimension, cluster_count)
-        self._mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
+        self._mem_index_ivf.nprobe = DEFAULT_NEIGHBOR_COUNT
 
         self._mem_index_ivf.train(training_set)  # type: ignore
         self.index_size_since_last_training = len(training_set)
@@ -266,7 +268,7 @@ class InMemoryVectorDb:
             additional_neighbors (int, optional): The additional closest neighbors to be queried for IVF. Defaults to 2.
         """
         prob_changed: bool = False
-        if self._mem_index_ivf and additional_neighbors != InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT and additional_neighbors > 0:
+        if self._mem_index_ivf and additional_neighbors != DEFAULT_NEIGHBOR_COUNT and additional_neighbors > 0:
             self._mem_index_ivf.nprobe = additional_neighbors
             prob_changed = True
 
@@ -276,7 +278,7 @@ class InMemoryVectorDb:
 
         # Reset the number of neighbors to be queried for IVF
         if prob_changed and self._mem_index_ivf:
-            self._mem_index_ivf.nprobe = InMemoryVectorDb.DEFAULT_NEIGHBOR_COUNT
+            self._mem_index_ivf.nprobe = DEFAULT_NEIGHBOR_COUNT
 
         if not self.__id_mapping:
             return list(I[0])

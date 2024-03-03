@@ -27,12 +27,12 @@ WECHAT_PROVIDER_MODULE: ModuleType = importlib.import_module(WECHAT_PROVIDER_MOD
 def log_rpc_call(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        LOGGER.info(f'RPC call started: {func.__name__}')
+        LOGGER.debug(f'RPC call started: {func.__name__}')
         start: float = time()
         try:
             result: Any = func(*args, **kwargs)
             time_taken: float = time() - start
-            LOGGER.info(f'RPC call finished: {func.__name__}, cost: {time_taken:.2f}s')
+            LOGGER.debug(f'RPC call finished: {func.__name__}, cost: {time_taken:.2f}s')
             return result
         except Exception as e:
             time_taken: float = time() - start
@@ -216,6 +216,21 @@ class Servicer(GrpcServerServicer):
         response.value = self.__lib_manager.lib_exists(libInfo.uuid)
         return response
 
+    @log_rpc_call
+    def get_embedding_records(self, request: VoidObj, context) -> ListOfEmbeddingRecordObj:
+        response: ListOfEmbeddingRecordObj = ListOfEmbeddingRecordObj()
+        instance: LibraryBase | None = self.__lib_manager.instance
+        if not instance:
+            return response
+
+        records: dict[str, str] = instance.get_embedded_files()
+        for k, v in records.items():
+            record: EmbeddingRecordObj = EmbeddingRecordObj()
+            record.relative_path = k
+            record.uuid = v
+            response.value.append(record)
+        return response
+
     """
     Document library APIs
     """
@@ -227,10 +242,12 @@ class Servicer(GrpcServerServicer):
             return StringObj(value=None, error=f'Invalid document provider type: {request.provider_type}')
 
         try:
-            task_id: str = self.__lib_manager.make_library_ready(
+            task_id: str | None = self.__lib_manager.make_library_ready(
                 force_init=request.force_init,
                 relative_path=request.relative_path,
                 provider_type=potential_provider)
+            if task_id is None:
+                task_id = ''
             return StringObj(value=task_id)
         except LibraryManagerException as e:
             LOGGER.info(f'Failed to make document ready: {e}')
@@ -273,9 +290,11 @@ class Servicer(GrpcServerServicer):
     @log_rpc_call
     def scan(self, request: LibGetReadyParamObj, context) -> StringObj:
         try:
-            task_id: str = self.__lib_manager.make_library_ready(
+            task_id: str | None = self.__lib_manager.make_library_ready(
                 force_init=request.force_init,
                 incremental=False)
+            if task_id is None:
+                task_id = ''
             return StringObj(value=task_id)
         except LibraryManagerException as e:
             LOGGER.info(f'Failed to scan image library: {e}')
@@ -284,7 +303,9 @@ class Servicer(GrpcServerServicer):
     @log_rpc_call
     def incremental_scan(self, request: VoidObj, context) -> StringObj:
         try:
-            task_id: str = self.__lib_manager.make_library_ready(incremental=True)
+            task_id: str | None = self.__lib_manager.make_library_ready(incremental=True)
+            if task_id is None:
+                task_id = ''
             return StringObj(value=task_id)
         except LibraryManagerException as e:
             LOGGER.info(f'Failed to incrementally scan image library: {e}')
@@ -348,7 +369,7 @@ class Servicer(GrpcServerServicer):
     """
 
     @log_rpc_call
-    def move(self, request: FileMoveParamObj, context) -> BooleanObj:
+    def move_files(self, request: FileMoveParamObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
         relative_paths: list[str] = list(request.relative_paths)
@@ -359,11 +380,11 @@ class Servicer(GrpcServerServicer):
         if not instance:
             return response
 
-        response.value = instance.move(relative_paths, request.dest_relative_path)
+        response.value = instance.move_files(relative_paths, request.dest_relative_path)
         return response
 
     @log_rpc_call
-    def rename(self, request: FileRenameParamObj, context) -> BooleanObj:
+    def rename_file(self, request: FileRenameParamObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
         if not request.relative_path or not request.new_name:
@@ -373,11 +394,11 @@ class Servicer(GrpcServerServicer):
         if not instance:
             return response
 
-        response.value = instance.rename(request.relative_path, request.new_name)
+        response.value = instance.rename_file(request.relative_path, request.new_name)
         return response
 
     @log_rpc_call
-    def delete(self, request: ListOfStringObj, context) -> BooleanObj:
+    def delete_files(self, request: ListOfStringObj, context) -> BooleanObj:
         response: BooleanObj = BooleanObj()
         response.value = False
         relative_paths: list[str] = list(request.value)
@@ -388,5 +409,5 @@ class Servicer(GrpcServerServicer):
         if not instance:
             return response
 
-        response.value = instance.delete(relative_paths)
+        response.value = instance.delete_files(relative_paths)
         return response

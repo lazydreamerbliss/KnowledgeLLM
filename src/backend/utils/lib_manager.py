@@ -50,6 +50,7 @@ class LibraryManager:
         # Current library instance
         self.instance: LibraryBase | None = None
 
+        LOGGER.info('Loading config file')
         current_lib: str = ''
         try:
             if not os.path.isfile(self.__path_config):
@@ -58,10 +59,14 @@ class LibraryManager:
                 obj: dict = pickle.load(open(self.__path_config, 'rb'))
                 self.__libraries = obj['libraries']
                 current_lib = obj['current_lib']
+
+            LOGGER.info(f'Found {len(self.__libraries)} libraries in config file')
             if current_lib:
+                LOGGER.info(f'Found active library: {current_lib}, try to instanize it')
                 if current_lib not in self.__libraries:
-                    raise LibraryManagerException('Config file corrupted')
-                self.__instanize_lib(current_lib)
+                    LOGGER.warn('Active library is not in library list, config file might be corrupted, active library ignored')
+                else:
+                    self.__instanize_lib(current_lib)
         except BaseException:
             raise LibraryManagerException('Config file corrupted')
 
@@ -222,7 +227,7 @@ class LibraryManager:
                 return False
         return False
 
-    def make_library_ready(self, **kwargs) -> str:
+    def make_library_ready(self, **kwargs) -> str | None:
         """Preheat the library instance to make it workable:
         - If the library is new, it will start initialization and load data
         - If the library is already initialized, it will load saved data to memory directly
@@ -231,7 +236,7 @@ class LibraryManager:
         - Otherwise use returned task ID to track the progress of preheat
 
         Returns:
-            str | None: Task ID
+            str | None: Task ID, UUID_EMPTY if the library is already ready, None for any failure
         """
         if not self.instance:
             raise LibraryManagerException('Library is not selected')
@@ -248,10 +253,10 @@ class LibraryManager:
             self.instance.set_embedder(ImageEmbedder())
             if incremental and not force_init:
                 # The phase count is 1 for image library's initialization task
-                task_id: str = self.task_runner.submit_task(self.instance.incremental_scan, None, True, True, 1)
+                task_id: str | None = self.task_runner.submit_task(self.instance.incremental_scan, None, True, True, 1)
             else:
-                task_id: str = self.task_runner.submit_task(self.instance.full_scan, None, True, True, 1,
-                                                            force_init=force_init)
+                task_id: str | None = self.task_runner.submit_task(self.instance.full_scan, None, True, True, 1,
+                                                                   force_init=force_init)
             return task_id
 
         # Document library case
@@ -271,13 +276,21 @@ class LibraryManager:
             lite_mode: bool = kwargs.get('lite_mode', False)
             self.instance.set_embedder(DocEmbedder(lite_mode=lite_mode))
             # The phase count is 2 for document library's initialization task
-            task_id: str = self.task_runner.submit_task(self.instance.use_doc, None, True, True, 2,
-                                                        relative_path=relative_path,
-                                                        provider_type=kwargs['provider_type'],
-                                                        force_init=kwargs.get('force_init', False))
+            task_id: str | None = self.task_runner.submit_task(self.instance.use_doc, None, True, True, 2,
+                                                               relative_path=relative_path,
+                                                               provider_type=kwargs['provider_type'],
+                                                               force_init=kwargs.get('force_init', False))
             return task_id
 
         # And more...
         # TODO: Add more library types here
 
         raise LibraryManagerException('Library type not supported')
+
+    def get_embedding_records(self) -> dict[str, str]:
+        """Get all embedding records of current library [relative_path: UUID]
+        """
+        if not self.instance:
+            return dict()
+
+        return self.instance.get_embedded_files()

@@ -19,7 +19,7 @@ LOGGING_RETENTION_PERIOD: int = 28
 # Log file name pattern for rotation
 LOG_FILE_PATTERN = "%Y.%m.%d.log"
 # Minimum logging level, DEV environment is DEBUG, PROD environment is INFO
-LOGGING_LEVEL: int = logging.DEBUG if ENV == Environment.DEV.name else logging.INFO
+LOGGING_LEVEL: int = logging.INFO if ENV == Environment.PROD.name else logging.DEBUG
 # Log entry format
 LOGGING_FORMATTER: str = "[%(name)s][%(levelname)s]|%(asctime)s|process:%(process)d|%(module)s|%(filename)s|@%(lineno)d|%(message)s"
 

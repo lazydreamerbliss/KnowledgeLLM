@@ -36,8 +36,11 @@ class TestServer:
 def run_test_client():
     test_client: GrpcClientForServerTest = GrpcClientForServerTest()
     test_client.test_heartbeat()
-    test_client.test_create_and_demolish_doc_lib()
-    test_client.test_create_and_demolish_image_lib()
+    # test_client.test_create_and_demolish_doc_lib()
+    # test_client.test_create_and_demolish_image_lib()
+    ##test_client.test_file_moving()
+    #test_client.test_file_rename()
+    test_client.test_complex_moving()
 
 
 def run_test_client_wrapper(run_server: bool = False):
