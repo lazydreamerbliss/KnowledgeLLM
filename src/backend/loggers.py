@@ -5,8 +5,14 @@ from typing import Any
 
 from utils.logging import CategoryLogger, DefaultLogger
 
+# Test logger
+test_logger: Logger = CategoryLogger.get_logger('test', 'test')
+
 # Default logger
 logger: Logger = DefaultLogger.get_logger('default')
+
+# Task runner logger
+task_runner_logger: Logger = DefaultLogger.get_logger('task')
 
 # Logger for gRPC calls
 rpc_logger: Logger = CategoryLogger.get_logger('grpc', 'grpc')
@@ -37,7 +43,7 @@ def log_time_cost(start_log: str, end_log: str, LOGGER: Logger = logger):
             try:
                 result: Any = func(*args, **kwargs)
                 time_taken: float = time() - start
-                LOGGER.info(f'{end_log}, cost: {time_taken:.2f}s')
+                LOGGER.debug(f'{end_log}, cost: {time_taken:.2f}s')
                 return result
             except Exception as e:
                 time_taken: float = time() - start

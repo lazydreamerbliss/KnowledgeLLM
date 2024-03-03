@@ -49,12 +49,12 @@ class DocLibVectorDb:
 
     @ensure_vector_db_connected
     def add(self, uuid: str | None, embedding: list[float]):
-        LOGGER.info(f'Adding embedding to vector DB')
+        LOGGER.debug(f'Adding embedding to vector DB')
         self.mem_vector_db.add(uuid, embedding)
 
     @ensure_vector_db_connected
     def remove(self, uuid: str):
-        LOGGER.info(f'Removing embedding from vector DB')
+        LOGGER.debug(f'Removing embedding from vector DB')
         self.mem_vector_db.remove([uuid], ids=None)
 
     @ensure_vector_db_connected

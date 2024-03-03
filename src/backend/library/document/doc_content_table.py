@@ -4,6 +4,7 @@ from db.sqlite.table import SqliteTable
 
 class DocContentTable(SqliteTable):
 
+    # Row format: (id, timestamp, text)
     TABLE_STRUCTURE: list[list[str]] = [
         ['id', 'INTEGER PRIMARY KEY'],
         ['timestamp', 'INTEGER NOT NULL'],

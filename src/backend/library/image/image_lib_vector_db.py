@@ -65,7 +65,7 @@ class ImageLibVectorDb:
 
     @ensure_vector_db_connected
     def add(self, uuid: str, embedding: list[float], pipeline: BatchedPipeline | None = None):
-        LOGGER.info(f'Adding embedding to vector DB')
+        LOGGER.debug(f'Adding embedding to vector DB')
         if self.redis_vector_db:
             self.redis_vector_db.add(uuid, embedding, pipeline)
         elif self.mem_vector_db:
@@ -73,7 +73,7 @@ class ImageLibVectorDb:
 
     @ensure_vector_db_connected
     def remove(self, uuid: str, pipeline: BatchedPipeline | None = None):
-        LOGGER.info(f'Removing embedding from vector DB')
+        LOGGER.debug(f'Removing embedding from vector DB')
         if self.redis_vector_db:
             self.redis_vector_db.remove(uuid, pipeline)
         elif self.mem_vector_db:

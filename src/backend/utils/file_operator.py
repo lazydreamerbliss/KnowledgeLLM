@@ -67,7 +67,11 @@ class FileOperator:
                 - dest_relative_path as the first param (new relative path after move)
                 - src_relative_path as the second param (old relative path before move)
 
-        Either src_relative_path or src_full_path should be provided
+        Example: move file `f.txt` from parent folder `/F1/F2/F3` to folder `/K1/K2`
+            - src_relative_path: /F1/F2/F3/f.txt
+            - dest_relative_path: /K1/K2/f.txt
+            - is_rename: False
+            - update_record: Callable[[str, str], None] | None
         """
         if is_rename:
             dest_filename: str = os.path.basename(dest_relative_path)
@@ -86,8 +90,12 @@ class FileOperator:
             return False
 
         # Create destination folder for target file and move the file
-        os.makedirs(os.path.dirname(dest_full_path), exist_ok=True)
-        shutil.move(src_full_path, dest_full_path)
+        try:
+            os.makedirs(os.path.dirname(dest_full_path), exist_ok=True)
+            shutil.move(src_full_path, dest_full_path)
+        except Exception as e:
+            LOGGER.error(f'Failed to move file, error: {e}')
+            return False
 
         # Call the updater callback if exists to update the record
         if update_record:
@@ -118,12 +126,22 @@ class FileOperator:
             update_record (Callable[[str, str], None] | None): The callback function to be called after the move operation
                 - dest_relative_path as the first param (new relative path after move)
                 - src_relative_path as the second param (old relative path before move)
+
+        Example: move folder `F2` from parent folder `/F1` to `/K1/K2`, and the new path for folder `F2` is `/K1/K2/F2`
+            - src_relative_path: /F1/F2
+            - dest_relative_path: /K1/K2/F2
+            - is_rename: False
+            - update_record: Callable[[str, str], None] | None
         """
         if is_rename:
             dest_foldername: str = os.path.basename(dest_relative_path)
             LOGGER.info(f'Rename folder {src_relative_path} -> {dest_foldername}')
         else:
             LOGGER.info(f'Move folder: {src_relative_path} -> {dest_relative_path}')
+
+        if dest_relative_path.startswith(src_relative_path):
+            LOGGER.error(f'Destination folder cannot be a sub-folder of source folder')
+            return False
 
         src_full_path: str = os.path.join(self.root_path, src_relative_path)
         if not os.path.isdir(src_full_path):
@@ -135,7 +153,8 @@ class FileOperator:
             LOGGER.error(f'Folder with same name already exists on target: {dest_relative_path}')
             return False
 
-        # file_relative_path is the relative path to the folder to be moved
+        # file_relative_path is the relative path to the source folder to be moved
+        # - Assuming source folder is `/F1/F2` and a file is `/F1/F2/F3/f.txt`, then file_relative_path is `F3/f.txt`
         all_success: bool = True
         for file_relative_path in self.folder_walker(src_relative_path, relative_to_source_folder=True):
             src_file_relative_path: str = os.path.join(src_relative_path, file_relative_path)

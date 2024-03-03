@@ -2,12 +2,12 @@ from sqlite3 import Cursor
 
 from db.sqlite.sql_basic import create_index_sql, initialize_table_sql
 from db.sqlite.table import SqliteTable, ensure_db
-
-from backend.library.document.wechat.sql import *
+from library.document.wechat.sql import *
 
 
 class WechatHistoryTable(SqliteTable):
 
+    # Row format: (id, timestamp, sender, message, reply_to, replied_message)
     TABLE_STRUCTURE: list[list[str]] = [
         ['id', 'INTEGER PRIMARY KEY'],
         ['timestamp', 'INTEGER NOT NULL'],

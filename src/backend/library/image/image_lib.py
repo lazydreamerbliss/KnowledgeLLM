@@ -76,7 +76,6 @@ class ImageLib(LibraryBase):
         will be purged afterwards, and for force init case index error are allowed
         - Set `ignore_index_error` to the value of `force_init` to ignore index error if force init is provided
         """
-        LOGGER.info(f'Instanize vector DB for library: {self.path_lib}')
         if not self.__vector_db:
             self.__vector_db = ImageLibVectorDb(use_redis=not self.local_mode,
                                                 lib_uuid=self._metadata['uuid'],
@@ -298,7 +297,7 @@ class ImageLib(LibraryBase):
                   force_init: bool = False,
                   progress_reporter: Callable[[int, int, str | None], None] | None = None,
                   cancel_event: Event | None = None):
-        LOGGER.info(f'Prepare to do full scan for library: {self.path_lib}')
+        LOGGER.info(f'Prepare to do full scan for library: {self.path_lib}, force init: {force_init}')
 
         ready: bool = self.is_ready()
         if ready and not force_init:
@@ -316,23 +315,23 @@ class ImageLib(LibraryBase):
 
         # If DBs are all loaded (case#2, an existing lib) and not force init, return directly
         if not force_init and self._embedding_table.row_count() > 0 and self.__vector_db.db_is_ready():  # type: ignore
-            LOGGER.info(f'Library is already ready after DB loading, abort operation')
+            LOGGER.info(f'Library is already ready, abort full scan operation')
             return
 
         # Refresh ready status, initialize the library for 3 cases:
-        # 1. Force init
-        # 2. New lib
-        # 3. Not a force init, but index corrupted. This can pass is_ready() check
-        # but will fail on vector_db.db_is_ready()
+        # 1. (ready) Force init
+        # 2. (ready) Not a force init, but index corrupted. is_ready() check is passed but vector_db.db_is_ready() is failed
+        # 3. (not ready) New lib
         ready: bool = self.is_ready()
         if ready:
             if force_init:
-                msg: str = f'Forcibly re-initializing library: {self.path_lib}, purging existing library data...'
+                msg: str = f'Forcibly re-initializing library: {self.path_lib}, purging existing library data'
             else:
-                msg: str = f'Vector DB corrupted, forcibly re-initializing library: {self.path_lib}, purging existing library data...'
-                LOGGER.info(msg)
-                self.__vector_db.clean_all_data()  # type: ignore
-                self._embedding_table.clean_all_data()
+                msg: str = f'Vector DB corrupted, forcibly re-initializing library: {self.path_lib}, purging existing library data'
+                LOGGER.warn(msg)
+            self.__vector_db.clean_all_data()  # type: ignore
+            self._embedding_table.clean_all_data()
+            LOGGER.info('Library data purged')
         else:
             LOGGER.info(f'Initialize library: {self.path_lib}, this is a new library')
 
@@ -419,7 +418,7 @@ class ImageLib(LibraryBase):
                            cancel_event=cancel_event)
             return
 
-        # Something is wrong here which should not happen, but just in case:
+        # Something is wrong here which should not happen but just in case:
         # - Embedding record table has records but vector DB is not ready, do force initialization instead
         if not self.__vector_db.db_is_ready():  # type: ignore
             LOGGER.info(f'Vector DB is not loaded, do full scan and initialization')

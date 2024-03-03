@@ -5,12 +5,11 @@ from typing import Any, Generator
 
 import docx
 from docx.document import Document
+from library.document.doc_content_table import DocContentTable
 from library.document.doc_provider_base import *
 from loggers import doc_lib_logger as LOGGER
 from pypdf import PdfReader
 from utils.task_runner import report_progress
-
-from backend.library.document.doc_content_table import DocContentTable
 
 TXT_EXTENSION: str = 'txt'
 PDF_EXTENSION: str = 'pdf'

@@ -26,6 +26,8 @@ service GrpcServer
     rpc get_library_path_list(VoidObj) returns(ListOfStringObj) {}
     rpc lib_exists(StringObj) returns(BooleanObj) {}
 
+    rpc get_embedding_records(VoidObj) returns(ListOfEmbeddingRecordObj) {}
+
     // Document library APIs
     rpc make_document_ready(LibGetReadyParamObj) returns(StringObj) {}
     rpc query_text(DocLibQueryObj) returns(ListOfDocLibQueryResponseObj) {}
@@ -38,7 +40,7 @@ service GrpcServer
     rpc get_image_tags(ImageLibQueryObj) returns(ListOfImageTagObj) {}
 
     // File/folder APIs
-    rpc move(FileMoveParamObj) returns(BooleanObj) {}
-    rpc rename(FileRenameParamObj) returns(BooleanObj) {}
-    rpc delete(ListOfStringObj) returns(BooleanObj) {}
+    rpc move_files(FileMoveParamObj) returns(BooleanObj) {}
+    rpc rename_file(FileRenameParamObj) returns(BooleanObj) {}
+    rpc delete_files(ListOfStringObj) returns(BooleanObj) {}
 }

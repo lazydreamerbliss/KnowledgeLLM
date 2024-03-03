@@ -163,33 +163,34 @@ class LibraryBase:
         raise NotImplementedError()
 
     """
-    File A/R/W/D operation methods
+    File/folder A/R/W/D operation methods
     - Do pre-checks and call the file operator to do the actual work
     """
 
     def add_files(self, target_relative_path: str, source_file: str) -> bool:
         raise NotImplementedError()
 
-    def move(self, relative_paths: list[str], dest_relative_path: str) -> bool:
+    def move_files(self, relative_paths: list[str], dest_folder_relative_path: str) -> bool:
         """Move a list of files/folders under current library to a target folder, and retain the existing embedding information
 
         Args:
             relative_paths (list[str]): A list of relative paths of the files/folders to be moved
-            target_relative_path (str): Target folder's relative path
+            dest_folder_relative_path (str): Relative path of the target folder to move the files/folders to
         """
-        if not relative_paths or dest_relative_path is None:
+        if not relative_paths or dest_folder_relative_path is None:
             return False
 
         all_success: bool = True
-        dest_relative_path = dest_relative_path.strip().lstrip(os.path.sep)
+        dest_folder_relative_path = dest_folder_relative_path.strip().lstrip(os.path.sep)
         for relative_path in relative_paths:
             relative_path = relative_path.strip().lstrip(os.path.sep)
+            LOGGER.info(f'Prepare to move item from {relative_path} to {dest_folder_relative_path}')
             full_path: str = os.path.join(self.path_lib, relative_path)
             if not os.path.exists(full_path):
                 continue
 
             name: str = os.path.basename(relative_path)
-            new_relative_path: str = os.path.join(dest_relative_path, name)
+            new_relative_path: str = os.path.join(dest_folder_relative_path, name)
             if relative_path == new_relative_path:
                 continue
 
@@ -206,7 +207,7 @@ class LibraryBase:
                                                               update_record=self._embedding_table.update_record_by_relative_path) and all_success  # type: ignore
         return all_success
 
-    def rename(self, relative_path: str, new_name: str) -> bool:
+    def rename_file(self, relative_path: str, new_name: str) -> bool:
         """Rename the given file/folder under current library and retain the existing embedding information
 
         Args:
@@ -220,6 +221,12 @@ class LibraryBase:
         if not relative_path or not new_name:
             return False
 
+        # Simple invalid new name cases
+        if new_name.startswith(os.path.sep) or new_name in ('.', '..'):
+            LOGGER.warning(f'Invalid new name: {new_name}, skip renaming')
+            return False
+
+        LOGGER.info(f'Prepare to rename item {relative_path} with new name: {new_name}')
         full_path: str = os.path.join(self.path_lib, relative_path)
         if not os.path.exists(full_path):
             return False
@@ -234,14 +241,14 @@ class LibraryBase:
             return self._file_operator.move_file(relative_path,
                                                  new_relative_path,
                                                  is_rename=True,
-                                                 update_record=self._embedding_table.update_record_by_relative_path) and all_success  # type: ignore
+                                                 update_record=self._embedding_table.update_record_by_relative_path)  # type: ignore
         else:
             return self._file_operator.move_folder(relative_path,
                                                    new_relative_path,
                                                    is_rename=True,
-                                                   update_record=self._embedding_table.update_record_by_relative_path) and all_success  # type: ignore
+                                                   update_record=self._embedding_table.update_record_by_relative_path)  # type: ignore
 
-    def delete(self, relative_paths: list[str]) -> bool:
+    def delete_files(self, relative_paths: list[str]) -> bool:
         """Delete the given files/folders from disk and its embedding
 
         Args:
@@ -252,6 +259,7 @@ class LibraryBase:
 
         all_success: bool = True
         for relative_path in relative_paths:
+            LOGGER.info(f'Prepare to delete item: {relative_path}')
             relative_path = relative_path.strip().lstrip(os.path.sep)
             if not relative_path:
                 continue
