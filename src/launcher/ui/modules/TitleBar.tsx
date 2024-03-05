@@ -3,7 +3,6 @@ import { getTitleBarRect, platform, windowEvents } from "../util/runtimeHelper";
 import TextInput from "../components/TextInput";
 import Button from "../components/Button";
 import Label from "../components/Label";
-import { getAppSettings } from "../api";
 import { appName } from "../../common/appInfo";
 
 export default function TitleBar() {
@@ -47,13 +46,13 @@ export default function TitleBar() {
     >
       <div
         className={
-          "app-no-drag-children h-full px-1 flex flex-row justify-between items-center" + (isMac ? " float-right" : "")
+          "app-no-drag-children h-full px-2 flex flex-row justify-between items-center" + (isMac ? " float-right" : "")
         }
         style={{
           width, // this avoids rendering contents behind control overlay
         }}
       >
-        <Label>Hello!</Label>
+        <Label className="app-drag">Hyper Vault</Label>
         <TextInput placeholder="Search" />
         <div />
       </div>

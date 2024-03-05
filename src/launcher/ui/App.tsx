@@ -1,18 +1,19 @@
 import React from "react";
-import { ApplyGlobalTheme } from "./tailwind.config";
+import { useApplyGlobalTheme } from "./tailwind.config";
 import TitleBar from "./modules/TitleBar";
 import TextInput from "./components/TextInput";
 import Button from "./components/Button";
+import LibPanel from "./modules/LibPanel";
+import ActivityBar from "./modules/ActivityBar";
 
-export default function UX() {
-  React.useEffect(() => {
-    ApplyGlobalTheme();
-  }, []);
+export default function App() {
+  useApplyGlobalTheme();
   return (
     <div className="w-full h-full bg-base text-base flex flex-col">
       <TitleBar />
       <div className="flex flex-1 flex-row">
-        <div className="p-1">This is lib panel</div>
+        <ActivityBar />
+        <LibPanel />
         <div className="flex-1 bg-workbench">
           This is workbench
           <TextInput placeholder="Place holder holder 1" />
